@@ -1,0 +1,5 @@
+{
+  "name": "DietMaster Pro AI",
+  "description": "Professional diet generator using OMS-FAO calculations, considering specific medical conditions and diet types.",
+  "requestFramePermissions": []
+}
