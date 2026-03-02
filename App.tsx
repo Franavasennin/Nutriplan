@@ -21,6 +21,9 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(false);
   
+  // Install Prompt State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
   // Current Session Data
   const [metrics, setMetrics] = useState<CalculatedMetrics | null>(null);
   const [plan, setPlan] = useState<DietResponse | null>(null);
@@ -30,6 +33,23 @@ const App: React.FC = () => {
   const [savedDiets, setSavedDiets] = useState<SavedDiet[]>([]);
   const [customFoods, setCustomFoods] = useState<CustomFood[]>([]);
   const [progressData, setProgressData] = useState<ClientProgress[]>([]);
+
+  // Capture Install Prompt
+  useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    });
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   // Load from local storage on mount
   useEffect(() => {
@@ -65,7 +85,7 @@ const App: React.FC = () => {
   useEffect(() => localStorage.setItem(STORAGE_KEY_FOODS, JSON.stringify(customFoods)), [customFoods]);
   useEffect(() => localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(progressData)), [progressData]);
 
-  // --- Backup Functions ---
+  // --- Backup Functions (JSON & CSV) ---
   const exportDatabase = () => {
     const data = {
       diets: savedDiets,
@@ -80,6 +100,34 @@ const App: React.FC = () => {
     link.download = `NutriPlan_Backup_${new Date().toLocaleDateString()}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+  
+  const exportCSV = () => {
+      // Create a CSV for Clients
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "ID,Nombre,Edad,Peso,Altura,IMC,Dieta,Fecha_Creacion\n";
+      
+      savedDiets.forEach(diet => {
+          const row = [
+              diet.id,
+              diet.patientData.name || "Sin Nombre",
+              diet.patientData.age,
+              diet.patientData.weight,
+              diet.patientData.height,
+              diet.metrics.imc,
+              diet.patientData.dietType,
+              new Date(diet.timestamp).toLocaleDateString()
+          ].join(",");
+          csvContent += row + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Clientes_NutriPlan_${new Date().toLocaleDateString()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const importDatabase = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,7 +298,7 @@ const App: React.FC = () => {
                         <div className="grid grid-cols-2 gap-2">
                             <button onClick={exportDatabase} className="flex flex-col items-center p-2 rounded-lg bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:text-primary transition-colors">
                                 <span className="material-symbols-outlined text-sm">download</span>
-                                <span className="text-[8px] font-bold">Copia</span>
+                                <span className="text-[8px] font-bold">Copia JSON</span>
                             </button>
                             <label className="flex flex-col items-center p-2 rounded-lg bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:text-primary transition-colors cursor-pointer">
                                 <span className="material-symbols-outlined text-sm">upload</span>
@@ -297,6 +345,9 @@ const App: React.FC = () => {
                     recentDiets={savedDiets.slice(0, 8)}
                     onNewClient={() => setCurrentStep('form')}
                     onLoadDiet={loadDiet}
+                    installEvent={deferredPrompt}
+                    onInstall={handleInstallApp}
+                    onExportCSV={exportCSV}
                 />
             )}
 

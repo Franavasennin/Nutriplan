@@ -10,9 +10,12 @@ interface Props {
     recentDiets: SavedDiet[];
     onNewClient: () => void;
     onLoadDiet: (diet: SavedDiet) => void;
+    installEvent: any;
+    onInstall: () => void;
+    onExportCSV: () => void;
 }
 
-const Dashboard: React.FC<Props> = ({ stats, recentDiets, onNewClient, onLoadDiet }) => {
+const Dashboard: React.FC<Props> = ({ stats, recentDiets, onNewClient, onLoadDiet, installEvent, onInstall, onExportCSV }) => {
     return (
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
             <div className="max-w-[1200px] mx-auto flex flex-col gap-8 pb-20">
@@ -23,8 +26,13 @@ const Dashboard: React.FC<Props> = ({ stats, recentDiets, onNewClient, onLoadDie
                         <p className="text-text-sub dark:text-gray-400 text-base font-normal">Visualiza y administra el progreso de tus pacientes.</p>
                     </div>
                     <div className="flex gap-3">
-                        <button className="flex size-10 items-center justify-center rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-main dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm">
-                            <span className="material-symbols-outlined">notifications</span>
+                         {installEvent && (
+                             <button onClick={onInstall} className="flex size-10 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm" title="Instalar Aplicación en Escritorio">
+                                <span className="material-symbols-outlined">download</span>
+                            </button>
+                         )}
+                        <button onClick={onExportCSV} className="flex size-10 items-center justify-center rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm" title="Exportar Base de Datos Excel/CSV">
+                            <span className="material-symbols-outlined">table_view</span>
                         </button>
                         <button onClick={onNewClient} className="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-10 px-5 bg-primary text-background-dark text-sm font-bold leading-normal tracking-[0.015em] hover:brightness-90 transition-all shadow-md shadow-primary/20">
                             <span className="material-symbols-outlined text-[20px]">add</span>

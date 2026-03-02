@@ -50,12 +50,23 @@
         body { font-family: 'Manrope', sans-serif; overflow: hidden; }
 
         @media print {
-            body { overflow: visible !important; height: auto !important; background: white !important; color: black !important; }
+            @page { margin: 0; size: auto; }
+            body { 
+                overflow: visible !important; 
+                height: auto !important; 
+                background: white !important; 
+                color: black !important; 
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
             #root > div > aside, 
             #root > div > main > div.no-print,
             .no-print { display: none !important; }
-            #root > div > main { display: block !important; overflow: visible !important; }
+            #root > div > main { display: block !important; overflow: visible !important; height: auto !important; }
             .only-print { display: block !important; }
+            
+            /* Asegurar saltos de página limpios */
+            .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
         }
     </style>
   <script type="importmap">

@@ -61,6 +61,11 @@ const DietPlanDisplay: React.FC<Props> = ({ metrics, plan, patientName }) => {
     window.print();
   };
 
+  const downloadPDF = () => {
+    alert("Para guardar como PDF:\n1. En la ventana que se abrirá, busca 'Destino' o 'Impresora'.\n2. Selecciona 'Guardar como PDF'.\n3. Haz clic en 'Guardar'.");
+    window.print();
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* --- SCREEN VIEW --- */}
@@ -77,9 +82,13 @@ const DietPlanDisplay: React.FC<Props> = ({ metrics, plan, patientName }) => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                     <button onClick={downloadPDF} className="flex items-center justify-center gap-2 h-11 px-6 rounded-xl bg-red-500 text-white border-2 border-red-600 text-sm font-bold hover:bg-red-600 transition-all shadow-sm">
+                        <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+                        <span>Descargar PDF</span>
+                    </button>
                     <button onClick={printPlan} className="flex items-center justify-center gap-2 h-11 px-6 rounded-xl bg-surface-light dark:bg-surface-dark border-2 border-border-light dark:border-border-dark text-text-main dark:text-white text-sm font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm">
                         <span className="material-symbols-outlined text-[20px]">print</span>
-                        <span>Imprimir Dieta</span>
+                        <span>Imprimir</span>
                     </button>
                 </div>
             </div>
@@ -145,7 +154,7 @@ const DietPlanDisplay: React.FC<Props> = ({ metrics, plan, patientName }) => {
       </div>
 
       {/* --- PRINT VIEW --- */}
-      <div className="hidden only-print bg-white text-black p-12">
+      <div className="hidden only-print bg-white text-black p-12 w-full">
         <div className="flex justify-between items-center border-b-4 border-green-500 pb-6 mb-8">
           <div>
              <h1 className="text-4xl font-black uppercase tracking-tighter text-green-600">NutriPlan Pro</h1>
@@ -164,47 +173,47 @@ const DietPlanDisplay: React.FC<Props> = ({ metrics, plan, patientName }) => {
           <div><span className="block text-gray-500 uppercase text-[10px] font-bold">Distribución Macros</span><span className="text-xs font-bold block mt-1">P:{metrics.macros.protein}g • C:{metrics.macros.carbs}g • G:{metrics.macros.fats}g</span></div>
         </div>
 
-        <div className="space-y-10">
+        <div className="space-y-8">
             {plan.weeklyPlan?.map((day) => (
-              <div key={day.day} className="break-inside-avoid">
+              <div key={day.day} className="break-inside-avoid mb-6 border-b border-gray-100 pb-6">
                 <h4 className="font-black text-xl mb-4 text-white bg-black inline-block px-4 py-1 rounded-md">DÍA {day.day}</h4>
-                <div className="grid grid-cols-1 gap-4">
-                   <div className="flex gap-4 border-b border-gray-100 pb-3">
-                      <div className="w-32 font-bold uppercase text-[10px] text-gray-400">Desayuno</div>
-                      <div className="flex-1 font-bold">{day.meals.breakfast.name} <span className="block text-xs font-normal text-gray-600">{day.meals.breakfast.description}</span></div>
+                <div className="grid grid-cols-1 gap-3">
+                   <div className="flex gap-4">
+                      <div className="w-24 font-bold uppercase text-[9px] text-gray-400 pt-1">Desayuno</div>
+                      <div className="flex-1 text-sm font-bold">{day.meals.breakfast.name} <span className="block text-[11px] font-normal text-gray-600 italic">{day.meals.breakfast.description}</span></div>
                    </div>
-                   <div className="flex gap-4 border-b border-gray-100 pb-3">
-                      <div className="w-32 font-bold uppercase text-[10px] text-gray-400">Media Mañana</div>
-                      <div className="flex-1 font-bold">{day.meals.morningSnack.name} <span className="block text-xs font-normal text-gray-600">{day.meals.morningSnack.description}</span></div>
-                   </div>
-                   <div className="flex gap-4 border-b border-gray-100 pb-3">
-                      <div className="w-32 font-bold uppercase text-[10px] text-gray-400">Almuerzo</div>
-                      <div className="flex-1 font-bold">{day.meals.lunch.name} <span className="block text-xs font-normal text-gray-600">{day.meals.lunch.description}</span></div>
-                   </div>
-                   <div className="flex gap-4 border-b border-gray-100 pb-3">
-                      <div className="w-32 font-bold uppercase text-[10px] text-gray-400">Merienda</div>
-                      <div className="flex-1 font-bold">{day.meals.afternoonSnack.name} <span className="block text-xs font-normal text-gray-600">{day.meals.afternoonSnack.description}</span></div>
+                   <div className="flex gap-4 bg-gray-50 p-2 rounded">
+                      <div className="w-24 font-bold uppercase text-[9px] text-gray-400 pt-1">Media Mañana</div>
+                      <div className="flex-1 text-sm font-bold">{day.meals.morningSnack.name} <span className="block text-[11px] font-normal text-gray-600 italic">{day.meals.morningSnack.description}</span></div>
                    </div>
                    <div className="flex gap-4">
-                      <div className="w-32 font-bold uppercase text-[10px] text-gray-400">Cena</div>
-                      <div className="flex-1 font-bold">{day.meals.dinner.name} <span className="block text-xs font-normal text-gray-600">{day.meals.dinner.description}</span></div>
+                      <div className="w-24 font-bold uppercase text-[9px] text-gray-400 pt-1">Almuerzo</div>
+                      <div className="flex-1 text-sm font-bold">{day.meals.lunch.name} <span className="block text-[11px] font-normal text-gray-600 italic">{day.meals.lunch.description}</span></div>
+                   </div>
+                   <div className="flex gap-4 bg-gray-50 p-2 rounded">
+                      <div className="w-24 font-bold uppercase text-[9px] text-gray-400 pt-1">Merienda</div>
+                      <div className="flex-1 text-sm font-bold">{day.meals.afternoonSnack.name} <span className="block text-[11px] font-normal text-gray-600 italic">{day.meals.afternoonSnack.description}</span></div>
+                   </div>
+                   <div className="flex gap-4">
+                      <div className="w-24 font-bold uppercase text-[9px] text-gray-400 pt-1">Cena</div>
+                      <div className="flex-1 text-sm font-bold">{day.meals.dinner.name} <span className="block text-[11px] font-normal text-gray-600 italic">{day.meals.dinner.description}</span></div>
                    </div>
                 </div>
               </div>
             ))}
         </div>
 
-        <div className="mt-12 pt-8 border-t border-gray-200">
+        <div className="mt-8 pt-8 border-t-2 border-green-500 break-inside-avoid">
             <h5 className="font-black text-lg mb-4 uppercase text-green-700">Recomendaciones del Especialista</h5>
-            <ul className="space-y-3">
+            <ul className="space-y-2">
                 {plan.generalGuidelines?.map((g, i) => (
-                    <li key={i} className="text-sm flex gap-3"><span className="text-green-500">•</span> {g}</li>
+                    <li key={i} className="text-xs flex gap-3"><span className="text-green-500 font-bold">•</span> {g}</li>
                 ))}
             </ul>
         </div>
         
-        <div className="mt-20 text-center text-[10px] text-gray-400 italic">
-            Documento generado por NutriPlan Pro AI para Ester Correa. Los cálculos siguen las directrices de la OMS/FAO.
+        <div className="mt-10 text-center text-[9px] text-gray-400 italic">
+            Documento generado por NutriPlan Pro AI para Ester Correa.
         </div>
       </div>
     </div>
