@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [react()],
   define: {
     // Inyectamos la API Key de forma segura en el objeto process.env para que la app la reconozca
-    'process.env.API_KEY': JSON.stringify("REDACTED_GEMINI_API_KEY"),
+    'process.env.API_KEY': JSON.stringify("REDACTED_GROQ_API_KEY"),
   },
 });

@@ -50,22 +50,44 @@
         body { font-family: 'Manrope', sans-serif; overflow: hidden; }
 
         @media print {
-            @page { margin: 0; size: auto; }
-            body { 
-                overflow: visible !important; 
-                height: auto !important; 
-                background: white !important; 
-                color: black !important; 
+            @page { margin: 1cm; size: A4; }
+
+            /* Reset total de overflow en toda la jerarquía */
+            *, *::before, *::after {
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+            }
+
+            body {
+                overflow: visible !important;
+                height: auto !important;
+                background: white !important;
+                color: black !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
-            #root > div > aside, 
-            #root > div > main > div.no-print,
+
+            /* Ocultar UI de pantalla */
+            aside,
             .no-print { display: none !important; }
-            #root > div > main { display: block !important; overflow: visible !important; height: auto !important; }
+
+            /* Expandir contenedores principales */
+            #root,
+            #root > div,
+            #root > div > main,
+            #root > div > main > div {
+                display: block !important;
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+                width: 100% !important;
+            }
+
+            /* Mostrar la vista de impresión */
             .only-print { display: block !important; }
-            
-            /* Asegurar saltos de página limpios */
+
+            /* Saltos de página limpios */
             .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
         }
     </style>
@@ -82,6 +104,7 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-background-light dark:bg-background-dark text-text-main dark:text-white">
     <div id="root" class="h-screen w-full flex flex-col overflow-hidden"></div>
