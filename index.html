@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#13ec5b">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2927/2927347.png">
+    <title>NutriPlan Pro AI - Ester Correa</title>
+    
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+    <!-- Tailwind CSS with Plugins -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13ec5b",
+                        "primary-hover": "#0fd650",
+                        "background-light": "#f6f8f6",
+                        "background-dark": "#102216",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a2e22",
+                        "text-main": "#111813",
+                        "text-sub": "#61896f",
+                        "border-light": "#dbe6df",
+                        "border-dark": "#2a4032",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"],
+                        "sans": ["Manrope", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #2a4030; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .active-nav-icon { font-variation-settings: 'FILL' 1 !important; }
+        body { font-family: 'Manrope', sans-serif; }
+        .bmi-marker { left: var(--bmi-pos, 0%); }
+
+        @media print {
+            @page { margin: 1cm; size: A4; }
+
+            /* Base */
+            html, body {
+                background: white !important;
+                color: black !important;
+                height: auto !important;
+                overflow: visible !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            /* Expandir solo los contenedores del árbol principal */
+            #root,
+            #root > div,
+            #root > div > main {
+                display: block !important;
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+                width: 100% !important;
+                position: static !important;
+            }
+
+            /* Overflow/height del wrapper de DietPlanDisplay — SIN display:block
+               para no sobreescribir display:none de elementos hermanos (MobileNav) */
+            #root > div > main > div:not(.no-print):not([class~="fixed"]) {
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+            }
+
+            /* Ocultar UI — especificidad alta (#root) para ganar a las reglas anteriores */
+            #root aside,
+            #root nav,
+            #root .no-print { display: none !important; }
+
+            /* Fixed/sticky: también forzar position:static + visibility:hidden
+               porque Chromium puede renderizar position:fixed aunque display:none */
+            #root [class~="fixed"],
+            #root [class~="sticky"] {
+              display: none !important;
+              position: static !important;
+              visibility: hidden !important;
+              height: 0 !important;
+              overflow: hidden !important;
+            }
+
+            /* Mostrar la vista de impresión */
+            .only-print { display: block !important; }
+
+            /* Saltos de página */
+            .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+            .print-page-break { break-before: page; page-break-before: always; padding-top: 1rem; }
+        }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-background-light dark:bg-background-dark text-text-main dark:text-white">
+    <div id="root" class="h-screen w-full flex flex-col overflow-auto"></div>
+    <script type="module" src="/index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg error:', err));
+        });
+      }
+    </script>
+  </body>
+</html>

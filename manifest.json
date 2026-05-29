@@ -1,0 +1,17 @@
+{
+  "name": "NutriPlan Pro AI - Ester Correa",
+  "short_name": "NutriPlan",
+  "description": "Sistema profesional de dietética clínica para Ester Correa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f8f6",
+  "theme_color": "#13ec5b",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2927/2927347.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

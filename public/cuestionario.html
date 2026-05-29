@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cuestionario Previo — Dieta Estructurada a Medida</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; font-size: 11pt; color: #1a1a1a; background: #fff; }
+
+  .page { max-width: 780px; margin: 0 auto; padding: 30px 36px; }
+
+  /* Header */
+  .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #4ade80; padding-bottom: 16px; margin-bottom: 24px; }
+  .header-title { }
+  .header-title h1 { font-size: 18pt; font-weight: 800; color: #14532d; line-height: 1.2; }
+  .header-title p { font-size: 9.5pt; color: #6b7280; margin-top: 4px; }
+  .header-logo { background: #14532d; color: #4ade80; font-weight: 800; font-size: 13pt; padding: 10px 16px; border-radius: 10px; letter-spacing: -0.5px; }
+
+  /* Instructions */
+  .instructions { background: #f0fdf4; border-left: 4px solid #4ade80; padding: 10px 14px; border-radius: 4px; margin-bottom: 24px; font-size: 9.5pt; color: #166534; }
+
+  /* Sections */
+  .section { margin-bottom: 22px; page-break-inside: avoid; }
+  .section-title { background: #14532d; color: #fff; font-weight: 700; font-size: 10.5pt; padding: 6px 14px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .section-title span { background: #4ade80; color: #14532d; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 9pt; font-weight: 800; flex-shrink: 0; }
+
+  /* Fields */
+  .field-grid { display: grid; gap: 10px; }
+  .field-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .field-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field label { font-size: 8.5pt; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.3px; }
+  .field-line { border: none; border-bottom: 1.5px solid #d1d5db; height: 22px; width: 100%; background: transparent; }
+  .field-long { border: 1.5px solid #d1d5db; border-radius: 4px; height: 36px; width: 100%; background: transparent; margin-top: 2px; }
+
+  /* Checkboxes */
+  .check-grid { display: grid; gap: 5px; }
+  .check-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .check-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .check-item { display: flex; align-items: center; gap: 6px; font-size: 9.5pt; }
+  .check-box { width: 13px; height: 13px; border: 1.5px solid #9ca3af; border-radius: 2px; flex-shrink: 0; display: inline-block; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th { background: #f3f4f6; font-weight: 700; text-align: center; padding: 6px 8px; border: 1px solid #d1d5db; font-size: 8.5pt; }
+  td { padding: 6px 8px; border: 1px solid #d1d5db; text-align: center; }
+  td.label-cell { text-align: left; font-weight: 600; }
+  tr:nth-child(even) td { background: #f9fafb; }
+
+  /* Scale */
+  .scale { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .scale-item { border: 1.5px solid #d1d5db; border-radius: 20px; padding: 3px 10px; font-size: 9pt; cursor: pointer; }
+
+  /* Radio */
+  .radio-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .radio-item { display: flex; align-items: center; gap: 5px; font-size: 9.5pt; }
+  .radio-box { width: 13px; height: 13px; border: 1.5px solid #9ca3af; border-radius: 50%; flex-shrink: 0; }
+
+  /* Yes/No inline */
+  .yesno { display: flex; align-items: center; gap: 14px; margin-top: 4px; font-size: 9.5pt; }
+
+  /* Subsection */
+  .sub-label { font-size: 9pt; font-weight: 600; color: #374151; margin: 8px 0 4px; }
+
+  /* Footer */
+  .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+  .footer p { font-size: 8pt; color: #9ca3af; }
+  .footer-sig { display: flex; gap: 30px; }
+  .sig-block { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .sig-line { width: 140px; border-bottom: 1.5px solid #6b7280; }
+  .sig-label { font-size: 7.5pt; color: #6b7280; }
+
+  /* Print */
+  @media print {
+    .no-print { display: none !important; }
+    body { font-size: 10.5pt; }
+    .page { padding: 20px 24px; }
+    @page { margin: 1.5cm; }
+  }
+
+  /* Print button */
+  .print-bar { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; z-index: 100; }
+  .btn { display: flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 10pt; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .btn-primary { background: #14532d; color: #4ade80; }
+  .btn-primary:hover { background: #166534; }
+  .btn-secondary { background: #fff; color: #374151; border: 1.5px solid #d1d5db; }
+  .btn-secondary:hover { background: #f9fafb; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-title">
+      <h1>Cuestionario Previo para Dieta Estructurada a Medida</h1>
+      <p>Confidencial · Solo uso clínico nutricional</p>
+    </div>
+    <div class="header-logo">NutriPlan</div>
+  </div>
+
+  <!-- INSTRUCCIONES -->
+  <div class="instructions">
+    <strong>Instrucciones:</strong> Por favor, conteste con sinceridad y detalle cada respuesta. Esta información nos ayudará a diseñar un plan nutricional adaptado a sus necesidades, estilo de vida y objetivos. Todos los datos son confidenciales.
+  </div>
+
+  <!-- SECCIÓN 1: DATOS PERSONALES -->
+  <div class="section">
+    <div class="section-title"><span>1</span> Datos Personales</div>
+    <div class="field-grid cols-2">
+      <div class="field">
+        <label>Nombre completo</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Fecha de nacimiento / Edad</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Sexo</label>
+        <div class="radio-group">
+          <div class="radio-item"><div class="radio-box"></div> Hombre</div>
+          <div class="radio-item"><div class="radio-box"></div> Mujer</div>
+          <div class="radio-item"><div class="radio-box"></div> Otro</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Ocupación</label>
+        <div class="field-line"></div>
+      </div>
+    </div>
+    <div class="field-grid cols-3" style="margin-top:10px">
+      <div class="field">
+        <label>Altura (cm)</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Peso actual (kg)</label>
+        <div class="field-line"></div>
+      </div>
+      <div class="field">
+        <label>Peso objetivo (kg)</label>
+        <div class="field-line"></div>
+      </div>
+    </div>
+    <div class="sub-label">Antecedentes familiares de enfermedades metabólicas:</div>
+    <div class="check-grid cols-3">
+      <div class="check-item"><div class="check-box"></div> Hipertensión</div>
+      <div class="check-item"><div class="check-box"></div> Diabetes tipo 1 o 2</div>
+      <div class="check-item"><div class="check-box"></div> Enfermedades tiroideas</div>
+      <div class="check-item"><div class="check-box"></div> Otra: <div style="display:inline-block;width:120px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div></div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 2: HISTORIA MÉDICA -->
+  <div class="section">
+    <div class="section-title"><span>2</span> Historia Médica</div>
+    <div class="sub-label">¿Ha sido diagnosticado/a con alguna de las siguientes condiciones?</div>
+    <div class="check-grid cols-3">
+      <div class="check-item"><div class="check-box"></div> Hipertensión</div>
+      <div class="check-item"><div class="check-box"></div> Diabetes tipo 1 o 2</div>
+      <div class="check-item"><div class="check-box"></div> Disfunción tiroidea</div>
+      <div class="check-item"><div class="check-box"></div> Enfermedad renal</div>
+      <div class="check-item"><div class="check-box"></div> Enfermedad hepática</div>
+      <div class="check-item"><div class="check-box"></div> Trastornos digestivos</div>
+      <div class="check-item"><div class="check-box"></div> Otra: <div style="display:inline-block;width:100px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div></div>
+    </div>
+    <div class="sub-label" style="margin-top:10px">Para cada condición marcada, ¿cómo la describiría?</div>
+    <div class="check-grid cols-2">
+      <div class="check-item"><div class="check-box"></div> Controlada con medicación u otros tratamientos</div>
+      <div class="check-item"><div class="check-box"></div> Con complicaciones recientes</div>
+    </div>
+    <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="sub-label">¿Cirugía relevante? (tipo y fecha)</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+      <div>
+        <div class="sub-label">¿Seguimiento por especialista?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 3: MEDICAMENTOS -->
+  <div class="section">
+    <div class="section-title"><span>3</span> Medicamentos, Suplementos e Interacciones</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="sub-label">¿Toma medicamentos con regularidad? (nombre, dosis, frecuencia)</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+      <div>
+        <div class="sub-label">¿Alimentos o suplementos que interfieran con sus medicamentos?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+    </div>
+    <div class="sub-label" style="margin-top:10px;">¿Consume suplementos nutricionales o vitamínicos?</div>
+    <div class="check-grid cols-3">
+      <div class="check-item"><div class="check-box"></div> Vitamina D</div>
+      <div class="check-item"><div class="check-box"></div> Omega-3</div>
+      <div class="check-item"><div class="check-box"></div> Hierro</div>
+      <div class="check-item"><div class="check-box"></div> Probióticos</div>
+      <div class="check-item"><div class="check-box"></div> Ninguno</div>
+      <div class="check-item"><div class="check-box"></div> Otro: <div style="display:inline-block;width:80px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div></div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 4: HÁBITOS ALIMENTARIOS -->
+  <div class="section">
+    <div class="section-title"><span>4</span> Hábitos Alimentarios</div>
+    <div class="sub-label">Frecuencia semanal de consumo y porción aproximada:</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Grupo alimentario</th>
+          <th>Nunca</th>
+          <th>1–2/sem</th>
+          <th>3–4/sem</th>
+          <th>Diario</th>
+          <th>Tamaño por porción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="label-cell">Carbohidratos refinados</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Grasas (frituras, embutidos)</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Azúcares (dulces, refrescos)</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Frutas frescas</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Verduras y hortalizas</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="sub-label" style="margin-top:10px;">Bebidas habituales:</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Bebida</th>
+          <th>Nunca</th>
+          <th>1–2/sem</th>
+          <th>3–4/sem</th>
+          <th>Diario (cantidad)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="label-cell">Café</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Té / infusiones</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Alcohol</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+        <tr><td class="label-cell">Jugo industrial</td><td>☐</td><td>☐</td><td>☐</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <div class="sub-label" style="margin-top:10px;">Horarios de comidas principales:</div>
+    <div class="field-grid cols-2">
+      <div class="field"><label>Desayuno</label><div class="field-line"></div></div>
+      <div class="field"><label>Comida</label><div class="field-line"></div></div>
+      <div class="field"><label>Cena</label><div class="field-line"></div></div>
+      <div class="field"><label>Snacks</label><div class="field-line"></div></div>
+    </div>
+
+    <div class="sub-label" style="margin-top:10px;">¿Cómo calificaría su apetito general?</div>
+    <div class="scale">
+      <div class="scale-item">Muy bajo</div>
+      <div class="scale-item">Bajo</div>
+      <div class="scale-item">Normal</div>
+      <div class="scale-item">Alto</div>
+      <div class="scale-item">Muy alto</div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 5: CONSUMO EMOCIONAL -->
+  <div class="section">
+    <div class="section-title"><span>5</span> Consumo Emocional y Conductas Alimentarias</div>
+    <div class="sub-label">¿Con qué frecuencia come en respuesta a estas emociones?</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Emoción</th>
+          <th>Nunca</th>
+          <th>Rara vez</th>
+          <th>A veces</th>
+          <th>Frecuente</th>
+          <th>Casi siempre</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="label-cell">Estrés laboral</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td></tr>
+        <tr><td class="label-cell">Ansiedad</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td></tr>
+        <tr><td class="label-cell">Tristeza</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td></tr>
+        <tr><td class="label-cell">Aburrimiento</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td><td>☐</td></tr>
+      </tbody>
+    </table>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+      <div>
+        <div class="sub-label">¿Ha tenido episodios de atracones?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí (frecuencia: <div style="display:inline-block;width:80px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div>)</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+      </div>
+      <div>
+        <div class="sub-label">¿Ha tenido ayunos prolongados?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí (duración: <div style="display:inline-block;width:80px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div>)</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+      </div>
+    </div>
+    <div class="sub-label" style="margin-top:8px;">¿Ha seguido dietas muy restrictivas o programas de ayuno?</div>
+    <div class="yesno">
+      <div class="check-item"><div class="radio-box"></div> Sí</div>
+      <div class="check-item"><div class="radio-box"></div> No</div>
+    </div>
+    <div class="field-long"></div>
+  </div>
+
+  <!-- SECCIÓN 6: PREFERENCIAS -->
+  <div class="section">
+    <div class="section-title"><span>6</span> Preferencias y Restricciones Dietéticas</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="sub-label">¿Sigue alguna dieta específica?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+      <div>
+        <div class="sub-label">¿Preferencias culturales o religiosas (halal, kosher…)?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+      <div>
+        <div class="sub-label">¿Alergias o intolerancias alimentarias?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+      <div>
+        <div class="sub-label">¿Alimentos que no tolera por textura, sabor o apariencia?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 7: SUEÑO Y ESTRÉS -->
+  <div class="section">
+    <div class="section-title"><span>7</span> Sueño y Estrés</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="sub-label">Horas de sueño promedio por noche:</div>
+        <div class="scale">
+          <div class="scale-item">&lt;5 h</div>
+          <div class="scale-item">5–6 h</div>
+          <div class="scale-item">7–8 h</div>
+          <div class="scale-item">&gt;8 h</div>
+        </div>
+      </div>
+      <div>
+        <div class="sub-label">Calidad del sueño:</div>
+        <div class="check-grid cols-1" style="gap:4px;margin-top:4px;">
+          <div class="check-item"><div class="check-box"></div> Se despierta frecuentemente durante la noche</div>
+          <div class="check-item"><div class="check-box"></div> Siente somnolencia diurna</div>
+          <div class="check-item"><div class="check-box"></div> Siempre descansado</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+      <div>
+        <div class="sub-label">Fuentes principales de estrés:</div>
+        <div class="check-grid cols-2">
+          <div class="check-item"><div class="check-box"></div> Trabajo</div>
+          <div class="check-item"><div class="check-box"></div> Familia</div>
+          <div class="check-item"><div class="check-box"></div> Finanzas</div>
+          <div class="check-item"><div class="check-box"></div> Otro: <div style="display:inline-block;width:60px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="sub-label">Nivel de estrés percibido (1–10):</div>
+        <div class="scale">
+          <div class="scale-item">1</div><div class="scale-item">2</div><div class="scale-item">3</div>
+          <div class="scale-item">4</div><div class="scale-item">5</div><div class="scale-item">6</div>
+          <div class="scale-item">7</div><div class="scale-item">8</div><div class="scale-item">9</div>
+          <div class="scale-item">10</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 8: ACTIVIDAD FÍSICA -->
+  <div class="section">
+    <div class="section-title"><span>8</span> Actividad Física</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="sub-label">¿Realiza ejercicio formal? (tipo, frecuencia, duración)</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+      <div>
+        <div class="sub-label">¿Limitaciones o lesiones que afecten la movilidad?</div>
+        <div class="yesno">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+        <div class="field-long"></div>
+      </div>
+    </div>
+    <div class="sub-label" style="margin-top:8px;">Actividad diaria (caminar, escaleras, trabajo activo):</div>
+    <div class="field-long"></div>
+  </div>
+
+  <!-- SECCIÓN 9: HIDRATACIÓN -->
+  <div class="section">
+    <div class="section-title"><span>9</span> Hidratación</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div class="sub-label">Vasos de agua (250 ml) al día:</div>
+        <div class="scale">
+          <div class="scale-item">0–3</div>
+          <div class="scale-item">4–6</div>
+          <div class="scale-item">7–9</div>
+          <div class="scale-item">≥10</div>
+        </div>
+      </div>
+      <div>
+        <div class="sub-label">¿Siente sed frecuente o sequedad bucal?</div>
+        <div class="yesno" style="margin-top:4px;">
+          <div class="check-item"><div class="radio-box"></div> Sí</div>
+          <div class="check-item"><div class="radio-box"></div> No</div>
+        </div>
+      </div>
+    </div>
+    <div class="sub-label" style="margin-top:8px;">Otras bebidas (infusiones, caldos, isotónicos) — frecuencia y cantidad:</div>
+    <div class="field-long"></div>
+  </div>
+
+  <!-- SECCIÓN 10: OBJETIVOS -->
+  <div class="section">
+    <div class="section-title"><span>10</span> Objetivos, Expectativas y Barreras</div>
+    <div class="sub-label">Objetivo principal:</div>
+    <div class="check-grid cols-3">
+      <div class="check-item"><div class="radio-box"></div> Pérdida de peso</div>
+      <div class="check-item"><div class="radio-box"></div> Ganancia muscular</div>
+      <div class="check-item"><div class="radio-box"></div> Mejora rendimiento</div>
+      <div class="check-item"><div class="radio-box"></div> Salud general</div>
+      <div class="check-item"><div class="radio-box"></div> Otro: <div style="display:inline-block;width:100px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div></div>
+    </div>
+    <div class="sub-label" style="margin-top:10px;">Cambios específicos que espera ver:</div>
+    <div class="field-long" style="height:44px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+      <div>
+        <div class="sub-label">Plazo para ver resultados significativos:</div>
+        <div class="scale" style="margin-top:6px;">
+          <div class="scale-item">1–2 meses</div>
+          <div class="scale-item">3–4 meses</div>
+          <div class="scale-item">5–6 meses</div>
+          <div class="scale-item">&gt;6 meses</div>
+        </div>
+      </div>
+      <div>
+        <div class="sub-label">Principales barreras para cumplir el plan:</div>
+        <div class="check-grid cols-2" style="margin-top:4px;">
+          <div class="check-item"><div class="check-box"></div> Falta de tiempo</div>
+          <div class="check-item"><div class="check-box"></div> Recursos económicos</div>
+          <div class="check-item"><div class="check-box"></div> Apoyo familiar</div>
+          <div class="check-item"><div class="check-box"></div> Otro: <div style="display:inline-block;width:60px;border-bottom:1px solid #9ca3af;margin-left:4px;"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <p>Gracias por su colaboración. La información es confidencial y se usará<br>exclusivamente para diseñar su plan nutricional personalizado.</p>
+    <div class="footer-sig">
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-label">Firma del paciente</div>
+      </div>
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-label">Fecha</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Botones de impresión / descarga -->
+<div class="print-bar no-print">
+  <button class="btn btn-secondary" onclick="window.close()">✕ Cerrar</button>
+  <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+</div>
+
+</body>
+</html>

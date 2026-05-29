@@ -1,0 +1,263 @@
+import { PatientData, Gender, ActivityLevel, DietType, AthleteGoal, Condition, CalorieGoal, CALORIE_GOAL_ADJUST } from '../types';
+
+// ─── IMC ──────────────────────────────────────────────────────────────────────
+
+export const calculateIMC = (weight: number, height: number): number => {
+  const h = height / 100;
+  return parseFloat((weight / (h * h)).toFixed(2));
+};
+
+export type IMCCategory =
+  | 'Bajo peso'
+  | 'Normopeso'
+  | 'Sobrepeso'
+  | 'Obesidad grado I'
+  | 'Obesidad grado II'
+  | 'Obesidad grado III';
+
+export const getIMCCategory = (imc: number): IMCCategory => {
+  if (imc < 18.5) return 'Bajo peso';
+  if (imc < 25)   return 'Normopeso';
+  if (imc < 30)   return 'Sobrepeso';
+  if (imc < 35)   return 'Obesidad grado I';
+  if (imc < 40)   return 'Obesidad grado II';
+  return 'Obesidad grado III';
+};
+
+// ─── Peso ideal (Lorentz) ─────────────────────────────────────────────────────
+
+export const calculateIdealWeight = (height: number, gender: Gender): number => {
+  // Fórmula de Lorentz
+  if (gender === Gender.Male) {
+    return parseFloat((height - 100 - (height - 150) / 4).toFixed(1));
+  }
+  return parseFloat((height - 100 - (height - 150) / 2).toFixed(1));
+};
+
+// ─── Peso ajustado (para obesidad — cálculos de macro y dosis) ────────────────
+// Solo aplicar cuando IMC > 30. Usa peso ideal como base.
+
+export const calculateAdjustedWeight = (
+  actualWeight: number,
+  idealWeight: number
+): number => {
+  return parseFloat((idealWeight + 0.25 * (actualWeight - idealWeight)).toFixed(1));
+};
+
+// ─── BMR — Ecuaciones OMS-FAO ─────────────────────────────────────────────────
+
+export const calculateBMR = (data: PatientData): number => {
+  const { age, gender, weight } = data;
+  let bmr = 0;
+
+  if (gender === Gender.Male) {
+    if (age < 3)        bmr = 60.9  * weight - 54;
+    else if (age < 10)  bmr = 22.7  * weight + 495;
+    else if (age < 18)  bmr = 17.5  * weight + 651;
+    else if (age < 30)  bmr = 15.3  * weight + 679;
+    else if (age < 60)  bmr = 11.6  * weight + 879;
+    else                bmr = 13.5  * weight + 487;
+  } else {
+    if (age < 3)        bmr = 61.0  * weight - 51;
+    else if (age < 10)  bmr = 22.5  * weight + 499;
+    else if (age < 18)  bmr = 12.2  * weight + 746;
+    else if (age < 30)  bmr = 14.7  * weight + 496;
+    else if (age < 60)  bmr = 8.7   * weight + 829;
+    else                bmr = 10.5  * weight + 596;
+  }
+
+  return Math.round(bmr);
+};
+
+// ─── Factor de actividad ──────────────────────────────────────────────────────
+
+export const getActivityFactor = (level: ActivityLevel): number => {
+  switch (level) {
+    case ActivityLevel.Sedentary: return 1.2;
+    case ActivityLevel.Light:     return 1.375;
+    case ActivityLevel.Moderate:  return 1.55;
+    case ActivityLevel.Heavy:     return 1.725;
+    case ActivityLevel.Athlete:   return 1.9;
+    default:                      return 1.2;
+  }
+};
+
+// ─── GET (Gasto Energético Total) ─────────────────────────────────────────────
+// CORRECCIÓN: Los factores OMS-FAO ya incorporan el efecto térmico de los
+// alimentos (TEF ~10%). No debe sumarse por separado — la versión anterior
+// lo contabilizaba dos veces.
+
+export const calculateTEE = (bmr: number, activityLevel: ActivityLevel): number => {
+  return Math.round(bmr * getActivityFactor(activityLevel));
+};
+
+// ─── Distribución de macronutrientes ─────────────────────────────────────────
+// Proteína calculada desde g/kg de peso de referencia (estándar clínico).
+// El resto de calorías se distribuye entre grasa y carbohidratos según la dieta.
+
+interface MacroDef {
+  proteinGPerKg: number;       // g proteína por kg de peso de referencia
+  fatOfRemaining: number;      // fracción de (kcal_restantes tras proteína) → grasa
+  kcalAdjust?: number;         // ajuste calórico respecto al GET (déficit/superávit)
+}
+
+// ─── Distribución de macros por tipo de dieta ─────────────────────────────────
+// proteinGPerKg: g proteína por kg de peso de referencia (ESPEN / NAM guidelines).
+// fatOfRemaining: fracción de (kcal restantes tras proteína) que van a grasa.
+//   → El resto va a carbohidratos.
+//
+// Revisión clínica de cada tipo:
+//   Equilibrada      P 20-25% / G 25-30% / HC 45-55%  → proteinGPerKg 1.4, fatOfRemaining 0.33
+//   Mediterránea     P 18-22% / G 35-40% / HC 40-50%  → proteinGPerKg 1.3, fatOfRemaining 0.42
+//   Baja en carbos   P 25-30% / G 40-50% / HC 20-30%  → proteinGPerKg 1.8, fatOfRemaining 0.58
+//   Cetogénica       P 15-20% / G 70-75% / HC  5-10%  → proteinGPerKg 1.5, fatOfRemaining 0.82
+//   Vegetariana      P 18-22% / G 25-30% / HC 45-55%  → proteinGPerKg 1.4, fatOfRemaining 0.33
+//   Vegana           P 18-22% / G 25-30% / HC 45-55%  → proteinGPerKg 1.5, fatOfRemaining 0.30 (más proteína por biodisponibilidad vegetal)
+//   Paleo            P 25-30% / G 35-45% / HC 25-35%  → proteinGPerKg 1.7, fatOfRemaining 0.48
+//   Proteica         P 30-35% / G 25-30% / HC 35-40%  → proteinGPerKg 2.0, fatOfRemaining 0.38
+//   Atleta           → sobrescrito por AthleteGoal
+//   DAP4/5           → protocolos médicos Protéifine (sin cambio)
+
+const MACRO_DEFS: Record<DietType, MacroDef> = {
+  [DietType.Balanced]:      { proteinGPerKg: 1.4, fatOfRemaining: 0.33 }, // ~20%P / 27%G / 53%HC
+  [DietType.Mediterranean]: { proteinGPerKg: 1.3, fatOfRemaining: 0.42 }, // ~20%P / 36%G / 44%HC — grasa principalmente AOVE+pescado
+  [DietType.LowCarb]:       { proteinGPerKg: 1.8, fatOfRemaining: 0.58 }, // ~25%P / 42%G / 33%HC
+  [DietType.Keto]:          { proteinGPerKg: 1.5, fatOfRemaining: 0.82 }, // ~18%P / 72%G / 10%HC
+  [DietType.Vegetarian]:    { proteinGPerKg: 1.4, fatOfRemaining: 0.33 }, // igual que equilibrada, fuentes vegetales
+  [DietType.Vegan]:         { proteinGPerKg: 1.5, fatOfRemaining: 0.30 }, // +0.1g/kg por menor biodisponibilidad proteica vegetal
+  [DietType.Paleo]:         { proteinGPerKg: 1.7, fatOfRemaining: 0.48 }, // ~28%P / 38%G / 34%HC
+  [DietType.Protein]:       { proteinGPerKg: 2.0, fatOfRemaining: 0.38 }, // ~32%P / 28%G / 40%HC
+  [DietType.Athlete]:       { proteinGPerKg: 2.0, fatOfRemaining: 0.25 }, // base — sobrescrito por AthleteGoal
+  [DietType.ProteinDAP4]:   { proteinGPerKg: 1.6, fatOfRemaining: 0.45 }, // protocolo médico Protéifine
+  [DietType.ProteinDAP5]:   { proteinGPerKg: 1.5, fatOfRemaining: 0.40 }, // protocolo médico Protéifine
+  [DietType.Precooked]:     { proteinGPerKg: 1.4, fatOfRemaining: 0.33 }, // sin cocina — distribución equilibrada con conservas
+};
+
+// Macros específicos por objetivo atleta (sobrescriben el valor base de DietType.Athlete)
+const ATHLETE_GOAL_DEFS: Record<AthleteGoal, MacroDef> = {
+  // Rendimiento: mantenimiento calórico, carbos altos para combustible. 28% grasa protege hormonas en mujeres activas.
+  [AthleteGoal.Performance]: { proteinGPerKg: 2.0, fatOfRemaining: 0.28, kcalAdjust:    0 },
+  // Definición: déficit moderado, proteína alta para preservar músculo
+  [AthleteGoal.Definition]:  { proteinGPerKg: 2.3, fatOfRemaining: 0.30, kcalAdjust: -350 },
+  // Volumen: superávit controlado, proteína alta para síntesis muscular
+  [AthleteGoal.Volume]:      { proteinGPerKg: 2.2, fatOfRemaining: 0.25, kcalAdjust: +400 },
+};
+
+// referenceWeightKg: peso ajustado si IMC > 30, peso real si no.
+// imc:         si > 30 y no hay calorieGoal explícito → déficit auto de −450 kcal.
+// conditions:  si incluye diabetes_t2 → cap de grasa al 28% de calorías totales.
+// calorieGoal: objetivo calórico explícito del usuario (sobreescribe el auto-déficit de obesidad).
+export const calculateMacros = (
+  tee: number,
+  dietType: DietType,
+  referenceWeightKg: number,
+  athleteGoal?: AthleteGoal,
+  imc?: number,
+  conditions?: Condition[],
+  calorieGoal?: CalorieGoal
+) => {
+  const isAthlete = dietType === DietType.Athlete && !!athleteGoal;
+  const def = isAthlete
+    ? ATHLETE_GOAL_DEFS[athleteGoal!]
+    : (MACRO_DEFS[dietType] ?? MACRO_DEFS[DietType.Balanced]);
+
+  const MIN_CALORIES    = 1500;
+  const OBESITY_DEFICIT = 450; // kcal — déficit clínico estándar para IMC > 30
+
+  // ── Ajuste calórico ─────────────────────────────────────────────────────────
+  let kcalAdjust: number;
+
+  if (isAthlete) {
+    // Atleta: el ajuste lo define AthleteGoal (rendimiento/definición/volumen)
+    kcalAdjust = def.kcalAdjust ?? 0;
+  } else if (calorieGoal !== undefined && calorieGoal !== CalorieGoal.Maintenance) {
+    // El usuario seleccionó un objetivo calórico explícito → respetarlo siempre
+    kcalAdjust = CALORIE_GOAL_ADJUST[calorieGoal];
+  } else if (imc !== undefined && imc > 30) {
+    // Sin objetivo explícito + obesidad → déficit automático de seguridad
+    kcalAdjust = -OBESITY_DEFICIT;
+  } else {
+    kcalAdjust = 0; // mantenimiento
+  }
+
+  const targetCalories = Math.max(tee + kcalAdjust, MIN_CALORIES);
+
+  let protein = Math.round(def.proteinGPerKg * referenceWeightKg);
+  const remaining = Math.max(targetCalories - protein * 4, 0);
+  let fats  = Math.round(remaining * def.fatOfRemaining / 9);
+  let carbs = Math.round(remaining * (1 - def.fatOfRemaining) / 4);
+
+  // ── Cap de grasa al 28% para diabetes tipo 2 ───────────────────────────────
+  // Exceso redistribuido a proteína (mejora saciedad y control glucémico)
+  if (conditions?.includes(Condition.DiabetesType2)) {
+    const maxFatG = Math.floor(targetCalories * 0.28 / 9);
+    if (fats > maxFatG) {
+      const savedCals = (fats - maxFatG) * 9;
+      fats    = maxFatG;
+      protein = Math.round(protein + savedCals / 4);
+    }
+  }
+
+  return { protein, fats, carbs, calories: targetCalories };
+};
+
+// ─── Ingesta hídrica diaria ───────────────────────────────────────────────────
+// Base: 35 ml/kg. Ajuste: +500 ml por nivel de actividad moderado/intenso.
+
+export const calculateDailyWater = (weight: number, activity: ActivityLevel): number => {
+  const base = weight * 35; // ml
+  const activityBonus =
+    activity === ActivityLevel.Moderate ? 500 :
+    activity === ActivityLevel.Heavy    ? 750 :
+    activity === ActivityLevel.Athlete  ? 1000 : 0;
+  return Math.round((base + activityBonus) / 100) * 100; // redondeado a 100ml
+};
+
+// ─── Ratio cintura / talla (RCT) ─────────────────────────────────────────────
+// Indicador de riesgo cardiometabólico. Valor seguro: < 0.5 en adultos.
+
+export const calculateWaistHeightRatio = (waistCm: number, heightCm: number): number => {
+  return parseFloat((waistCm / heightCm).toFixed(3));
+};
+
+export type WaistRiskLevel = 'Bajo' | 'Moderado' | 'Alto' | 'Muy alto';
+
+export const getWaistRisk = (ratio: number): WaistRiskLevel => {
+  if (ratio < 0.43) return 'Bajo';
+  if (ratio < 0.50) return 'Moderado';
+  if (ratio < 0.58) return 'Alto';
+  return 'Muy alto';
+};
+
+// ─── Resumen completo de métricas ─────────────────────────────────────────────
+// Función de conveniencia que devuelve todo en una sola llamada.
+
+export interface ExtendedMetrics {
+  imc: number;
+  imcCategory: IMCCategory;
+  bmr: number;
+  tee: number;
+  idealWeight: number;
+  adjustedWeight: number | null; // null si IMC ≤ 30
+  dailyWater: number; // ml
+  macros: {
+    protein: number;
+    fats: number;
+    carbs: number;
+    calories: number;
+  };
+}
+
+export const calculateAllMetrics = (data: PatientData): ExtendedMetrics => {
+  const imc            = calculateIMC(data.weight, data.height);
+  const imcCategory    = getIMCCategory(imc);
+  const bmr            = calculateBMR(data);
+  const tee            = calculateTEE(bmr, data.activity);
+  const idealWeight    = calculateIdealWeight(data.height, data.gender);
+  const adjustedWeight = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : null;
+  const refWeight      = adjustedWeight ?? data.weight;
+  const macros         = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal);
+  const dailyWater     = calculateDailyWater(data.weight, data.activity);
+
+  return { imc, imcCategory, bmr, tee, idealWeight, adjustedWeight, dailyWater, macros };
+};
