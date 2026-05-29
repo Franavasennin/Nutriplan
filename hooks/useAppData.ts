@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import {
   SavedDiet, CustomFood, ClientProgress, Recipe,
-  PatientData, CalculatedMetrics, DietResponse, ProgressEntry, PlanVersion
+  PatientData, CalculatedMetrics, DietResponse, ProgressEntry, PlanVersion,
+  CouplesDiet
 } from '../types';
 
 // ── Row → app type converters ────────────────────────────────────────────────
@@ -14,6 +15,13 @@ const rowToDiet = (r: any): SavedDiet => ({
   metrics:      r.metrics,
   plan:         r.plan,
   planVersions: r.plan_versions ?? [],
+});
+
+const rowToCouples = (r: any): CouplesDiet => ({
+  id:        r.id,
+  timestamp: r.timestamp,
+  personA:   r.person_a,
+  personB:   r.person_b,
 });
 
 const rowToFood = (r: any): CustomFood => ({
@@ -48,6 +56,7 @@ export function useAppData() {
   const [savedDiets,   setSavedDiets]   = useState<SavedDiet[]>([]);
   const [customFoods,  setCustomFoods]  = useState<CustomFood[]>([]);
   const [progressData, setProgressData] = useState<ClientProgress[]>([]);
+  const [couplesDiets, setCouplesDiets] = useState<CouplesDiet[]>([]);
   const [dbOnline,     setDbOnline]     = useState(true);
   const [isDbLoading,  setIsDbLoading]  = useState(true);
 
@@ -110,6 +119,29 @@ export function useAppData() {
       }
     }
     load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Carga de dietas de pareja (separada: si la tabla no existe, no rompe el resto) ──
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCouples() {
+      try {
+        const { data, error } = await supabase
+          .from('couples_diets')
+          .select('*')
+          .order('timestamp', { ascending: false });
+        if (cancelled) return;
+        if (error) {
+          console.warn('[couples_diets] no disponible:', error.message);
+          return;
+        }
+        setCouplesDiets((data ?? []).map(rowToCouples));
+      } catch (err: any) {
+        if (!cancelled) console.warn('[couples_diets] error:', err?.message);
+      }
+    }
+    loadCouples();
     return () => { cancelled = true; };
   }, []);
 
@@ -210,6 +242,26 @@ export function useAppData() {
     setSavedDiets(prev => prev.map(d => d.id === id ? { ...d, plan: version.plan } : d));
     supabase.from('saved_diets').update({ plan: version.plan }).eq('id', id)
       .then(({ error }) => { if (error) console.error('restorePlanVersion:', error.message); });
+  }, []);
+
+  // ── Couples diets ───────────────────────────────────────────────────────────
+
+  /** Guarda dos SavedDiet vinculadas como una dieta de pareja. Devuelve el id. */
+  const saveCouplesDiet = useCallback((personA: SavedDiet, personB: SavedDiet): string => {
+    const id = crypto.randomUUID();
+    const ts = Date.now();
+    const couples: CouplesDiet = { id, timestamp: ts, personA, personB };
+    setCouplesDiets(prev => [couples, ...prev]);
+    supabase.from('couples_diets').insert({
+      id, timestamp: ts, person_a: personA, person_b: personB,
+    }).then(({ error }) => { if (error) console.error('saveCouplesDiet:', error.message); });
+    return id;
+  }, []);
+
+  const deleteCouplesDiet = useCallback((id: string) => {
+    setCouplesDiets(prev => prev.filter(c => c.id !== id));
+    supabase.from('couples_diets').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.error('deleteCouplesDiet:', error.message); });
   }, []);
 
   // ── Foods ─────────────────────────────────────────────────────────────────
@@ -350,6 +402,7 @@ export function useAppData() {
     savedDiets,
     customFoods,
     progressData,
+    couplesDiets,
     dbRecipes,
     uniqueClients,
     dbOnline,
@@ -361,6 +414,8 @@ export function useAppData() {
     deleteDiet,
     appendDiets,
     restorePlanVersion,
+    saveCouplesDiet,
+    deleteCouplesDiet,
     addCustomFood,
     editCustomFood,
     deleteCustomFood,

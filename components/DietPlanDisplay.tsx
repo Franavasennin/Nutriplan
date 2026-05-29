@@ -3,6 +3,9 @@ import { CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietTy
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
 import { generateShoppingList, ShoppingList } from '../utils/shoppingList';
+import { generateSingleMeal } from '../services/geminiService';
+import { useConfirm } from './ConfirmDialog';
+import { useToast } from './Toast';
 
 interface Props {
   metrics: CalculatedMetrics;
@@ -13,6 +16,7 @@ interface Props {
   patientData?: PatientData;
   isLoading?: boolean;
   planVersions?: PlanVersion[];
+  dietId?: string;
   onUpdatePlan?: (updatedPlan: DietResponse) => void;
   onRegenerate?: (newDietType: DietType) => void;
   onRegenerateDay?: (dayNumber: number) => void;
@@ -201,10 +205,11 @@ interface MealSectionProps {
   onCancel: () => void;
   onSwapRequest?: () => void;
   isSwapping?: boolean;
+  onRemove?: () => void;
 }
 
 const MealSection: React.FC<MealSectionProps> = ({
-  title, time, meal, icon, mealKey, editingKey, activeEditKey, onEditRequest, onSave, onCancel, onSwapRequest, isSwapping,
+  title, time, meal, icon, mealKey, editingKey, activeEditKey, onEditRequest, onSave, onCancel, onSwapRequest, isSwapping, onRemove,
 }) => {
   if (!meal) return null;
   const isEditing = activeEditKey === editingKey;
@@ -225,6 +230,12 @@ const MealSection: React.FC<MealSectionProps> = ({
             {meal.carbs   != null && <span>HC {meal.carbs}g</span>}
             {meal.fats    != null && <span>G {meal.fats}g</span>}
           </div>
+        )}
+        {onRemove && (
+          <button onClick={onRemove} title={`Eliminar ${title}`}
+            className={`size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all no-print ${meal.calories != null ? '' : 'ml-auto'}`}>
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
         )}
       </div>
       <div className="p-4">
@@ -338,8 +349,11 @@ function sumDayMacros(meals: DayPlan['meals']) {
 
 const DietPlanDisplay: React.FC<Props> = ({
   metrics, plan, patientName, mealCount, fastingProtocol, patientData,
-  isLoading, planVersions, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
+  isLoading, planVersions, dietId, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
 }) => {
+  const { confirm } = useConfirm();
+  const { toast }   = useToast();
+
   const [activeDay,      setActiveDay]      = useState<number>(1);
   const [activeEdit,     setActiveEdit]     = useState<string | null>(null);
   const [hasChanges,     setHasChanges]     = useState(false);
@@ -349,6 +363,9 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [showShopping,   setShowShopping]   = useState(false);
   const [selectedDiet,   setSelectedDiet]   = useState<DietType>(patientData?.dietType ?? DietType.Balanced);
   const [swappingKey,    setSwappingKey]    = useState<string | null>(null); // `${day}-${mealKey}`
+  const [listHasChanges, setListHasChanges] = useState(false);   // feature 4: lista compra
+  const [addingMeal,     setAddingMeal]     = useState(false);   // feature 1: spinner añadir toma
+  const [showMealPicker, setShowMealPicker] = useState(false);   // feature 1: selector de toma
 
   const shoppingList: ShoppingList = useMemo(() => generateShoppingList(localPlan), [localPlan]);
 
@@ -359,28 +376,59 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [addingToCat, setAddingToCat] = useState<number | null>(null);
   const [newItemName, setNewItemName] = useState('');
 
+  // feature 4: clave localStorage por dieta y helpers seguros (modo incógnito)
+  const shoppingKey = dietId ? `shopping_list_${dietId}` : null;
+  const canPersistList = (() => {
+    try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return true; }
+    catch { return false; }
+  })();
+
   useEffect(() => {
     if (showShopping) {
-      setEditList(shoppingList.map(cat => ({
+      // Intentar cargar una lista guardada para esta dieta
+      let loaded: EditCat[] | null = null;
+      if (shoppingKey && canPersistList) {
+        try {
+          const raw = localStorage.getItem(shoppingKey);
+          if (raw) loaded = JSON.parse(raw) as EditCat[];
+        } catch { loaded = null; }
+      }
+      setEditList(loaded ?? shoppingList.map(cat => ({
         ...cat,
         items: cat.items.map(item => ({ ...item, checked: false })),
       })));
+      setListHasChanges(false);
       setAddingToCat(null);
       setNewItemName('');
     }
   }, [showShopping, shoppingList]);
 
-  const toggleShopItem = (ci: number, ii: number) =>
+  const saveShoppingList = () => {
+    if (!shoppingKey || !canPersistList) return;
+    try {
+      localStorage.setItem(shoppingKey, JSON.stringify(editList));
+      setListHasChanges(false);
+      toast('Lista de la compra guardada.', 'success');
+    } catch {
+      toast('No se pudo guardar la lista (almacenamiento no disponible).', 'error');
+    }
+  };
+
+  const toggleShopItem = (ci: number, ii: number) => {
     setEditList(prev => prev.map((cat, c) =>
       c !== ci ? cat : { ...cat, items: cat.items.map((it, i) => i !== ii ? it : { ...it, checked: !it.checked }) }
     ));
+    setListHasChanges(true);
+  };
 
-  const removeShopItem = (ci: number, ii: number) =>
+  const removeShopItem = (ci: number, ii: number) => {
     setEditList(prev =>
       prev.map((cat, c) =>
         c !== ci ? cat : { ...cat, items: cat.items.filter((_, i) => i !== ii) }
       ).filter(cat => cat.items.length > 0)
     );
+    setListHasChanges(true);
+  };
 
   const addShopItem = (ci: number) => {
     const name = newItemName.trim();
@@ -394,6 +442,7 @@ const DietPlanDisplay: React.FC<Props> = ({
     ));
     setNewItemName('');
     setAddingToCat(null);
+    setListHasChanges(true);
   };
 
   useEffect(() => {
@@ -424,6 +473,87 @@ const DietPlanDisplay: React.FC<Props> = ({
   const handleSaveAll = () => {
     onUpdatePlan?.(localPlan);
     setHasChanges(false);
+    // feature 4: el plan cambió → invalidar lista guardada
+    if (shoppingKey && canPersistList) {
+      try { localStorage.removeItem(shoppingKey); } catch { /* silent */ }
+    }
+  };
+
+  // ── feature 1: añadir / quitar tomas sin rehacer la dieta ───────────────────
+  // Tomas disponibles que NO están presentes en el día activo
+  const presentMealKeys = activeDayPlan ? Object.keys(activeDayPlan.meals).filter(k => !!activeDayPlan.meals[k as MealKey]) : [];
+  const availableToAdd = ALL_MEAL_CONFIGS.filter(cfg => !presentMealKeys.includes(cfg.key));
+
+  const handleAddMeal = async (mealKey: MealKey) => {
+    if (!patientData || !activeDayPlan) {
+      toast('Faltan datos del paciente para generar la toma.', 'error');
+      return;
+    }
+    setShowMealPicker(false);
+    setAddingMeal(true);
+    try {
+      // Macros residuales = objetivo diario − lo que ya suman las tomas del día
+      const used = sumDayMacros(activeDayPlan.meals) ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
+      const residual = {
+        calories: metrics.macros.calories - used.calories,
+        protein:  metrics.macros.protein  - used.protein,
+        carbs:    metrics.macros.carbs    - used.carbs,
+        fats:     metrics.macros.fats     - used.fats,
+      };
+      const newMeal = await generateSingleMeal(mealKey, residual, patientData, metrics);
+      setLocalPlan(prev => ({
+        ...prev,
+        weeklyPlan: prev.weeklyPlan.map(d =>
+          d.day === activeDay ? { ...d, meals: { ...d.meals, [mealKey]: newMeal } } : d
+        ),
+      }));
+      setHasChanges(true);
+      toast('Toma añadida. Recuerda guardar los cambios.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'No se pudo generar la toma.', 'error');
+    } finally {
+      setAddingMeal(false);
+    }
+  };
+
+  const handleRemoveMeal = async (mealKey: MealKey, mealName: string) => {
+    if (!activeDayPlan) return;
+    if (presentMealKeys.length <= 1) {
+      toast('No puedes eliminar la última toma del día.', 'error');
+      return;
+    }
+    const ok = await confirm({
+      title:        'Eliminar toma',
+      message:      `¿Eliminar "${mealName}" del día ${activeDay}? No se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      cancelLabel:  'Cancelar',
+      danger:       true,
+    });
+    if (!ok) return;
+    setLocalPlan(prev => ({
+      ...prev,
+      weeklyPlan: prev.weeklyPlan.map(d => {
+        if (d.day !== activeDay) return d;
+        const meals = { ...d.meals };
+        delete meals[mealKey];
+        return { ...d, meals };
+      }),
+    }));
+    setHasChanges(true);
+    toast('Toma eliminada. Recuerda guardar los cambios.', 'success');
+  };
+
+  // ── feature 5: rehacer día con confirmación ─────────────────────────────────
+  const handleRegenerateDayConfirm = async () => {
+    if (!onRegenerateDay) return;
+    const ok = await confirm({
+      title:        `¿Rehacer el día ${activeDay}?`,
+      message:      `Se regenerará el menú completo del día ${activeDay}. El contenido actual se perderá.`,
+      confirmLabel: 'Rehacer',
+      cancelLabel:  'Cancelar',
+      danger:       true,
+    });
+    if (ok) onRegenerateDay(activeDay);
   };
 
   const handleSwap = useCallback(async (dayNumber: number, mealKey: MealKey) => {
@@ -487,6 +617,17 @@ const DietPlanDisplay: React.FC<Props> = ({
                 <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
                 <span className="hidden sm:inline">Lista compra</span>
               </button>
+              {onRegenerateDay && (
+                <button onClick={handleRegenerateDayConfirm}
+                  disabled={isLoading}
+                  title={`Rehacer el menú del día ${activeDay}`}
+                  className="flex items-center gap-2 h-11 px-5 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold hover:border-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  <span className={`material-symbols-outlined text-[20px] text-amber-500 ${isLoading ? 'animate-spin' : ''}`}>
+                    {isLoading ? 'progress_activity' : 'replay'}
+                  </span>
+                  <span className="hidden sm:inline">Rehacer día {activeDay}</span>
+                </button>
+              )}
               {onRegenerate && (
                 <button onClick={() => setShowRegen(v => !v)}
                   className="flex items-center gap-2 h-11 px-6 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold hover:border-primary transition-all">
@@ -622,6 +763,13 @@ const DietPlanDisplay: React.FC<Props> = ({
                   <span className="text-xs text-text-sub dark:text-gray-400 hidden sm:inline">
                     {editList.reduce((s, c) => s + c.items.filter(i => !i.checked).length, 0)} pendientes · {editList.reduce((s, c) => s + c.items.length, 0)} total
                   </span>
+                  {listHasChanges && canPersistList && (
+                    <button onClick={saveShoppingList}
+                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-emerald-500 text-white text-xs font-black hover:bg-emerald-600 transition-all shadow-sm">
+                      <span className="material-symbols-outlined text-[16px]">save</span>
+                      Guardar lista
+                    </button>
+                  )}
                   <button onClick={() => setShowShopping(false)} className="text-text-sub hover:text-text-main transition-colors">
                     <span className="material-symbols-outlined text-[18px]">close</span>
                   </button>
@@ -705,50 +853,81 @@ const DietPlanDisplay: React.FC<Props> = ({
           {/* Day tabs */}
           <div className="flex overflow-x-auto pb-2 gap-2 border-b border-border-light dark:border-border-dark items-center">
             {localPlan.weeklyPlan?.map(day => (
-              <div key={day.day} className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => { setActiveDay(day.day); setActiveEdit(null); }}
-                  className={`whitespace-nowrap px-5 py-2.5 font-bold rounded-xl text-sm transition-all ${
-                    activeDay === day.day
-                      ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
-                      : 'bg-transparent text-text-sub dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}>
-                  Día {day.day}
-                </button>
-                {onRegenerateDay && activeDay === day.day && (
-                  <button
-                    onClick={() => onRegenerateDay(day.day)}
-                    disabled={isLoading}
-                    title={`Regenerar solo el día ${day.day}`}
-                    className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-primary/10 hover:text-primary transition-all disabled:opacity-40 border border-transparent hover:border-primary/30">
-                    <span className={`material-symbols-outlined text-[16px] ${isLoading ? 'animate-spin' : ''}`}>
-                      {isLoading ? 'progress_activity' : 'replay'}
-                    </span>
-                  </button>
-                )}
-              </div>
+              <button
+                key={day.day}
+                onClick={() => { setActiveDay(day.day); setActiveEdit(null); }}
+                className={`shrink-0 whitespace-nowrap px-5 py-2.5 font-bold rounded-xl text-sm transition-all ${
+                  activeDay === day.day
+                    ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
+                    : 'bg-transparent text-text-sub dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}>
+                Día {day.day}
+              </button>
             ))}
           </div>
 
           {/* Meals */}
-          {activeDayPlan?.meals && (
-            <div className="grid grid-cols-1 gap-6">
-              {mealSections.map(({ key, title, time, icon }) => (
-                <MealSection
-                  key={key}
-                  title={title} time={time} icon={icon} mealKey={key}
-                  meal={activeDayPlan.meals[key]!}
-                  editingKey={`${activeDay}-${key}`}
-                  activeEditKey={activeEdit}
-                  onEditRequest={setActiveEdit}
-                  onSave={(updated) => handleSaveMeal(key, updated)}
-                  onCancel={() => setActiveEdit(null)}
-                  onSwapRequest={onSwapMeal ? () => handleSwap(activeDay, key) : undefined}
-                  isSwapping={swappingKey === `${activeDay}-${key}`}
-                />
-              ))}
-            </div>
-          )}
+          {activeDayPlan?.meals && (() => {
+            // Render según las tomas PRESENTES en el día (en orden lógico), no según mealCount.
+            // Esto permite que las tomas añadidas aparezcan y las eliminadas desaparezcan.
+            const timeMap = new Map(mealSections.map(s => [s.key, s.time]));
+            const presentSections = ALL_MEAL_CONFIGS
+              .filter(cfg => !!activeDayPlan.meals[cfg.key])
+              .map(cfg => ({ ...cfg, time: timeMap.get(cfg.key) ?? cfg.time }));
+
+            return (
+              <div className="grid grid-cols-1 gap-6">
+                {presentSections.map(({ key, title, time, icon }) => (
+                  <MealSection
+                    key={key}
+                    title={title} time={time} icon={icon} mealKey={key}
+                    meal={activeDayPlan.meals[key]!}
+                    editingKey={`${activeDay}-${key}`}
+                    activeEditKey={activeEdit}
+                    onEditRequest={setActiveEdit}
+                    onSave={(updated) => handleSaveMeal(key, updated)}
+                    onCancel={() => setActiveEdit(null)}
+                    onSwapRequest={onSwapMeal ? () => handleSwap(activeDay, key) : undefined}
+                    isSwapping={swappingKey === `${activeDay}-${key}`}
+                    onRemove={presentSections.length > 1 ? () => handleRemoveMeal(key, activeDayPlan.meals[key]!.name) : undefined}
+                  />
+                ))}
+
+                {/* feature 1: añadir toma */}
+                {patientData && (
+                  <div className="no-print">
+                    {addingMeal ? (
+                      <div className="flex items-center justify-center gap-2 h-14 rounded-xl border-2 border-dashed border-primary/40 text-sm font-bold text-text-sub">
+                        <span className="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+                        Generando toma con IA…
+                      </div>
+                    ) : availableToAdd.length > 0 ? (
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowMealPicker(v => !v)}
+                          className="w-full flex items-center justify-center gap-2 h-14 rounded-xl border-2 border-dashed border-border-light dark:border-border-dark text-sm font-bold text-text-sub hover:border-primary hover:text-primary transition-all">
+                          <span className="material-symbols-outlined text-[20px]">add_circle</span>
+                          Añadir toma
+                        </button>
+                        {showMealPicker && (
+                          <div className="absolute z-20 left-1/2 -translate-x-1/2 mt-2 w-64 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-xl p-2">
+                            <p className="text-[10px] font-black uppercase text-text-sub px-2 py-1.5">Elige la toma a añadir</p>
+                            {availableToAdd.map(cfg => (
+                              <button key={cfg.key} onClick={() => handleAddMeal(cfg.key)}
+                                className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-semibold text-text-main dark:text-white hover:bg-primary/10 hover:text-primary transition-colors">
+                                <span className="material-symbols-outlined text-[18px] text-primary">{cfg.icon}</span>
+                                {cfg.title}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Guidelines */}
           <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-transparent dark:border-[#233629] p-6 shadow-sm mb-20">

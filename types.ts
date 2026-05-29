@@ -169,6 +169,15 @@ export interface SavedDiet {
   planVersions?: PlanVersion[]; // historial de versiones anteriores del plan
 }
 
+// ─── Dieta para parejas ───────────────────────────────────────────────────────
+// Dos planes vinculados, cada uno con sus propios parámetros y macros.
+export interface CouplesDiet {
+  id: string;
+  timestamp: number;
+  personA: SavedDiet;
+  personB: SavedDiet;
+}
+
 // ─── Diet type display labels ─────────────────────────────────────────────────
 
 export const DIET_TYPE_LABELS: Record<DietType, string> = {

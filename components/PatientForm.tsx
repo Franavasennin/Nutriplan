@@ -50,6 +50,7 @@ interface Props {
   onSubmit: (data: PatientData) => void;
   isLoading: boolean;
   initialData?: PatientData;
+  onSubmitCouple?: (personA: PatientData, personB: PatientData) => void;
 }
 
 const DEFAULT_FORM: PatientData = {
@@ -71,9 +72,13 @@ const DEFAULT_FORM: PatientData = {
   clinicalNotes: '',
 };
 
-const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
+const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubmitCouple }) => {
   const [formData, setFormData] = useState<PatientData>(initialData ?? DEFAULT_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // ── feature 2: modo pareja ──────────────────────────────────────────────────
+  const [coupleMode, setCoupleMode] = useState(false);
+  const [partner, setPartner] = useState<PatientData>({ ...DEFAULT_FORM, gender: Gender.Female, name: '' });
 
   const recommendation = getMealRecommendation(formData);
 
@@ -120,6 +125,24 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
     const errs = validate(formData);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
+
+    // Modo pareja: validar también a la persona B y enviar ambas
+    if (coupleMode && onSubmitCouple) {
+      const errsB = validate(partner);
+      if (Object.keys(errsB).length > 0) {
+        setErrors({ ...errs, partner: 'Revisa los datos de la persona B (edad/peso/altura).' });
+        return;
+      }
+      // La persona B hereda los ajustes de planificación de la persona A
+      const partnerFull: PatientData = {
+        ...partner,
+        weeks:           formData.weeks,
+        duration:        formData.duration,
+        fastingProtocol: formData.fastingProtocol,
+      };
+      onSubmitCouple(sanitizeData(formData), sanitizeData(partnerFull));
+      return;
+    }
     onSubmit(sanitizeData(formData));
   };
 
@@ -161,11 +184,29 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                         {isLoading ? (
                             <span className="material-symbols-outlined animate-spin">progress_activity</span>
                         ) : (
-                            <span className="material-symbols-outlined text-[20px]">save</span>
+                            <span className="material-symbols-outlined text-[20px]">{coupleMode ? 'group' : 'save'}</span>
                         )}
-                        {isLoading ? 'Generando...' : 'Generar Perfil'}
+                        {isLoading ? 'Generando...' : coupleMode ? 'Generar planes para pareja' : 'Generar Perfil'}
                     </button>
                 </div>
+            </div>
+
+            {/* ── feature 2: toggle dieta para pareja ── */}
+            <div className={`rounded-xl p-4 border transition-colors ${coupleMode ? 'bg-primary/5 border-primary/40' : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark'}`}>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        className="w-5 h-5 text-primary rounded focus:ring-primary bg-white dark:bg-surface-dark border-gray-300 dark:border-gray-600"
+                        checked={coupleMode}
+                        onChange={(e) => setCoupleMode(e.target.checked)}
+                    />
+                    <span className="material-symbols-outlined text-primary">group</span>
+                    <div>
+                        <span className="text-sm font-bold text-text-main dark:text-white">Generar dieta para pareja</span>
+                        <p className="text-xs text-text-sub dark:text-gray-400">Crea dos planes vinculados, cada uno adaptado a los parámetros y macros de cada persona.</p>
+                    </div>
+                </label>
+                {errors.partner && <p className="text-xs text-red-500 font-medium mt-2 ml-8">{errors.partner}</p>}
             </div>
 
             {/* Form */}
@@ -593,6 +634,130 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                         </div>
                     </div>
                     </div>
+
+                {/* ── feature 2: tarjeta Persona B (solo en modo pareja) ── */}
+                {coupleMode && (
+                  <div className="lg:col-span-12 bg-surface-light dark:bg-surface-dark rounded-xl p-6 shadow-sm border-2 border-primary/40">
+                    <div className="flex items-center gap-3 mb-6">
+                      <span className="material-symbols-outlined text-primary text-2xl">person_add</span>
+                      <h3 className="text-xl font-bold dark:text-white">Persona B — datos de la pareja</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Nombre</span>
+                        <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="text" placeholder="Ej. Carlos Pérez"
+                          value={partner.name} onChange={e => setPartner({ ...partner, name: e.target.value })} />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Edad</span>
+                        <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="number" min="1" max="120"
+                          value={partner.age} onChange={e => setPartner({ ...partner, age: Number(e.target.value) })} />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Género Biológico</span>
+                        <div className="flex rounded-lg bg-background-light dark:bg-background-dark p-1 border border-border-light dark:border-border-dark h-12">
+                          <button type="button" onClick={() => setPartner({ ...partner, gender: Gender.Male })}
+                            className={`flex-1 rounded text-sm font-bold transition-all ${partner.gender === Gender.Male ? 'bg-white dark:bg-surface-dark text-text-main dark:text-white ring-1 ring-black/5 dark:ring-white/10' : 'text-text-sub'}`}>Hombre</button>
+                          <button type="button" onClick={() => setPartner({ ...partner, gender: Gender.Female })}
+                            className={`flex-1 rounded text-sm font-bold transition-all ${partner.gender === Gender.Female ? 'bg-white dark:bg-surface-dark text-text-main dark:text-white ring-1 ring-black/5 dark:ring-white/10' : 'text-text-sub'}`}>Mujer</button>
+                        </div>
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Peso (kg)</span>
+                        <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="number" step="0.1" min="20" max="300"
+                          value={partner.weight} onChange={e => setPartner({ ...partner, weight: Number(e.target.value) })} />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Altura (cm)</span>
+                        <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="number" min="100" max="250"
+                          value={partner.height} onChange={e => setPartner({ ...partner, height: Number(e.target.value) })} />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Objetivo de peso (kg)</span>
+                        <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="number" step="0.1" placeholder="Opcional"
+                          value={partner.targetWeight ?? ''} onChange={e => setPartner({ ...partner, targetWeight: e.target.value ? Number(e.target.value) : undefined })} />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Nivel de Actividad</span>
+                        <div className="relative">
+                          <select className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary outline-none dark:text-white"
+                            value={partner.activity} onChange={e => setPartner({ ...partner, activity: e.target.value as ActivityLevel })}>
+                            <option value={ActivityLevel.Sedentary}>Sedentario</option>
+                            <option value={ActivityLevel.Light}>Ligero</option>
+                            <option value={ActivityLevel.Moderate}>Moderado</option>
+                            <option value={ActivityLevel.Heavy}>Intenso</option>
+                            <option value={ActivityLevel.Athlete}>Atleta</option>
+                          </select>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-text-sub">expand_more</span>
+                        </div>
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Tipo de Dieta</span>
+                        <div className="relative">
+                          <select className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary outline-none dark:text-white"
+                            value={partner.dietType} onChange={e => setPartner({ ...partner, dietType: e.target.value as DietType })}>
+                            <option value={DietType.Balanced}>Equilibrada</option>
+                            <option value={DietType.Mediterranean}>Mediterránea</option>
+                            <option value={DietType.LowCarb}>Baja en Carbohidratos</option>
+                            <option value={DietType.Keto}>Cetogénica</option>
+                            <option value={DietType.Vegetarian}>Vegetariana</option>
+                            <option value={DietType.Vegan}>Vegana</option>
+                            <option value={DietType.Paleo}>Paleo</option>
+                            <option value={DietType.Protein}>Proteica</option>
+                            <option value={DietType.Athlete}>Atleta</option>
+                            <option value={DietType.Precooked}>Sin cocina</option>
+                          </select>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-text-sub">expand_more</span>
+                        </div>
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Nº de comidas al día</span>
+                        <div className="relative">
+                          <select className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary outline-none dark:text-white"
+                            value={partner.mealCount ?? 4} onChange={e => setPartner({ ...partner, mealCount: Number(e.target.value) })}>
+                            <option value={2}>2 comidas</option>
+                            <option value={3}>3 comidas</option>
+                            <option value={4}>4 comidas</option>
+                            <option value={5}>5 comidas</option>
+                          </select>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-text-sub">expand_more</span>
+                        </div>
+                      </label>
+                      <label className="md:col-span-3 flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-text-main dark:text-slate-200">Alimentos a excluir</span>
+                        <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="text" placeholder="Ej: mariscos, nueces, lácteos..."
+                          value={partner.excludedFoods ?? ''} onChange={e => setPartner({ ...partner, excludedFoods: e.target.value })} />
+                      </label>
+                    </div>
+                    <div className="mt-5">
+                      <span className="text-sm font-semibold text-text-main dark:text-slate-200 mb-2 block">Condiciones clínicas</span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {[
+                          { val: Condition.DiabetesType2, label: 'Diabetes T2' },
+                          { val: Condition.Hypertension, label: 'Hipertensión' },
+                          { val: Condition.Hypothyroidism, label: 'Hipotiroidismo' },
+                          { val: Condition.Hypertriglyceridemia, label: 'Hipertriglic.' },
+                          { val: Condition.LactoseIntolerance, label: 'Intol. Lactosa' },
+                          { val: Condition.Celiac, label: 'Celiaquía' },
+                          { val: Condition.Obesity, label: 'Obesidad' },
+                          { val: Condition.DiabetesType1, label: 'Diabetes T1' },
+                        ].map(c => (
+                          <label key={c.val} className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-colors border text-xs ${partner.conditions.includes(c.val) ? 'bg-primary/10 border-primary' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
+                            <input type="checkbox" className="w-4 h-4 text-primary rounded focus:ring-primary"
+                              checked={partner.conditions.includes(c.val)}
+                              onChange={() => setPartner(prev => ({
+                                ...prev,
+                                conditions: prev.conditions.includes(c.val)
+                                  ? prev.conditions.filter(x => x !== c.val)
+                                  : [...prev.conditions, c.val],
+                              }))} />
+                            <span className="text-text-main dark:text-gray-200 font-medium">{c.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
             </form>
         </div>
     </div>

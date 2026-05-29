@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 // Views
 import PatientForm      from './components/PatientForm';
 import DietPlanDisplay  from './components/DietPlanDisplay';
+import CouplesDietView  from './components/CouplesDietView';
 import SavedDietsList   from './components/SavedDietsList';
 import FoodDatabase     from './components/FoodDatabase';
 import ProgressTracker  from './components/ProgressTracker';
@@ -28,19 +29,20 @@ import { parseDietFromPDF, regenerateSingleDay, getMealSwap } from './services/g
 import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
-import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion } from './types';
+import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, CouplesDiet } from './types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from './utils/calculations';
 import { generateDietPlan } from './services/geminiService';
 
-type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes';
+type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
 
 // ─── Inner app (needs Toast + Confirm context) ────────────────────────────────
 const AppContent: React.FC = () => {
   const { isDark, toggleTheme }  = useTheme();
   const { canInstall, install, deferredPrompt } = usePWAInstall();
   const {
-    savedDiets, customFoods, progressData, dbRecipes, uniqueClients, dbOnline,
+    savedDiets, customFoods, progressData, couplesDiets, dbRecipes, uniqueClients, dbOnline,
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
+    saveCouplesDiet, deleteCouplesDiet,
     addCustomFood, editCustomFood, deleteCustomFood,
     saveProgressEntry, updateClientGoal, importAll, appendDiets,
   } = useAppData();
@@ -54,6 +56,7 @@ const AppContent: React.FC = () => {
   const [plan,           setPlan]           = useState<DietResponse | null>(null);
   const [patientData,    setPatientData]    = useState<PatientData | null>(null);
   const [currentDietId,  setCurrentDietId]  = useState<string | null>(null);
+  const [currentCouples, setCurrentCouples] = useState<CouplesDiet | null>(null);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const navigate = (step: Step) => setCurrentStep(step);
@@ -64,6 +67,7 @@ const AppContent: React.FC = () => {
     setMetrics(null);
     setPatientData(null);
     setCurrentDietId(null);
+    setCurrentCouples(null);
   };
 
   // ── Diet generation ─────────────────────────────────────────────────────────
@@ -94,6 +98,42 @@ const AppContent: React.FC = () => {
       toast('Plan nutricional generado con éxito.', 'success');
     } catch (err: any) {
       toast(err.message || 'Error al generar la dieta.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Cálculo de métricas reutilizable ──────────────────────────────────────────
+  const computeMetrics = (data: PatientData): CalculatedMetrics => {
+    const imc         = calculateIMC(data.weight, data.height);
+    const bmr         = calculateBMR(data);
+    const tee         = calculateTEE(bmr, data.activity);
+    const idealWeight = calculateIdealWeight(data.height, data.gender);
+    const refWeight   = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight;
+    const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal);
+    return { imc, bmr, tee, macros };
+  };
+
+  // ── Generación de dieta para pareja ───────────────────────────────────────────
+  const handleCoupleSubmit = async (a: PatientData, b: PatientData) => {
+    setIsLoading(true);
+    try {
+      const metricsA = computeMetrics(a);
+      const metricsB = computeMetrics(b);
+      // Generar ambos planes en paralelo
+      const [planA, planB] = await Promise.all([
+        generateDietPlan(a, metricsA, customFoods),
+        generateDietPlan(b, metricsB, customFoods),
+      ]);
+      const now = Date.now();
+      const savedA: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: a, metrics: metricsA, plan: planA, planVersions: [] };
+      const savedB: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: b, metrics: metricsB, plan: planB, planVersions: [] };
+      const couplesId = saveCouplesDiet(savedA, savedB);
+      setCurrentCouples({ id: couplesId, timestamp: now, personA: savedA, personB: savedB });
+      setCurrentStep('couples');
+      toast('Planes de pareja generados con éxito.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Error al generar los planes de pareja.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -286,7 +326,11 @@ const AppContent: React.FC = () => {
         )}
 
         {currentStep === 'form' && (
-          <PatientForm onSubmit={handleFormSubmit} isLoading={isLoading} initialData={patientData ?? undefined} />
+          <PatientForm onSubmit={handleFormSubmit} onSubmitCouple={handleCoupleSubmit} isLoading={isLoading} initialData={patientData ?? undefined} />
+        )}
+
+        {currentStep === 'couples' && currentCouples && (
+          <CouplesDietView couplesDiet={currentCouples} />
         )}
 
         {currentStep === 'result' && metrics && plan && (
@@ -298,6 +342,7 @@ const AppContent: React.FC = () => {
             fastingProtocol={patientData?.fastingProtocol}
             patientData={patientData ?? undefined}
             isLoading={isLoading}
+            dietId={currentDietId ?? undefined}
             planVersions={currentDietId ? savedDiets.find(d => d.id === currentDietId)?.planVersions : undefined}
             onUpdatePlan={(updatedPlan) => {
               setPlan(updatedPlan);
@@ -335,7 +380,41 @@ const AppContent: React.FC = () => {
         )}
 
         {currentStep === 'history' && (
-          <div className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+            {/* Sección de planes de pareja */}
+            {couplesDiets.length > 0 && (
+              <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-primary/30 p-5">
+                <h3 className="flex items-center gap-2 font-bold text-text-main dark:text-white mb-4">
+                  <span className="material-symbols-outlined text-primary">group</span>
+                  Planes de Pareja ({couplesDiets.length})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {couplesDiets.map(cd => (
+                    <div key={cd.id} className="flex items-center justify-between p-3 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark">
+                      <button
+                        onClick={() => { setCurrentCouples(cd); setCurrentStep('couples'); }}
+                        className="flex-1 text-left">
+                        <p className="text-sm font-bold text-text-main dark:text-white">
+                          {cd.personA.patientData.name || 'Persona A'} &amp; {cd.personB.patientData.name || 'Persona B'}
+                        </p>
+                        <p className="text-xs text-text-sub dark:text-gray-400">
+                          {new Date(cd.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const ok = await confirm({ title: 'Eliminar plan de pareja', message: '¿Seguro? Esta acción no se puede deshacer.', confirmLabel: 'Eliminar', danger: true });
+                          if (ok) { deleteCouplesDiet(cd.id); toast('Plan de pareja eliminado.', 'success'); }
+                        }}
+                        className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all"
+                        title="Eliminar">
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <SavedDietsList
             diets={savedDiets}
             onLoad={handleLoadDiet}

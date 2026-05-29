@@ -222,6 +222,11 @@ REGLAS CRÍTICAS — INCUMPLIR CUALQUIERA INVALIDA EL PLAN:
    7) Consejo práctico de planificación semanal o meal prep
    8) Pauta adicional personalizada según el perfil concreto del paciente
    RECUERDA: contar hasta 8 antes de cerrar el array. Si llegas a 7, añade uno más.
+11. VERIFICACIÓN FINAL OBLIGATORIA — ANTES DE CERRAR EL JSON: Para CADA día, suma los campos calories, protein, carbs y fats de TODAS sus tomas. Compara cada suma con el objetivo diario indicado en el prompt:
+    - Si calorías totales difieren más del 5% del objetivo → ajusta las raciones (gramos) de las tomas hasta cuadrar.
+    - Si proteína/HC/grasa total difiere más del 8% del objetivo → ajusta las cantidades de los ingredientes correspondientes.
+    - Es PREFERIBLE ajustar los gramos de un ingrediente existente que añadir alimentos nuevos.
+    - NO entregues el JSON hasta que las sumas de cada día cuadren con el objetivo. Este paso es lo que diferencia un plan profesional de uno aproximado.
 
 REFERENCIA DE DENSIDAD PROTEICA (usa estas fuentes para calibrar):
 - Pechuga de pollo/pavo: 31g P / 100g → para 60g P necesitas ~195g
@@ -823,6 +828,73 @@ Devuelve SOLO el JSON.
     return JSON.parse(text) as Meal;
   } catch {
     throw new Error('La IA devolvió una respuesta con formato inválido al sugerir la alternativa. Inténtalo de nuevo.');
+  }
+};
+
+// ─── Generar una toma nueva (añadir ración sin rehacer la dieta) ──────────────
+/**
+ * Genera una sola toma para un día concreto, calibrada a los macros residuales
+ * (objetivo del día menos lo que ya suman las tomas existentes).
+ * Si los macros residuales son <= 0, usa el promedio por toma como objetivo.
+ */
+export const generateSingleMeal = async (
+  mealKey: string,
+  residual: { calories: number; protein: number; carbs: number; fats: number },
+  patient: PatientData,
+  metrics: CalculatedMetrics
+): Promise<Meal> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error('API Key no encontrada. Revisa .env.local');
+
+  const mealCount = patient.mealCount ?? 5;
+  // Si el residual es negativo o ínfimo, usar el promedio por toma como objetivo
+  const target = {
+    calories: residual.calories > 50  ? residual.calories : Math.round(metrics.macros.calories / mealCount),
+    protein:  residual.protein  > 5   ? residual.protein  : Math.round(metrics.macros.protein  / mealCount),
+    carbs:    residual.carbs    > 5   ? residual.carbs    : Math.round(metrics.macros.carbs    / mealCount),
+    fats:     residual.fats     > 3   ? residual.fats     : Math.round(metrics.macros.fats     / mealCount),
+  };
+
+  const mealLabel: Record<string, string> = {
+    breakfast: 'desayuno', morningSnack: 'media mañana',
+    lunch: 'almuerzo', afternoonSnack: 'merienda', dinner: 'cena',
+  };
+
+  const systemPrompt = `
+Eres un nutricionista clínico. Devuelves ÚNICAMENTE un JSON con UNA comida para la toma indicada.
+Calibra las raciones (gramos) para cuadrar exactamente con los macros objetivo (±8%).
+Respeta el tipo de dieta, las patologías y los alimentos excluidos del paciente.
+Formato:
+{
+  "name": "string",
+  "description": "string (máx 15 palabras)",
+  "ingredients": ["string con gramos/medida"],
+  "calories": número,
+  "protein": número,
+  "carbs": número,
+  "fats": número
+}
+${MEAL_TIME_CONSTRAINTS}
+`.trim();
+
+  const userPrompt = `
+Genera UNA toma de ${mealLabel[mealKey] ?? mealKey} para:
+- Paciente: ${patient.age} años, ${patient.gender}, ${patient.weight}kg, ${patient.height}cm
+- Tipo de dieta: ${patient.dietType}
+- Patologías: ${patient.conditions?.map(c => sanitizeForPrompt(c, 50)).join(', ') || 'ninguna'}
+- Alimentos excluidos: ${patient.excludedFoods ? sanitizeForPrompt(patient.excludedFoods, 200) : 'ninguno'}
+
+OBJETIVO DE MACROS PARA ESTA TOMA (cuadra exacto): ~${target.calories} kcal · ~${target.protein}g proteína · ~${target.carbs}g HC · ~${target.fats}g grasa.
+Calibra los gramos de cada ingrediente para alcanzar estos valores. Incluye siempre una fuente de grasa visible si la proteína es magra.
+Devuelve SOLO el JSON.
+`.trim();
+
+  const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
+  if (!text) throw new Error('Sin respuesta de la IA');
+  try {
+    return JSON.parse(text) as Meal;
+  } catch {
+    throw new Error('La IA devolvió una respuesta con formato inválido al generar la toma. Inténtalo de nuevo.');
   }
 };
 
