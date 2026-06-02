@@ -317,6 +317,18 @@ export function useAppData() {
     }).then(({ error }) => { if (error) console.error('saveProgressEntry:', error.message); });
   }, []);
 
+  const deleteProgressEntry = useCallback((clientName: string, entryId: string) => {
+    setProgressData(prev =>
+      prev.map(p =>
+        p.clientName === clientName
+          ? { ...p, entries: p.entries.filter(e => e.id !== entryId) }
+          : p
+      )
+    );
+    supabase.from('progress_entries').delete().eq('id', entryId)
+      .then(({ error }) => { if (error) console.error('deleteProgressEntry:', error.message); });
+  }, []);
+
   const updateClientGoal = useCallback((
     clientName: string,
     weightGoal: number,
@@ -433,6 +445,7 @@ export function useAppData() {
     editCustomFood,
     deleteCustomFood,
     saveProgressEntry,
+    deleteProgressEntry,
     updateClientGoal,
     importAll,
   };

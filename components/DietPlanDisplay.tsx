@@ -3,7 +3,7 @@ import { CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietTy
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
 import { generateShoppingList, ShoppingList } from '../utils/shoppingList';
-import { generateSingleMeal } from '../services/geminiService';
+import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
 
@@ -492,23 +492,80 @@ const DietPlanDisplay: React.FC<Props> = ({
     setShowMealPicker(false);
     setAddingMeal(true);
     try {
-      // Macros residuales = objetivo diario − lo que ya suman las tomas del día
-      const used = sumDayMacros(activeDayPlan.meals) ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
-      const residual = {
-        calories: metrics.macros.calories - used.calories,
-        protein:  metrics.macros.protein  - used.protein,
-        carbs:    metrics.macros.carbs    - used.carbs,
-        fats:     metrics.macros.fats     - used.fats,
-      };
-      const newMeal = await generateSingleMeal(mealKey, residual, patientData, metrics);
-      setLocalPlan(prev => ({
-        ...prev,
-        weeklyPlan: prev.weeklyPlan.map(d =>
-          d.day === activeDay ? { ...d, meals: { ...d.meals, [mealKey]: newMeal } } : d
-        ),
-      }));
+      const breakfast = activeDayPlan.meals.breakfast;
+      const dinner    = activeDayPlan.meals.dinner;
+      const m = (meal?: Meal) => ({
+        calories: meal?.calories ?? 0, protein: meal?.protein ?? 0,
+        carbs:    meal?.carbs    ?? 0, fats:    meal?.fats    ?? 0,
+      });
+      const bMac = m(breakfast);
+      const dMac = m(dinner);
+
+      // ¿Hay de dónde restar? (desayuno y/o cena con macros)
+      const donors = (bMac.calories > 0 ? 1 : 0) + (dMac.calories > 0 ? 1 : 0);
+
+      let newMeal: Meal;
+
+      if (donors === 0) {
+        // Sin desayuno/cena con datos → comportamiento clásico (macros residuales del día)
+        const used = sumDayMacros(activeDayPlan.meals) ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
+        const residual = {
+          calories: metrics.macros.calories - used.calories,
+          protein:  metrics.macros.protein  - used.protein,
+          carbs:    metrics.macros.carbs    - used.carbs,
+          fats:     metrics.macros.fats     - used.fats,
+        };
+        newMeal = await generateSingleMeal(mealKey, residual, patientData, metrics);
+        setLocalPlan(prev => ({
+          ...prev,
+          weeklyPlan: prev.weeklyPlan.map(d =>
+            d.day === activeDay ? { ...d, meals: { ...d.meals, [mealKey]: newMeal } } : d
+          ),
+        }));
+      } else {
+        // La toma nueva sale de restar a desayuno y cena → el total del día NO cambia.
+        // Cogemos ~1/4 de (desayuno+cena) para la toma nueva, repartido a partes iguales.
+        const newTarget = {
+          calories: Math.round((bMac.calories + dMac.calories) / 4),
+          protein:  Math.round((bMac.protein  + dMac.protein)  / 4),
+          carbs:    Math.round((bMac.carbs    + dMac.carbs)    / 4),
+          fats:     Math.round((bMac.fats     + dMac.fats)     / 4),
+        };
+        const perDonor = {
+          calories: Math.round(newTarget.calories / donors),
+          protein:  Math.round(newTarget.protein  / donors),
+          carbs:    Math.round(newTarget.carbs    / donors),
+          fats:     Math.round(newTarget.fats     / donors),
+        };
+        const reduce = (mac: ReturnType<typeof m>) => ({
+          calories: Math.max(0, mac.calories - perDonor.calories),
+          protein:  Math.max(0, mac.protein  - perDonor.protein),
+          carbs:    Math.max(0, mac.carbs    - perDonor.carbs),
+          fats:     Math.max(0, mac.fats     - perDonor.fats),
+        });
+
+        // Genera la toma nueva + re-porciona desayuno y cena (en paralelo)
+        const [generatedMeal, newBreakfast, newDinner] = await Promise.all([
+          generateSingleMeal(mealKey, newTarget, patientData, metrics),
+          breakfast && bMac.calories > 0 ? reportionMeal(breakfast, reduce(bMac), patientData) : Promise.resolve(breakfast),
+          dinner    && dMac.calories > 0 ? reportionMeal(dinner,    reduce(dMac), patientData) : Promise.resolve(dinner),
+        ]);
+        newMeal = generatedMeal;
+
+        setLocalPlan(prev => ({
+          ...prev,
+          weeklyPlan: prev.weeklyPlan.map(d => {
+            if (d.day !== activeDay) return d;
+            const meals = { ...d.meals, [mealKey]: generatedMeal };
+            if (newBreakfast) meals.breakfast = newBreakfast;
+            if (newDinner)    meals.dinner    = newDinner;
+            return { ...d, meals };
+          }),
+        }));
+      }
+
       setHasChanges(true);
-      toast('Toma añadida. Recuerda guardar los cambios.', 'success');
+      toast('Toma añadida (desayuno y cena reajustados). Recuerda guardar.', 'success');
     } catch (err: any) {
       toast(err.message || 'No se pudo generar la toma.', 'error');
     } finally {

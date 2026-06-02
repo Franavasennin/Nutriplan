@@ -898,6 +898,133 @@ Devuelve SOLO el JSON.
   }
 };
 
+// ─── Re-porcionar una comida existente a unos macros nuevos ───────────────────
+/**
+ * Mantiene EL MISMO plato e ingredientes de `meal`, pero ajusta las cantidades
+ * (gramos/ml) y los macros para cuadrar con `target`. Se usa para reducir el
+ * desayuno y la cena cuando se añade una toma nueva (mantener el total del día).
+ */
+export const reportionMeal = async (
+  meal: Meal,
+  target: { calories: number; protein: number; carbs: number; fats: number },
+  patient: PatientData
+): Promise<Meal> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error('API Key no encontrada. Revisa .env.local');
+
+  const systemPrompt = `
+Eres un nutricionista clínico. Recibes una comida y devuelves ÚNICAMENTE el JSON de ESA MISMA comida,
+manteniendo el mismo nombre, descripción y los MISMOS ingredientes (mismos alimentos),
+pero AJUSTANDO las cantidades (gramos/ml de cada ingrediente) y los macros para cuadrar con el objetivo.
+No cambies los alimentos: solo recalcula las cantidades proporcionalmente.
+Formato:
+{
+  "name": "string (igual que el original)",
+  "description": "string",
+  "ingredients": ["mismo alimento con la nueva cantidad ajustada"],
+  "calories": número,
+  "protein": número,
+  "carbs": número,
+  "fats": número
+}
+`.trim();
+
+  const userPrompt = `
+Comida original:
+- Nombre: ${meal.name}
+- Ingredientes: ${meal.ingredients.join(', ')}
+- Macros actuales: ${meal.calories ?? '?'} kcal · ${meal.protein ?? '?'}g P · ${meal.carbs ?? '?'}g HC · ${meal.fats ?? '?'}g G
+
+Ajusta las CANTIDADES de los mismos ingredientes para que la comida pase a tener aproximadamente:
+~${target.calories} kcal · ~${target.protein}g proteína · ~${target.carbs}g HC · ~${target.fats}g grasa.
+Alimentos excluidos del paciente: ${patient.excludedFoods ? sanitizeForPrompt(patient.excludedFoods, 200) : 'ninguno'}.
+Devuelve SOLO el JSON con los mismos alimentos y las cantidades recalculadas.
+`.trim();
+
+  const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
+  if (!text) throw new Error('Sin respuesta de la IA');
+  try {
+    return JSON.parse(text) as Meal;
+  } catch {
+    throw new Error('La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
+  }
+};
+
+// ─── Adaptar un plan a la pareja (mismo menú, distintas porciones) ────────────
+/**
+ * Toma el plan base (persona A) y devuelve el MISMO menú (mismos platos e
+ * ingredientes en todos los días) pero con las cantidades y macros ajustados a
+ * los objetivos diarios de la pareja (persona B). Garantiza que salgan TODOS los
+ * días del plan base, procesando en lotes de 7 días.
+ */
+export const adaptPlanToPartner = async (
+  basePlan: DietResponse,
+  partner: PatientData,
+  partnerMetrics: CalculatedMetrics
+): Promise<DietResponse> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error('API Key no encontrada. Revisa .env.local');
+
+  const baseDays = basePlan.weeklyPlan ?? [];
+  if (baseDays.length === 0) return basePlan;
+
+  const systemPrompt = `
+Eres un nutricionista clínico. Recibes un menú semanal (lista de días con sus tomas).
+Devuelve EXACTAMENTE el mismo menú — los MISMOS platos, los MISMOS ingredientes y el MISMO número de días y tomas —
+pero AJUSTANDO las cantidades (gramos/ml de cada ingrediente) y los macros de cada toma
+para que el TOTAL de cada día cuadre con los macros objetivo de este paciente.
+NO cambies los alimentos ni los nombres de los platos: la pareja come lo mismo, solo cambian las raciones.
+Mantén las mismas claves de tomas (breakfast, morningSnack, lunch, afternoonSnack, dinner) que trae cada día.
+Responde ÚNICAMENTE con este JSON:
+{
+  "weeklyPlan": [
+    { "day": número, "meals": { "<clave>": { "name": "...", "description": "...", "ingredients": ["alimento con nueva cantidad"], "calories": número, "protein": número, "carbs": número, "fats": número } } }
+  ]
+}
+`.trim();
+
+  const adaptedDays: DietResponse['weeklyPlan'] = [];
+  const BATCH = 7;
+
+  for (let i = 0; i < baseDays.length; i += BATCH) {
+    const chunk = baseDays.slice(i, i + BATCH);
+    const userPrompt = `
+OBJETIVO DIARIO de este paciente (cada día debe sumar aprox. esto):
+~${partnerMetrics.macros.calories} kcal · ~${partnerMetrics.macros.protein}g proteína · ~${partnerMetrics.macros.carbs}g HC · ~${partnerMetrics.macros.fats}g grasa.
+Alimentos excluidos: ${partner.excludedFoods ? sanitizeForPrompt(partner.excludedFoods, 200) : 'ninguno'}.
+
+MENÚ BASE A AJUSTAR (mantén los mismos platos e ingredientes, recalcula solo las cantidades y macros):
+${JSON.stringify({ weeklyPlan: chunk })}
+
+Devuelve SOLO el JSON con los ${chunk.length} día(s), mismos platos, cantidades ajustadas al objetivo.
+`.trim();
+
+    const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
+    if (!text) throw new Error('Sin respuesta de la IA al adaptar el plan de la pareja');
+    let parsed: DietResponse;
+    try {
+      parsed = JSON.parse(text) as DietResponse;
+    } catch {
+      throw new Error('La IA devolvió una respuesta inválida al adaptar el plan de la pareja.');
+    }
+    const days = parsed.weeklyPlan ?? [];
+    if (days.length === 0) {
+      // Fallback: si la IA no devolvió nada, reutiliza el menú base de este lote
+      adaptedDays.push(...chunk);
+    } else {
+      // Forzar la numeración correcta de días
+      days.forEach((d, idx) => { d.day = i + idx + 1; });
+      adaptedDays.push(...days);
+    }
+  }
+
+  return {
+    weeklyPlan: adaptedDays,
+    generalGuidelines: basePlan.generalGuidelines ?? [],
+    durationText: basePlan.durationText ?? '',
+  };
+};
+
 export const findRecipes = async (filters: RecipeFilters): Promise<Recipe[]> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new Error('API Key no encontrada');

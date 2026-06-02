@@ -32,7 +32,7 @@ import { readPDFAsBase64 } from './services/pdfService';
 // Utils & types
 import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, CouplesDiet } from './types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from './utils/calculations';
-import { generateDietPlan } from './services/geminiService';
+import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
 
 type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
 
@@ -45,7 +45,7 @@ const AppContent: React.FC = () => {
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
     saveCouplesDiet, deleteCouplesDiet,
     addCustomFood, editCustomFood, deleteCustomFood,
-    saveProgressEntry, updateClientGoal, importAll, appendDiets,
+    saveProgressEntry, deleteProgressEntry, updateClientGoal, importAll, appendDiets,
   } = useAppData();
   const { toast }    = useToast();
   const { confirm }  = useConfirm();
@@ -121,11 +121,11 @@ const AppContent: React.FC = () => {
     try {
       const metricsA = computeMetrics(a);
       const metricsB = computeMetrics(b);
-      // Generar ambos planes en paralelo
-      const [planA, planB] = await Promise.all([
-        generateDietPlan(a, metricsA, customFoods),
-        generateDietPlan(b, metricsB, customFoods),
-      ]);
+      // 1) Genera el menú base completo con la persona A (todos los días según semanas).
+      const planA = await generateDietPlan(a, metricsA, customFoods);
+      // 2) La persona B come LO MISMO: se adapta el menú de A a sus macros (mismos platos,
+      //    porciones distintas). Así B sale siempre con TODOS los días que tiene A.
+      const planB = await adaptPlanToPartner(planA, b, metricsB);
       const now = Date.now();
       const savedA: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: a, metrics: metricsA, plan: planA, planVersions: [] };
       const savedB: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: b, metrics: metricsB, plan: planB, planVersions: [] };
@@ -368,6 +368,7 @@ const AppContent: React.FC = () => {
             clients={uniqueClients}
             progressData={progressData}
             onSaveEntry={saveProgressEntry}
+            onDeleteEntry={deleteProgressEntry}
             onUpdateGoal={updateClientGoal}
           />
         )}
