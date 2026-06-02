@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Estilos personalizados (antes inline en index.html) ───────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.dark ::-webkit-scrollbar-thumb { background: #2a4030; }
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.active-nav-icon { font-variation-settings: 'FILL' 1 !important; }
+body { font-family: 'Manrope', sans-serif; }
+.bmi-marker { left: var(--bmi-pos, 0%); }
+
+@media print {
+  @page { margin: 1cm; size: A4; }
+
+  /* Base */
+  html, body {
+    background: white !important;
+    color: black !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Expandir solo los contenedores del árbol principal */
+  #root,
+  #root > div,
+  #root > div > main {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    width: 100% !important;
+    position: static !important;
+  }
+
+  /* Overflow/height del wrapper de DietPlanDisplay — SIN display:block
+     para no sobreescribir display:none de elementos hermanos (MobileNav) */
+  #root > div > main > div:not(.no-print):not([class~="fixed"]) {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Ocultar UI — especificidad alta (#root) para ganar a las reglas anteriores */
+  #root aside,
+  #root nav,
+  #root .no-print { display: none !important; }
+
+  /* Fixed/sticky: también forzar position:static + visibility:hidden
+     porque Chromium puede renderizar position:fixed aunque display:none */
+  #root [class~="fixed"],
+  #root [class~="sticky"] {
+    display: none !important;
+    position: static !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Mostrar la vista de impresión */
+  .only-print { display: block !important; }
+
+  /* Saltos de página */
+  .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+  .print-page-break { break-before: page; page-break-before: always; padding-top: 1rem; }
+}

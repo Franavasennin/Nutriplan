@@ -688,7 +688,7 @@ export const parseDietFromPDF = async (pdfBase64: string): Promise<SavedDiet> =>
   const userPrompt = `El siguiente texto fue extraído de un plan nutricional en PDF. ${PDF_VISION_PROMPT}\n\nTEXTO DEL PDF:\n${pdfText}`;
   const raw = await groqRequest(apiKey, MODEL_DIET, '', userPrompt);
   if (!raw) throw new Error('El modelo no devolvió ningún contenido. Intenta de nuevo.');
-  let parsed: Record<string, unknown>;
+  let parsed: Record<string, any>;
   try {
     parsed = JSON.parse(raw);
   } catch {

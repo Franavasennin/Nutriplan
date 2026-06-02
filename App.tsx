@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 
-// Views
-import PatientForm      from './components/PatientForm';
-import DietPlanDisplay  from './components/DietPlanDisplay';
-import CouplesDietView  from './components/CouplesDietView';
-import SavedDietsList   from './components/SavedDietsList';
-import FoodDatabase     from './components/FoodDatabase';
-import ProgressTracker  from './components/ProgressTracker';
-import RecipeSearch     from './components/RecipeSearch';
-import Dashboard        from './components/Dashboard';
+// Views — carga diferida (code-splitting): cada vista es un chunk aparte,
+// se descarga solo cuando el usuario navega a ella.
+const PatientForm     = lazy(() => import('./components/PatientForm'));
+const DietPlanDisplay = lazy(() => import('./components/DietPlanDisplay'));
+const CouplesDietView = lazy(() => import('./components/CouplesDietView'));
+const SavedDietsList  = lazy(() => import('./components/SavedDietsList'));
+const FoodDatabase    = lazy(() => import('./components/FoodDatabase'));
+const ProgressTracker = lazy(() => import('./components/ProgressTracker'));
+const RecipeSearch    = lazy(() => import('./components/RecipeSearch'));
+const Dashboard       = lazy(() => import('./components/Dashboard'));
 import LoadingOverlay   from './components/LoadingOverlay';
 
 // New components
@@ -232,7 +233,7 @@ const AppContent: React.FC = () => {
 
   // ── Export / Import ─────────────────────────────────────────────────────────
   const handleExportJSON = () => {
-    exportJSON(savedDiets, customFoods, progressData);
+    exportJSON(savedDiets, customFoods, progressData, couplesDiets);
     toast('Backup JSON descargado.', 'success');
   };
 
@@ -301,6 +302,7 @@ const AppContent: React.FC = () => {
 
       <main className="flex-1 flex flex-col min-h-0 overflow-y-auto bg-background-light dark:bg-background-dark relative transition-colors duration-200">
 
+       <Suspense fallback={<LoadingOverlay />}>
         {currentStep === 'dashboard' && (
           <>
             <Dashboard
@@ -425,6 +427,8 @@ const AppContent: React.FC = () => {
           />
           </div>
         )}
+
+       </Suspense>
 
         <MobileNav currentStep={currentStep} onNavigate={navigate} hasPlan={!!plan} />
       </main>

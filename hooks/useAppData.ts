@@ -337,10 +337,23 @@ export function useAppData() {
     diets?: SavedDiet[];
     foods?: CustomFood[];
     progress?: ClientProgress[];
+    couples?: CouplesDiet[];
   }) => {
     if (payload.diets)    setSavedDiets(payload.diets);
     if (payload.foods)    setCustomFoods(payload.foods);
     if (payload.progress) setProgressData(payload.progress);
+    if (payload.couples)  setCouplesDiets(payload.couples);
+
+    if (payload.couples) {
+      await supabase.from('couples_diets').delete().neq('id', '__none__');
+      if (payload.couples.length) {
+        await supabase.from('couples_diets').insert(
+          payload.couples.map(c => ({
+            id: c.id, timestamp: c.timestamp, person_a: c.personA, person_b: c.personB,
+          }))
+        );
+      }
+    }
 
     if (payload.diets) {
       await supabase.from('saved_diets').delete().neq('id', '__none__');

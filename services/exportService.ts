@@ -1,10 +1,11 @@
-import { SavedDiet, CustomFood, ClientProgress, PatientData, Gender, ActivityLevel, DietType, Duration } from '../types';
+import { SavedDiet, CustomFood, ClientProgress, CouplesDiet, PatientData, Gender, ActivityLevel, DietType, Duration } from '../types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from '../utils/calculations';
 
 export interface BackupPayload {
   diets: SavedDiet[];
   foods: CustomFood[];
   progress: ClientProgress[];
+  couples?: CouplesDiet[];
   exportDate: string;
 }
 
@@ -41,10 +42,11 @@ const triggerDownload = (url: string, filename: string) => {
 export const exportJSON = (
   diets: SavedDiet[],
   foods: CustomFood[],
-  progress: ClientProgress[]
+  progress: ClientProgress[],
+  couples: CouplesDiet[] = []
 ) => {
   try {
-    const payload: BackupPayload = { diets, foods, progress, exportDate: new Date().toISOString() };
+    const payload: BackupPayload = { diets, foods, progress, couples, exportDate: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     triggerDownload(URL.createObjectURL(blob), `NutriPlan_Backup_${today()}.json`);
   } catch (err) {
@@ -169,7 +171,8 @@ function validateBackupPayload(data: unknown): data is BackupPayload {
   const hasDiets    = Array.isArray(d.diets);
   const hasFoods    = Array.isArray(d.foods);
   const hasProgress = Array.isArray(d.progress);
-  if (!hasDiets && !hasFoods && !hasProgress) return false;
+  const hasCouples  = Array.isArray(d.couples);
+  if (!hasDiets && !hasFoods && !hasProgress && !hasCouples) return false;
   // Validar estructura mínima de cada dieta
   if (hasDiets) {
     for (const diet of d.diets as unknown[]) {

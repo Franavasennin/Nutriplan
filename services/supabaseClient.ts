@@ -5,6 +5,27 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY as string | undefined;
 
+/**
+ * Stub seguro: cuando faltan credenciales, todas las operaciones de Supabase
+ * son no-ops que resuelven a `{ data: [], error: null }`. Así las mutaciones
+ * (saveDiet, updateDietPlan, etc.) NO lanzan `null.from(...)` y la app sigue
+ * funcionando en modo local (los datos viven en el estado de React).
+ */
+function createSupabaseStub(): SupabaseClient {
+  const result = Promise.resolve({ data: [], error: null });
+  const chain: any = new Proxy(result, {
+    get(target, prop) {
+      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+        return (target as any)[prop].bind(target);
+      }
+      // Cualquier método (select, insert, update, delete, eq, order, upsert…)
+      // devuelve la misma cadena thenable.
+      return () => chain;
+    },
+  });
+  return { from: () => chain } as unknown as SupabaseClient;
+}
+
 // Si faltan credenciales la app arranca en modo local (sin sincronización BD)
 let supabase: SupabaseClient;
 
@@ -16,7 +37,7 @@ if (SUPABASE_URL && SUPABASE_KEY) {
     'La app funciona en modo local sin sincronización con la base de datos.\n' +
     'Añade las variables a .env.local para habilitar la BD.'
   );
-  supabase = null as unknown as SupabaseClient;
+  supabase = createSupabaseStub();
 }
 
 export { supabase };
