@@ -27,6 +27,9 @@ dist
 dist-ssr
 *.local
 
+# Salida generada por /graphify (grafo de conocimiento, no es código fuente)
+graphify-out/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
