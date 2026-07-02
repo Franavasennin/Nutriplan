@@ -43,9 +43,9 @@ const AppContent: React.FC = () => {
   const {
     savedDiets, customFoods, progressData, couplesDiets, dbRecipes, uniqueClients, dbOnline,
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
-    saveCouplesDiet, deleteCouplesDiet,
+    saveCouplesDiet, deleteCouplesDiet, updateCouplesDiet,
     addCustomFood, editCustomFood, deleteCustomFood,
-    saveProgressEntry, deleteProgressEntry, updateClientGoal, importAll, appendDiets,
+    saveProgressEntry, deleteProgressEntry, updateProgressEntry, updateClientGoal, importAll, appendDiets,
   } = useAppData();
   const { toast }    = useToast();
   const { confirm }  = useConfirm();
@@ -332,7 +332,14 @@ const AppContent: React.FC = () => {
         )}
 
         {currentStep === 'couples' && currentCouples && (
-          <CouplesDietView couplesDiet={currentCouples} />
+          <CouplesDietView
+            couplesDiet={currentCouples}
+            customFoods={customFoods}
+            onUpdateCouplesDiet={(personA, personB) => {
+              updateCouplesDiet(currentCouples.id, personA, personB);
+              setCurrentCouples(prev => prev ? { ...prev, personA, personB } : prev);
+            }}
+          />
         )}
 
         {currentStep === 'result' && metrics && plan && (
@@ -369,6 +376,7 @@ const AppContent: React.FC = () => {
             progressData={progressData}
             onSaveEntry={saveProgressEntry}
             onDeleteEntry={deleteProgressEntry}
+            onUpdateEntry={updateProgressEntry}
             onUpdateGoal={updateClientGoal}
           />
         )}

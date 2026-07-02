@@ -447,7 +447,10 @@ const DietPlanDisplay: React.FC<Props> = ({
 
   useEffect(() => {
     setLocalPlan(plan);
-    setActiveDay(plan.weeklyPlan?.[0]?.day ?? 1);
+    // Preservar el día activo si sigue existiendo en el nuevo plan (p.ej. después de guardar).
+    // Solo saltar al primer día cuando el día actual ya no existe (carga de una dieta diferente).
+    const validDays = plan.weeklyPlan?.map(d => d.day) ?? [];
+    setActiveDay(prev => validDays.includes(prev) ? prev : (plan.weeklyPlan?.[0]?.day ?? 1));
     setHasChanges(false);
     setActiveEdit(null);
   }, [plan]);
@@ -509,12 +512,25 @@ const DietPlanDisplay: React.FC<Props> = ({
       if (donors === 0) {
         // Sin desayuno/cena con datos → comportamiento clásico (macros residuales del día)
         const used = sumDayMacros(activeDayPlan.meals) ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
-        const residual = {
-          calories: metrics.macros.calories - used.calories,
-          protein:  metrics.macros.protein  - used.protein,
-          carbs:    metrics.macros.carbs    - used.carbs,
-          fats:     metrics.macros.fats     - used.fats,
-        };
+        // Si las comidas existentes tienen calorías 0 (p.ej. dieta importada de PDF),
+        // el residual sería el presupuesto completo, lo que daría un objetivo irreal.
+        // En ese caso distribuimos el presupuesto diario equitativamente entre tomas.
+        const hasRealMacros = used.calories > 0;
+        const totalMeals = presentMealKeys.length + 1; // +1 = la toma que vamos a añadir
+        const residual = hasRealMacros
+          ? {
+              calories: metrics.macros.calories - used.calories,
+              protein:  metrics.macros.protein  - used.protein,
+              carbs:    metrics.macros.carbs    - used.carbs,
+              fats:     metrics.macros.fats     - used.fats,
+            }
+          : {
+              // Reparto equitativo cuando no hay macros reales registradas
+              calories: Math.round(metrics.macros.calories / totalMeals),
+              protein:  Math.round(metrics.macros.protein  / totalMeals),
+              carbs:    Math.round(metrics.macros.carbs    / totalMeals),
+              fats:     Math.round(metrics.macros.fats     / totalMeals),
+            };
         newMeal = await generateSingleMeal(mealKey, residual, patientData, metrics);
         setLocalPlan(prev => ({
           ...prev,
@@ -544,19 +560,27 @@ const DietPlanDisplay: React.FC<Props> = ({
           fats:     Math.max(0, mac.fats     - perDonor.fats),
         });
 
-        // Genera la toma nueva + re-porciona desayuno y cena (en paralelo)
-        const [generatedMeal, newBreakfast, newDinner] = await Promise.all([
+        // Genera la toma nueva + re-porciona desayuno y cena (en paralelo).
+        // Usamos allSettled para que si el rebalanceo falla, la toma nueva se añade igualmente.
+        const [mealResult, bfResult, dinResult] = await Promise.allSettled([
           generateSingleMeal(mealKey, newTarget, patientData, metrics),
           breakfast && bMac.calories > 0 ? reportionMeal(breakfast, reduce(bMac), patientData) : Promise.resolve(breakfast),
           dinner    && dMac.calories > 0 ? reportionMeal(dinner,    reduce(dMac), patientData) : Promise.resolve(dinner),
         ]);
-        newMeal = generatedMeal;
+
+        // Si la toma nueva falló, relanzar el error
+        if (mealResult.status === 'rejected') throw mealResult.reason;
+
+        newMeal = mealResult.value;
+        // Si el rebalanceo falla, mantener los originales (degradación elegante)
+        const newBreakfast = bfResult.status  === 'fulfilled' ? bfResult.value  : breakfast;
+        const newDinner    = dinResult.status === 'fulfilled' ? dinResult.value : dinner;
 
         setLocalPlan(prev => ({
           ...prev,
           weeklyPlan: prev.weeklyPlan.map(d => {
             if (d.day !== activeDay) return d;
-            const meals = { ...d.meals, [mealKey]: generatedMeal };
+            const meals = { ...d.meals, [mealKey]: newMeal };
             if (newBreakfast) meals.breakfast = newBreakfast;
             if (newDinner)    meals.dinner    = newDinner;
             return { ...d, meals };
@@ -565,7 +589,8 @@ const DietPlanDisplay: React.FC<Props> = ({
       }
 
       setHasChanges(true);
-      toast('Toma añadida (desayuno y cena reajustados). Recuerda guardar.', 'success');
+      const rebalanced = donors > 0;
+      toast(rebalanced ? 'Toma añadida y macros reajustados. Recuerda guardar.' : 'Toma añadida. Recuerda guardar.', 'success');
     } catch (err: any) {
       toast(err.message || 'No se pudo generar la toma.', 'error');
     } finally {

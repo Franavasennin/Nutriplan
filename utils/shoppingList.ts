@@ -4,7 +4,7 @@ import { DietResponse } from '../types';
 
 export interface ShoppingItem {
   name: string;
-  amounts: string[]; // all mentioned amounts across the week
+  amounts: string[]; // summed amounts per unit
 }
 
 export interface ShoppingCategory {
@@ -165,15 +165,15 @@ function categorize(normalized: string): number {
 // ─── Amount summing ────────────────────────────────────────────────────────────
 
 /**
- * Suma cantidades por unidad. Ejemplo: ["200g", "150g", "100g"] → ["450g"]
+ * Suma cantidades por unidad sobre un array (admite duplicados).
+ * Ejemplo: ["200g", "200g", "150g"] → ["550g"]
  * Unidades distintas se mantienen separadas: ["200g", "2 unidades"] → ["200g", "2 unidades"]
  */
-function sumAmounts(amounts: Set<string>): string[] {
+function sumAmounts(amounts: string[]): string[] {
   const unitTotals = new Map<string, number>();
   const unknowns: string[] = [];
 
   for (const amt of amounts) {
-    // Captura número + unidad opcional. Ej: "200g", "1.5 kg", "3 unidades"
     const m = amt.match(/^([\d]+(?:[.,]\d+)?)\s*([a-záéíóúüñ%]*)/i);
     if (m) {
       const num  = parseFloat(m[1].replace(',', '.'));
@@ -190,7 +190,6 @@ function sumAmounts(amounts: Set<string>): string[] {
 
   const result: string[] = [];
   for (const [unit, total] of unitTotals) {
-    // Redondear: sin decimales si es entero, 1 decimal si no
     const rounded = Number.isInteger(total) ? total : Math.round(total * 10) / 10;
     result.push(unit ? `${rounded}${unit}` : `${rounded}`);
   }
@@ -199,27 +198,39 @@ function sumAmounts(amounts: Set<string>): string[] {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export function generateShoppingList(plan: DietResponse): ShoppingList {
-  const seen = new Map<string, { name: string; amounts: Set<string>; catIdx: number }>();
+/**
+ * Genera una lista de la compra a partir de uno o varios planes de dieta.
+ * Pasar varios planes (p.ej. dieta de pareja) combina y suma las cantidades.
+ *
+ * Uso individual: generateShoppingList(plan)
+ * Uso en pareja:  generateShoppingList(planA, planB)
+ */
+export function generateShoppingList(...plans: DietResponse[]): ShoppingList {
+  // Usamos string[] (no Set) para conservar duplicados y sumar cantidades correctamente.
+  // Si el mismo ingrediente aparece lunes y miércoles, se registra dos veces y se suma.
+  const seen = new Map<string, { name: string; amounts: string[]; catIdx: number }>();
 
-  for (const day of plan.weeklyPlan) {
-    for (const meal of Object.values(day.meals)) {
-      if (!meal?.ingredients) continue;
-      for (const raw of meal.ingredients) {
-        if (!raw?.trim()) continue;
-        const { amount, name } = parseIngredient(raw);
-        if (!name) continue;
-        const normalized = normalizeName(name);
-        if (!normalized || normalized.length < 2) continue;
+  for (const plan of plans) {
+    for (const day of plan.weeklyPlan) {
+      for (const meal of Object.values(day.meals)) {
+        if (!meal?.ingredients) continue;
+        for (const raw of meal.ingredients) {
+          if (!raw?.trim()) continue;
+          const { amount, name } = parseIngredient(raw);
+          if (!name) continue;
+          const normalized = normalizeName(name);
+          if (!normalized || normalized.length < 2) continue;
 
-        if (!seen.has(normalized)) {
-          seen.set(normalized, {
-            name: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
-            amounts: new Set(),
-            catIdx: categorize(normalized),
-          });
+          if (!seen.has(normalized)) {
+            seen.set(normalized, {
+              name: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+              amounts: [],
+              catIdx: categorize(normalized),
+            });
+          }
+          // push (no add) para conservar duplicados → sumAmounts acumula correctamente
+          if (amount) seen.get(normalized)!.amounts.push(amount.toLowerCase());
         }
-        if (amount) seen.get(normalized)!.amounts.add(amount.toLowerCase());
       }
     }
   }
@@ -229,7 +240,7 @@ export function generateShoppingList(plan: DietResponse): ShoppingList {
     if (!groups.has(entry.catIdx)) groups.set(entry.catIdx, []);
     groups.get(entry.catIdx)!.push({
       name:    entry.name,
-      amounts: sumAmounts(entry.amounts),   // ← suma en vez de listar duplicados
+      amounts: sumAmounts(entry.amounts),
     });
   }
 

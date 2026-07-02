@@ -9,6 +9,7 @@ interface Props {
   onSaveEntry: (clientName: string, entry: ProgressEntry) => void;
   onUpdateGoal: (clientName: string, weightGoal: number, goalDate: number) => void;
   onDeleteEntry?: (clientName: string, entryId: string) => void;
+  onUpdateEntry?: (clientName: string, entry: ProgressEntry) => void;
 }
 
 type EmptyEntry = Omit<ProgressEntry, 'id' | 'date'>;
@@ -44,9 +45,34 @@ const PL = 10, PR = 10, PT = 16, PB = 40;
 const CW = SVG_W - PL - PR;
 const CH = SVG_H - PT - PB;
 
-const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, onUpdateGoal, onDeleteEntry }) => {
+const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, onUpdateGoal, onDeleteEntry, onUpdateEntry }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
+
+  const handleEditEntry = (entry: ProgressEntry) => {
+    setEditingId(entry.id);
+    setEntryDate(new Date(entry.date).toISOString().split('T')[0]);
+    setNewEntry({
+      weight:          entry.weight,
+      imc:             entry.imc,
+      bodyFat:         entry.bodyFat,
+      waterPercent:    entry.waterPercent,
+      proteinPercent:  entry.proteinPercent,
+      basalMetabolism: entry.basalMetabolism,
+      muscleMass:      entry.muscleMass,
+      visceralFat:     entry.visceralFat,
+      boneMass:        entry.boneMass,
+      notes:           entry.notes,
+    });
+    // Scroll al formulario
+    document.getElementById('progress-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setNewEntry({ ...EMPTY });
+    setEntryDate(new Date().toISOString().split('T')[0]);
+  };
 
   const handleDeleteEntry = async (entryId: string, dateLabel: string) => {
     if (!onDeleteEntry || !selectedClient) return;
@@ -61,6 +87,9 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
     onDeleteEntry(selectedClient, entryId);
     toast('Registro eliminado.', 'success');
   };
+
+  // editing state: null = new entry mode, string = id of entry being edited
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [newEntry, setNewEntry] = useState<EmptyEntry>({ ...EMPTY });
@@ -167,20 +196,30 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient || !newEntry.weight) return;
-    onSaveEntry(selectedClient, {
-      id: crypto.randomUUID(),
-      date: entryDate ? new Date(entryDate).getTime() : Date.now(),
-      weight: Number(newEntry.weight),
-      imc: newEntry.imc ? Number(newEntry.imc) : undefined,
-      bodyFat: newEntry.bodyFat ? Number(newEntry.bodyFat) : undefined,
-      waterPercent: newEntry.waterPercent ? Number(newEntry.waterPercent) : undefined,
-      proteinPercent: newEntry.proteinPercent ? Number(newEntry.proteinPercent) : undefined,
+
+    const entry: ProgressEntry = {
+      id:              editingId ?? crypto.randomUUID(),
+      date:            entryDate ? new Date(entryDate).getTime() : Date.now(),
+      weight:          Number(newEntry.weight),
+      imc:             newEntry.imc             ? Number(newEntry.imc)             : undefined,
+      bodyFat:         newEntry.bodyFat         ? Number(newEntry.bodyFat)         : undefined,
+      waterPercent:    newEntry.waterPercent    ? Number(newEntry.waterPercent)    : undefined,
+      proteinPercent:  newEntry.proteinPercent  ? Number(newEntry.proteinPercent)  : undefined,
       basalMetabolism: newEntry.basalMetabolism ? Number(newEntry.basalMetabolism) : undefined,
-      muscleMass: newEntry.muscleMass ? Number(newEntry.muscleMass) : undefined,
-      visceralFat: newEntry.visceralFat ? Number(newEntry.visceralFat) : undefined,
-      boneMass: newEntry.boneMass ? Number(newEntry.boneMass) : undefined,
-      notes: newEntry.notes,
-    });
+      muscleMass:      newEntry.muscleMass      ? Number(newEntry.muscleMass)      : undefined,
+      visceralFat:     newEntry.visceralFat     ? Number(newEntry.visceralFat)     : undefined,
+      boneMass:        newEntry.boneMass        ? Number(newEntry.boneMass)        : undefined,
+      notes:           newEntry.notes,
+    };
+
+    if (editingId) {
+      onUpdateEntry?.(selectedClient, entry);
+      toast('Registro actualizado.', 'success');
+      setEditingId(null);
+    } else {
+      onSaveEntry(selectedClient, entry);
+    }
+
     setNewEntry({ ...EMPTY });
     setEntryDate(new Date().toISOString().split('T')[0]);
   };
@@ -714,10 +753,25 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Form */}
-              <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-border-light dark:border-border-dark shadow-sm h-fit">
-                <h3 className="font-bold text-lg mb-4 text-text-main dark:text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary">edit_calendar</span> Nuevo Registro
-                </h3>
+              <div id="progress-form" className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-border-light dark:border-border-dark shadow-sm h-fit">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-lg text-text-main dark:text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">{editingId ? 'edit' : 'edit_calendar'}</span>
+                    {editingId ? 'Editar Registro' : 'Nuevo Registro'}
+                  </h3>
+                  {editingId && (
+                    <button type="button" onClick={handleCancelEdit}
+                      className="text-xs font-semibold text-text-sub hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 flex items-center gap-1 transition-colors">
+                      <span className="material-symbols-outlined text-[16px]">close</span> Cancelar
+                    </button>
+                  )}
+                </div>
+                {editingId && (
+                  <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px]">info</span>
+                    Editando registro existente. Los cambios se guardarán sobre el original.
+                  </div>
+                )}
                 <form onSubmit={handleSave} className="space-y-3">
                   <div>
                     <label className={labelCls}>Fecha *</label>
@@ -793,8 +847,9 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
                       onChange={e => set('notes', e.target.value)} />
                   </div>
                   <button type="submit"
-                    className="w-full bg-primary hover:brightness-95 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
-                    <span className="material-symbols-outlined text-[20px]">save</span> Guardar Registro
+                    className={`w-full hover:brightness-95 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all ${editingId ? 'bg-amber-400 shadow-amber-400/20' : 'bg-primary shadow-primary/20'}`}>
+                    <span className="material-symbols-outlined text-[20px]">{editingId ? 'update' : 'save'}</span>
+                    {editingId ? 'Actualizar Registro' : 'Guardar Registro'}
                   </button>
                 </form>
               </div>
@@ -819,7 +874,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
                         <th className="p-3 text-center">Visc.</th>
                         <th className="p-3 text-center">Hueso</th>
                         <th className="p-3">Notas</th>
-                        {onDeleteEntry && <th className="p-3 text-center">Acción</th>}
+                        {(onDeleteEntry || onUpdateEntry) && <th className="p-3 text-center">Acción</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-light dark:divide-border-dark">
@@ -827,7 +882,8 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
                         <tr><td colSpan={onDeleteEntry ? 12 : 11} className="p-8 text-center text-gray-400">Sin registros aún</td></tr>
                       ) : (
                         [...sortedEntries].reverse().map(entry => (
-                          <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                          <tr key={entry.id}
+                            className={`hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${editingId === entry.id ? 'bg-amber-50 dark:bg-amber-900/10 ring-1 ring-inset ring-amber-300 dark:ring-amber-700' : ''}`}>
                             <td className="p-3 font-medium text-text-main dark:text-gray-300 whitespace-nowrap">{new Date(entry.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</td>
                             <td className="p-3 text-center font-bold text-text-main dark:text-white">{entry.weight} kg</td>
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.imc ?? '-'}</td>
@@ -839,15 +895,28 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.visceralFat ?? '-'}</td>
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.boneMass != null ? `${entry.boneMass} kg` : '-'}</td>
                             <td className="p-3 text-text-sub dark:text-gray-500 max-w-[120px] truncate">{entry.notes || '-'}</td>
-                            {onDeleteEntry && (
+                            {(onDeleteEntry || onUpdateEntry) && (
                               <td className="p-3 text-center">
-                                <button
-                                  onClick={() => handleDeleteEntry(entry.id, new Date(entry.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' }))}
-                                  title="Eliminar registro"
-                                  className="size-8 inline-flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all"
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">delete</span>
-                                </button>
+                                <div className="flex items-center justify-center gap-1">
+                                  {onUpdateEntry && (
+                                    <button
+                                      onClick={() => handleEditEntry(entry)}
+                                      title="Editar registro"
+                                      className={`size-8 inline-flex items-center justify-center rounded-lg transition-all ${editingId === entry.id ? 'bg-amber-200 text-amber-700 dark:bg-amber-800 dark:text-amber-300' : 'text-text-sub hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:text-amber-600'}`}
+                                    >
+                                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                                    </button>
+                                  )}
+                                  {onDeleteEntry && (
+                                    <button
+                                      onClick={() => handleDeleteEntry(entry.id, new Date(entry.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' }))}
+                                      title="Eliminar registro"
+                                      className="size-8 inline-flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all"
+                                    >
+                                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             )}
                           </tr>

@@ -6,8 +6,8 @@
      3. Local scheduled reminders (postMessage from the page)
    ───────────────────────────────────────────────────────────────────────────── */
 
-const CACHE_NAME = 'nutriplan-v2';
-const SHELL_ASSETS = ['/', '/index.html', '/manifest.json'];
+const CACHE_NAME = 'nutriplan-v3';
+const SHELL_ASSETS = ['/manifest.json'];
 
 // ── Install: pre-cache shell ──────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -27,12 +27,45 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first for API, cache-first for shell ───────────────────────
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+// Estrategia:
+//  • API (/api/*): no interceptar (va directo a la red).
+//  • Navegaciones / HTML (index.html): NETWORK-FIRST. Siempre se baja el HTML
+//    fresco para que apunte a los assets con el hash actual. Solo se usa la
+//    caché como fallback sin conexión. Esto evita la pantalla en blanco tras
+//    reconstruir la app (el HTML viejo apuntaba a JS/CSS que ya no existen).
+//  • Resto de assets estáticos: cache-first (rápido y offline).
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const req = event.request;
+  const url = new URL(req.url);
+
   if (url.pathname.startsWith('/api/')) return;
+  if (req.method !== 'GET') return;
+
+  const isHTML =
+    req.mode === 'navigate' ||
+    req.destination === 'document' ||
+    (req.headers.get('accept') || '').includes('text/html');
+
+  if (isHTML) {
+    // Network-first: HTML siempre fresco
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() =>
+          caches.match(req).then((cached) => cached || caches.match('/index.html'))
+        )
+    );
+    return;
+  }
+
+  // Otros assets: cache-first con actualización en segundo plano
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.match(req).then((cached) => cached || fetch(req))
   );
 });
 

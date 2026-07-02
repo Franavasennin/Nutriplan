@@ -264,6 +264,12 @@ export function useAppData() {
       .then(({ error }) => { if (error) console.error('deleteCouplesDiet:', error.message); });
   }, []);
 
+  const updateCouplesDiet = useCallback((id: string, personA: SavedDiet, personB: SavedDiet) => {
+    setCouplesDiets(prev => prev.map(c => c.id === id ? { ...c, personA, personB } : c));
+    supabase.from('couples_diets').update({ person_a: personA, person_b: personB }).eq('id', id)
+      .then(({ error }) => { if (error) console.error('updateCouplesDiet:', error.message); });
+  }, []);
+
   // ── Foods ─────────────────────────────────────────────────────────────────
 
   const addCustomFood = useCallback((food: CustomFood) => {
@@ -327,6 +333,30 @@ export function useAppData() {
     );
     supabase.from('progress_entries').delete().eq('id', entryId)
       .then(({ error }) => { if (error) console.error('deleteProgressEntry:', error.message); });
+  }, []);
+
+  const updateProgressEntry = useCallback((clientName: string, entry: ProgressEntry) => {
+    setProgressData(prev =>
+      prev.map(p =>
+        p.clientName === clientName
+          ? { ...p, entries: p.entries.map(e => e.id === entry.id ? entry : e) }
+          : p
+      )
+    );
+    supabase.from('progress_entries').update({
+      date:             entry.date,
+      weight:           entry.weight,
+      imc:              entry.imc             ?? null,
+      body_fat:         entry.bodyFat         ?? null,
+      water_percent:    entry.waterPercent    ?? null,
+      protein_percent:  entry.proteinPercent  ?? null,
+      basal_metabolism: entry.basalMetabolism ?? null,
+      muscle_mass:      entry.muscleMass      ?? null,
+      visceral_fat:     entry.visceralFat     ?? null,
+      bone_mass:        entry.boneMass        ?? null,
+      notes:            entry.notes           ?? null,
+    }).eq('id', entry.id)
+      .then(({ error }) => { if (error) console.error('updateProgressEntry:', error.message); });
   }, []);
 
   const updateClientGoal = useCallback((
@@ -441,11 +471,13 @@ export function useAppData() {
     restorePlanVersion,
     saveCouplesDiet,
     deleteCouplesDiet,
+    updateCouplesDiet,
     addCustomFood,
     editCustomFood,
     deleteCustomFood,
     saveProgressEntry,
     deleteProgressEntry,
+    updateProgressEntry,
     updateClientGoal,
     importAll,
   };

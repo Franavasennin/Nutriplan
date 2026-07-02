@@ -823,15 +823,39 @@ Devuelve SOLO el JSON.
 `.trim();
 
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
-  if (!text) throw new Error('Sin respuesta de la IA');
+  if (!text) throw new Error('Sin respuesta de la IA al sugerir alternativa.');
   try {
-    return JSON.parse(text) as Meal;
-  } catch {
-    throw new Error('La IA devolvió una respuesta con formato inválido al sugerir la alternativa. Inténtalo de nuevo.');
+    return extractMeal(JSON.parse(text));
+  } catch (err: any) {
+    throw new Error(err.message || 'La IA devolvió una respuesta con formato inválido al sugerir la alternativa. Inténtalo de nuevo.');
   }
 };
 
 // ─── Generar una toma nueva (añadir ración sin rehacer la dieta) ──────────────
+// ─── Helper: extrae y valida un Meal de la respuesta de la IA ────────────────
+/**
+ * Mistral con json_object a veces envuelve el objeto en una clave extra:
+ *   {"toma": {"name": "...", "ingredients": [...]}}  ← wrapper no deseado
+ *   {"name": "...", "ingredients": [...]}             ← correcto
+ * Este helper intenta ambas formas y valida los campos mínimos.
+ */
+function extractMeal(raw: unknown): Meal {
+  const isMeal = (v: unknown): v is Meal =>
+    !!v && typeof v === 'object' &&
+    typeof (v as any).name === 'string' && (v as any).name.length > 0 &&
+    Array.isArray((v as any).ingredients);
+
+  if (isMeal(raw)) return raw;
+
+  // Buscar en el primer nivel de valores del objeto
+  if (raw && typeof raw === 'object') {
+    for (const v of Object.values(raw as object)) {
+      if (isMeal(v)) return v;
+    }
+  }
+  throw new Error('La IA no devolvió una comida con formato válido. Inténtalo de nuevo.');
+}
+
 /**
  * Genera una sola toma para un día concreto, calibrada a los macros residuales
  * (objetivo del día menos lo que ya suman las tomas existentes).
@@ -890,11 +914,11 @@ Devuelve SOLO el JSON.
 `.trim();
 
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
-  if (!text) throw new Error('Sin respuesta de la IA');
+  if (!text) throw new Error('Sin respuesta de la IA al generar la toma.');
   try {
-    return JSON.parse(text) as Meal;
-  } catch {
-    throw new Error('La IA devolvió una respuesta con formato inválido al generar la toma. Inténtalo de nuevo.');
+    return extractMeal(JSON.parse(text));
+  } catch (err: any) {
+    throw new Error(err.message || 'La IA devolvió una respuesta con formato inválido al generar la toma. Inténtalo de nuevo.');
   }
 };
 
@@ -942,11 +966,11 @@ Devuelve SOLO el JSON con los mismos alimentos y las cantidades recalculadas.
 `.trim();
 
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
-  if (!text) throw new Error('Sin respuesta de la IA');
+  if (!text) throw new Error('Sin respuesta de la IA al reajustar la comida.');
   try {
-    return JSON.parse(text) as Meal;
-  } catch {
-    throw new Error('La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
+    return extractMeal(JSON.parse(text));
+  } catch (err: any) {
+    throw new Error(err.message || 'La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
   }
 };
 
