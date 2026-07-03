@@ -87,7 +87,10 @@ export enum Condition {
   LactoseIntolerance = 'intolerancia_lactosa',
   Hypertriglyceridemia = 'hipertrigliceridemia',
   Celiac = 'celiaquia',
-  Obesity = 'obesidad'
+  Obesity = 'obesidad',
+  // ─── Auditoría clínica: perfiles que requieren restricciones de seguridad ────
+  RenalDisease = 'enfermedad_renal',           // ERC → cap de proteína (KDOQI)
+  EatingDisorderHistory = 'antecedente_tca',   // antecedente TCA → sin déficit/ayuno automáticos
 }
 
 export enum Duration {
@@ -114,6 +117,9 @@ export interface PatientData {
   calorieGoal?: CalorieGoal;  // objetivo calórico para dietas no-atleta
   trainingTime?: string;    // hora de entrenamiento HH:MM — solo dieta atleta
   clinicalNotes?: string;   // notas clínicas del nutricionista (no enviadas a la IA)
+  // ─── Cribado de seguridad clínica (auditoría) ──────────────────────────────
+  isPregnant?: boolean;     // embarazo — bloquea déficit calórico y ayuno automáticos
+  isLactating?: boolean;    // lactancia — bloquea déficit calórico y ayuno automáticos
 }
 
 export interface CalculatedMetrics {

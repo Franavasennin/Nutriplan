@@ -32,6 +32,7 @@ import { readPDFAsBase64 } from './services/pdfService';
 // Utils & types
 import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, CouplesDiet } from './types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from './utils/calculations';
+import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
 
 type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
@@ -72,8 +73,11 @@ const AppContent: React.FC = () => {
   };
 
   // ── Diet generation ─────────────────────────────────────────────────────────
-  const handleFormSubmit = async (data: PatientData) => {
+  const handleFormSubmit = async (rawData: PatientData) => {
     setIsLoading(true);
+    // Seguridad clínica (auditoría): fuerza mantenimiento/sin ayuno en perfiles
+    // vulnerables aunque el formulario no lo haya aplicado (defensa en profundidad).
+    const data = enforceClinicalSafety(rawData);
     setPatientData(data);
     try {
       const imc         = calculateIMC(data.weight, data.height);
@@ -81,7 +85,9 @@ const AppContent: React.FC = () => {
       const tee         = calculateTEE(bmr, data.activity);
       const idealWeight = calculateIdealWeight(data.height, data.gender);
       const refWeight   = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight;
-      const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal);
+      const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
+        isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
+      });
       const calc        = { imc, bmr, tee, macros };
 
       // Aviso clínico si el floor de 1.500 kcal se ha aplicado
@@ -105,20 +111,28 @@ const AppContent: React.FC = () => {
   };
 
   // ── Cálculo de métricas reutilizable ──────────────────────────────────────────
+  // Nota: se asume que `data` ya ha pasado por enforceClinicalSafety en el
+  // llamador (handleFormSubmit / handleCoupleSubmit). Aun así, se pasan las
+  // flags de seguridad a calculateMacros como defensa adicional.
   const computeMetrics = (data: PatientData): CalculatedMetrics => {
     const imc         = calculateIMC(data.weight, data.height);
     const bmr         = calculateBMR(data);
     const tee         = calculateTEE(bmr, data.activity);
     const idealWeight = calculateIdealWeight(data.height, data.gender);
     const refWeight   = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight;
-    const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal);
+    const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
+      isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
+    });
     return { imc, bmr, tee, macros };
   };
 
   // ── Generación de dieta para pareja ───────────────────────────────────────────
-  const handleCoupleSubmit = async (a: PatientData, b: PatientData) => {
+  const handleCoupleSubmit = async (rawA: PatientData, rawB: PatientData) => {
     setIsLoading(true);
     try {
+      // Seguridad clínica (auditoría): aplica el cribado a cada persona antes de calcular
+      const a = enforceClinicalSafety(rawA);
+      const b = enforceClinicalSafety(rawB);
       const metricsA = computeMetrics(a);
       const metricsB = computeMetrics(b);
       // 1) Genera el menú base completo con la persona A (todos los días según semanas).

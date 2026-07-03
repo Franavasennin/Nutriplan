@@ -10,6 +10,8 @@ import {
   DayPlan, Meal,
 } from '../types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from '../utils/calculations';
+import { reconcileMealMacros, reconcileDayPlan, reconcileDietResponse } from '../utils/macroValidation';
+import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 
 const GROQ_API_URL   = 'https://api.mistral.ai/v1/chat/completions';
 const MISTRAL_OCR_URL = 'https://api.mistral.ai/v1/ocr';
@@ -463,18 +465,36 @@ Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
   // Fix 3: Bloquear ayuno intermitente en diabetes T2 (riesgo de hipoglucemia)
   const hasT2Diabetes = patient.conditions?.includes(Condition.DiabetesType2);
 
-  const fastingNote = (!hasT2Diabetes && patient.fastingProtocol && patient.fastingProtocol !== FastingProtocol.None)
+  // Auditoría (mejora crítica #3): bloquear también el ayuno en perfiles
+  // vulnerables (menor / embarazo / lactancia / antecedente de TCA). Defensa
+  // en profundidad: aunque enforceClinicalSafety ya debería haber puesto
+  // fastingProtocol en None antes de llegar aquí, este es el último filtro
+  // antes de construir el prompt que recibe la IA.
+  const safetyFlags = getClinicalSafetyFlags(patient);
+  const blockFasting = hasT2Diabetes || safetyFlags.isVulnerable;
+
+  const fastingNote = (!blockFasting && patient.fastingProtocol && patient.fastingProtocol !== FastingProtocol.None)
     ? `\n- Protocolo de ayuno: ${patient.fastingProtocol} — ${FASTING_WINDOW[patient.fastingProtocol] ?? ''}`
     : '';
 
   // For 5:2 fasting, flag 2 of the 7 days as low-calorie
-  const fasting52Note = (!hasT2Diabetes && patient.fastingProtocol === FastingProtocol.IF5_2)
+  const fasting52Note = (!blockFasting && patient.fastingProtocol === FastingProtocol.IF5_2)
     ? `\n- IMPORTANTE para 5:2: días ${startDay + 2} y ${startDay + 5} son DÍAS DE AYUNO (500 kcal, solo 2 tomas: comida y cena ligeras, ej: 250g verdura + 100g proteína cada una).`
     : '';
 
   // Nota específica para diabetes T2: 5 tomas pequeñas, sin ayuno
   const t2DiabetesNote = hasT2Diabetes
     ? '\n- DIABETES T2 — DISTRIBUCIÓN OBLIGATORIA EN 5 TOMAS: Distribuir las calorías en 5 tomas equidistribuidas (cada 3h aproximadamente) para estabilidad glucémica. PROHIBIDO cualquier protocolo de ayuno intermitente o periodos sin comer superiores a 4h — puede causar hipoglucemia en pacientes con metformina o insulina. Priorizar HC de bajo índice glucémico (avena, legumbres, verduras, arroz integral). Incluir en generalGuidelines pautas de monitoreo glucémico postprandial.'
+    : '';
+
+  // Nota de seguridad clínica para perfiles vulnerables (auditoría)
+  const vulnerableNote = safetyFlags.isVulnerable
+    ? `\n- ⚠ PERFIL CLÍNICAMENTE VULNERABLE (${safetyFlags.reasons.join(', ')}): PROHIBIDO cualquier restricción calórica agresiva, ayuno o mensaje orientado a la pérdida de peso. El plan debe ser de mantenimiento nutricional completo y variado, sin lenguaje alarmista sobre el peso corporal. Requiere supervisión profesional directa.`
+    : '';
+
+  // Nota de seguridad para enfermedad renal (proteína ya limitada en el cálculo, refuerzo textual)
+  const renalNote = safetyFlags.hasRenalDisease
+    ? '\n- ENFERMEDAD RENAL/ERC: la proteína objetivo ya ha sido limitada por seguridad. NO añadas fuentes proteicas extra ni suplementos proteicos. Prioriza control de sodio y potasio; evita embutidos y conservas saladas.'
     : '';
 
   const athleteGoalText = (patient.dietType === DietType.Athlete && patient.athleteGoal)
@@ -539,7 +559,7 @@ ${weightGoalText}
     · G ${fatsPerMeal}g: necesitas ~${Math.round(fatsPerMeal / 0.55)}g nueces, o ~${Math.round(fatsPerMeal / 1.00)}ml AOVE, o combina (ej: ${Math.round(fatsPerMeal * 0.4 / 0.13)}g salmón aporta ${Math.round(fatsPerMeal * 0.4)}g G + ${Math.round(fatsPerMeal * 0.6 / 1.00)}ml AOVE).
   → Si usas solo 100g de un cereal o 100g de aceite en cada toma, el plan NO alcanza el objetivo.${carbsPerMeal > 80 ? `
   ⚠ ALERTA HC ELEVADO (${carbsPerMeal}g por toma): Una sola fuente de cereal NO alcanza este objetivo. DEBES combinar 2-3 fuentes de HC en cada toma principal. Ejemplo para ${carbsPerMeal}g HC: ${Math.round(carbsPerMeal * 0.5 / 0.28)}g arroz integral cocido (${Math.round(carbsPerMeal * 0.5)}g HC) + ${Math.round(carbsPerMeal * 0.3 / 0.20)}g legumbres (${Math.round(carbsPerMeal * 0.3)}g HC) + 1 fruta mediana (${Math.round(carbsPerMeal * 0.2)}g HC). Ajusta según el plato.` : ''}
-${fastingNote}${fasting52Note}${t2DiabetesNote}${precookedUserNote}${excludedText}${customFoodsText}
+${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
 `.trim();
@@ -608,7 +628,9 @@ export const generateDietPlan = async (
     }
   }
 
-  return { weeklyPlan: allDayPlans, generalGuidelines, durationText };
+  // Validación determinista de macros (auditoría): corrige inconsistencias
+  // aritméticas entre las kcal declaradas y los macros declarados por la IA.
+  return reconcileDietResponse({ weeklyPlan: allDayPlans, generalGuidelines, durationText });
 };
 
 // ─── Recipe search ────────────────────────────────────────────────────────────
@@ -735,13 +757,13 @@ export const parseDietFromPDF = async (pdfBase64: string): Promise<SavedDiet> =>
     timestamp: Date.now(),
     patientData,
     metrics:   { imc, bmr, tee, macros },
-    plan: {
+    plan: reconcileDietResponse({
       weeklyPlan,
       generalGuidelines: Array.isArray(parsed.generalGuidelines)
         ? parsed.generalGuidelines
         : ['Plan importado desde PDF'],
       durationText: `${weeklyPlan.length} días`,
-    },
+    }),
   };
 };
 
@@ -768,7 +790,7 @@ export const regenerateSingleDay = async (
   }
   const day = parsed.weeklyPlan[0];
   day.day = dayNumber;
-  return day;
+  return reconcileDayPlan(day);
 };
 
 // ─── Sugerir alternativa para una comida ─────────────────────────────────────
@@ -825,7 +847,7 @@ Devuelve SOLO el JSON.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al sugerir alternativa.');
   try {
-    return extractMeal(JSON.parse(text));
+    return reconcileMealMacros(extractMeal(JSON.parse(text)));
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta con formato inválido al sugerir la alternativa. Inténtalo de nuevo.');
   }
@@ -916,7 +938,7 @@ Devuelve SOLO el JSON.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al generar la toma.');
   try {
-    return extractMeal(JSON.parse(text));
+    return reconcileMealMacros(extractMeal(JSON.parse(text)));
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta con formato inválido al generar la toma. Inténtalo de nuevo.');
   }
@@ -968,7 +990,7 @@ Devuelve SOLO el JSON con los mismos alimentos y las cantidades recalculadas.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al reajustar la comida.');
   try {
-    return extractMeal(JSON.parse(text));
+    return reconcileMealMacros(extractMeal(JSON.parse(text)));
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
   }
@@ -1042,11 +1064,11 @@ Devuelve SOLO el JSON con los ${chunk.length} día(s), mismos platos, cantidades
     }
   }
 
-  return {
+  return reconcileDietResponse({
     weeklyPlan: adaptedDays,
     generalGuidelines: basePlan.generalGuidelines ?? [],
     durationText: basePlan.durationText ?? '',
-  };
+  });
 };
 
 export const findRecipes = async (filters: RecipeFilters): Promise<Recipe[]> => {

@@ -13,6 +13,7 @@ import {
   CalorieGoal,
   CALORIE_GOAL_LABELS,
 } from '../types';
+import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 
 // ─── Recomendación de nº de comidas ──────────────────────────────────────────
 
@@ -81,6 +82,10 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
   const [partner, setPartner] = useState<PatientData>({ ...DEFAULT_FORM, gender: Gender.Female, name: '' });
 
   const recommendation = getMealRecommendation(formData);
+
+  // ── Cribado de seguridad clínica (auditoría) ────────────────────────────────
+  const safety        = getClinicalSafetyFlags(formData);
+  const partnerSafety = getClinicalSafetyFlags(partner);
 
   // BMI marker ref — CSS variable set after bmi is calculated below
   const bmiMarkerRef = useRef<HTMLDivElement>(null);
@@ -209,6 +214,26 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                 {errors.partner && <p className="text-xs text-red-500 font-medium mt-2 ml-8">{errors.partner}</p>}
             </div>
 
+            {/* ── Aviso de seguridad clínica (auditoría) ── */}
+            {(safety.isVulnerable || (coupleMode && partnerSafety.isVulnerable)) && (
+              <div className="rounded-xl p-4 border-2 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-2xl shrink-0">gpp_maybe</span>
+                <div>
+                  <p className="text-sm font-bold text-red-800 dark:text-red-300">Perfil clínicamente vulnerable — requiere supervisión profesional directa</p>
+                  {safety.isVulnerable && (
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                      {formData.name || 'Este paciente'}: {safety.reasons.join(' · ')}. Se ha desactivado automáticamente el déficit/superávit calórico y el ayuno intermitente; el plan se generará en mantenimiento.
+                    </p>
+                  )}
+                  {coupleMode && partnerSafety.isVulnerable && (
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                      {partner.name || 'Persona B'}: {partnerSafety.reasons.join(' · ')}. Mismas restricciones aplicadas.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                     {/* Left Column */}
@@ -243,6 +268,23 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 {errors.age && <span className="text-xs text-red-500 font-medium">{errors.age}</span>}
                             </label>
                         </div>
+                        {/* Cribado de seguridad: embarazo / lactancia — solo relevante en mujeres */}
+                        {formData.gender === Gender.Female && (
+                            <div className="grid grid-cols-2 gap-4 mt-4">
+                                <label className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${formData.isPregnant ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
+                                    <input type="checkbox" className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                                        checked={!!formData.isPregnant}
+                                        onChange={(e) => setFormData({ ...formData, isPregnant: e.target.checked })} />
+                                    <span className="text-sm font-medium text-text-main dark:text-gray-200">Embarazo</span>
+                                </label>
+                                <label className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${formData.isLactating ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
+                                    <input type="checkbox" className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                                        checked={!!formData.isLactating}
+                                        onChange={(e) => setFormData({ ...formData, isLactating: e.target.checked })} />
+                                    <span className="text-sm font-medium text-text-main dark:text-gray-200">Lactancia</span>
+                                </label>
+                            </div>
+                        )}
                         {/* Notas clínicas del nutricionista */}
                         <div className="mt-5">
                             <label className="flex flex-col gap-2">
@@ -303,20 +345,32 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                         <option value={DietType.Protein}>Proteica</option>
                                         <option value={DietType.Athlete}>Atleta</option>
                                         <option value={DietType.Precooked}>Sin cocina (conservas y precocinados)</option>
-                                        <optgroup label="── Protéifine DAP ──">
-                                            <option value={DietType.ProteinDAP4}>Protéifine DAP 4 - Fase Transición</option>
-                                            <option value={DietType.ProteinDAP5}>Protéifine DAP 5 - Fase Transición</option>
-                                        </optgroup>
+                                        {/* DAP: protocolo médico restrictivo — no disponible en menores (auditoría) */}
+                                        {!safety.isMinor && (
+                                            <optgroup label="── Protéifine DAP ──">
+                                                <option value={DietType.ProteinDAP4}>Protéifine DAP 4 - Fase Transición</option>
+                                                <option value={DietType.ProteinDAP5}>Protéifine DAP 5 - Fase Transición</option>
+                                            </optgroup>
+                                        )}
                                     </select>
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-text-sub">expand_more</span>
                                 </div>
+                                {safety.isMinor && <span className="text-[10px] text-red-600 dark:text-red-400 font-semibold mt-0.5">Protéifine no disponible para menores de edad.</span>}
                             </label>
                         </div>
 
-                        {/* ── Objetivo calórico — visible para dietas no-Atleta y no-DAP ── */}
+                        {/* ── Objetivo calórico — bloqueado en perfiles vulnerables (auditoría) ── */}
                         {formData.dietType !== DietType.Athlete &&
                          formData.dietType !== DietType.ProteinDAP4 &&
-                         formData.dietType !== DietType.ProteinDAP5 && (() => {
+                         formData.dietType !== DietType.ProteinDAP5 && safety.isVulnerable && (
+                          <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 mt-1">
+                            <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-[18px]">lock</span>
+                            <p className="text-xs font-semibold text-red-700 dark:text-red-300">Objetivo calórico bloqueado en Mantenimiento — perfil vulnerable ({safety.reasons.join(', ')}).</p>
+                          </div>
+                        )}
+                        {formData.dietType !== DietType.Athlete &&
+                         formData.dietType !== DietType.ProteinDAP4 &&
+                         formData.dietType !== DietType.ProteinDAP5 && !safety.isVulnerable && (() => {
                           const GOAL_ORDER: CalorieGoal[] = [
                             CalorieGoal.DeficitFast, CalorieGoal.DeficitSlow,
                             CalorieGoal.Maintenance,
@@ -386,6 +440,8 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                     {(Object.values(AthleteGoal) as AthleteGoal[]).map(goal => {
                                         const active = (formData.athleteGoal ?? AthleteGoal.Performance) === goal;
+                                        // Seguridad clínica: "Definición" implica déficit — bloqueado en perfiles vulnerables
+                                        const isBlocked = safety.isVulnerable && goal === AthleteGoal.Definition;
                                         const icons: Record<AthleteGoal, string> = {
                                             [AthleteGoal.Performance]: 'bolt',
                                             [AthleteGoal.Definition]:  'monitor_weight',
@@ -395,14 +451,16 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                             <button
                                                 type="button"
                                                 key={goal}
+                                                disabled={isBlocked}
+                                                title={isBlocked ? 'Bloqueado: implica déficit calórico, no permitido en perfil vulnerable' : undefined}
                                                 onClick={() => setFormData({ ...formData, athleteGoal: goal })}
-                                                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                                                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                                                     active
                                                         ? 'border-primary bg-primary/10 text-primary dark:text-primary'
                                                         : 'border-border-light dark:border-border-dark text-text-sub dark:text-gray-400 hover:border-primary/50'
                                                 }`}
                                             >
-                                                <span className="material-symbols-outlined text-[22px]">{icons[goal]}</span>
+                                                <span className="material-symbols-outlined text-[22px]">{isBlocked ? 'lock' : icons[goal]}</span>
                                                 <span className="text-center text-xs leading-tight">{ATHLETE_GOAL_LABELS[goal]}</span>
                                             </button>
                                         );
@@ -482,8 +540,9 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 <div className="relative">
                                     <select
                                         title="Protocolo de ayuno intermitente"
-                                        className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white outline-none"
-                                        value={formData.fastingProtocol ?? FastingProtocol.None}
+                                        disabled={safety.isVulnerable}
+                                        className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                        value={safety.isVulnerable ? FastingProtocol.None : (formData.fastingProtocol ?? FastingProtocol.None)}
                                         onChange={(e) => setFormData({...formData, fastingProtocol: e.target.value as FastingProtocol})}
                                     >
                                         {Object.values(FastingProtocol).map(f => (
@@ -492,7 +551,13 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                     </select>
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-text-sub">expand_more</span>
                                 </div>
-                                {formData.fastingProtocol !== FastingProtocol.None && (
+                                {safety.isVulnerable && (
+                                    <div className="flex items-center gap-1.5 p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
+                                        <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-[16px]">lock</span>
+                                        <p className="text-[11px] font-semibold text-red-700 dark:text-red-300">Ayuno bloqueado — perfil vulnerable.</p>
+                                    </div>
+                                )}
+                                {!safety.isVulnerable && formData.fastingProtocol !== FastingProtocol.None && (
                                     <div className="flex items-start gap-1.5 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
                                         <span className="material-symbols-outlined text-blue-500 text-[16px] shrink-0 mt-0.5">schedule</span>
                                         <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">
@@ -524,6 +589,8 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 { val: Condition.Obesity, label: 'Obesidad' },
                                 { val: Condition.DiabetesType1, label: 'Diabetes Tipo 1' },
                                 { val: Condition.Hyperthyroidism, label: 'Hipertiroidismo' },
+                                { val: Condition.RenalDisease, label: 'Enfermedad Renal / ERC' },
+                                { val: Condition.EatingDisorderHistory, label: 'Antecedente TCA' },
                               ].map((c) => (
                                 <label key={c.val} className={`flex items-center space-x-2 p-3 rounded-lg cursor-pointer transition-colors border ${formData.conditions.includes(c.val) ? 'bg-primary/10 border-primary' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
                                   <input 
@@ -662,6 +729,23 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                             className={`flex-1 rounded text-sm font-bold transition-all ${partner.gender === Gender.Female ? 'bg-white dark:bg-surface-dark text-text-main dark:text-white ring-1 ring-black/5 dark:ring-white/10' : 'text-text-sub'}`}>Mujer</button>
                         </div>
                       </label>
+                      {partner.gender === Gender.Female && (
+                        <label className="flex flex-col gap-2">
+                          <span className="text-sm font-semibold text-text-main dark:text-slate-200">Embarazo / Lactancia</span>
+                          <div className="flex gap-3 h-12 items-center">
+                            <label className="flex items-center gap-1.5 text-xs font-medium text-text-main dark:text-gray-200 cursor-pointer">
+                              <input type="checkbox" className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                                checked={!!partner.isPregnant} onChange={e => setPartner({ ...partner, isPregnant: e.target.checked })} />
+                              Embarazo
+                            </label>
+                            <label className="flex items-center gap-1.5 text-xs font-medium text-text-main dark:text-gray-200 cursor-pointer">
+                              <input type="checkbox" className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                                checked={!!partner.isLactating} onChange={e => setPartner({ ...partner, isLactating: e.target.checked })} />
+                              Lactancia
+                            </label>
+                          </div>
+                        </label>
+                      )}
                       <label className="flex flex-col gap-2">
                         <span className="text-sm font-semibold text-text-main dark:text-slate-200">Peso (kg)</span>
                         <input className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary outline-none dark:text-white" type="number" step="0.1" min="20" max="300"
@@ -741,6 +825,8 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                           { val: Condition.Celiac, label: 'Celiaquía' },
                           { val: Condition.Obesity, label: 'Obesidad' },
                           { val: Condition.DiabetesType1, label: 'Diabetes T1' },
+                          { val: Condition.RenalDisease, label: 'Enf. Renal / ERC' },
+                          { val: Condition.EatingDisorderHistory, label: 'Antecedente TCA' },
                         ].map(c => (
                           <label key={c.val} className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-colors border text-xs ${partner.conditions.includes(c.val) ? 'bg-primary/10 border-primary' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
                             <input type="checkbox" className="w-4 h-4 text-primary rounded focus:ring-primary"

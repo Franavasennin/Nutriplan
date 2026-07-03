@@ -1,4 +1,5 @@
 import { PatientData, Gender, ActivityLevel, DietType, AthleteGoal, Condition, CalorieGoal, CALORIE_GOAL_ADJUST } from '../types';
+import { RENAL_PROTEIN_CAP_G_PER_KG } from './clinicalSafety';
 
 // ─── IMC ──────────────────────────────────────────────────────────────────────
 
@@ -145,8 +146,10 @@ const ATHLETE_GOAL_DEFS: Record<AthleteGoal, MacroDef> = {
 
 // referenceWeightKg: peso ajustado si IMC > 30, peso real si no.
 // imc:         si > 30 y no hay calorieGoal explícito → déficit auto de −450 kcal.
-// conditions:  si incluye diabetes_t2 → cap de grasa al 28% de calorías totales.
+// conditions:  RenalDisease → cap de proteína; DiabetesType2 → cap de grasa relajado (ver abajo).
 // calorieGoal: objetivo calórico explícito del usuario (sobreescribe el auto-déficit de obesidad).
+// safety:      perfil vulnerable (menor / embarazo / lactancia) → fuerza mantenimiento,
+//              tiene prioridad sobre cualquier objetivo de déficit/superávit (incluido atleta).
 export const calculateMacros = (
   tee: number,
   dietType: DietType,
@@ -154,7 +157,8 @@ export const calculateMacros = (
   athleteGoal?: AthleteGoal,
   imc?: number,
   conditions?: Condition[],
-  calorieGoal?: CalorieGoal
+  calorieGoal?: CalorieGoal,
+  safety?: { isMinor?: boolean; isPregnant?: boolean; isLactating?: boolean }
 ) => {
   const isAthlete = dietType === DietType.Athlete && !!athleteGoal;
   const def = isAthlete
@@ -164,10 +168,18 @@ export const calculateMacros = (
   const MIN_CALORIES    = 1500;
   const OBESITY_DEFICIT = 450; // kcal — déficit clínico estándar para IMC > 30
 
+  // ── Seguridad clínica: perfil vulnerable → sin déficit/superávit automático ──
+  // (auditoría) Menores, embarazo y lactancia no deben recibir restricción
+  // energética automática. Tiene prioridad sobre el ajuste de atleta y sobre
+  // cualquier calorieGoal explícito.
+  const isVulnerable = !!safety?.isMinor || !!safety?.isPregnant || !!safety?.isLactating;
+
   // ── Ajuste calórico ─────────────────────────────────────────────────────────
   let kcalAdjust: number;
 
-  if (isAthlete) {
+  if (isVulnerable) {
+    kcalAdjust = 0; // mantenimiento forzado por seguridad clínica
+  } else if (isAthlete) {
     // Atleta: el ajuste lo define AthleteGoal (rendimiento/definición/volumen)
     kcalAdjust = def.kcalAdjust ?? 0;
   } else if (calorieGoal !== undefined && calorieGoal !== CalorieGoal.Maintenance) {
@@ -187,14 +199,42 @@ export const calculateMacros = (
   let fats  = Math.round(remaining * def.fatOfRemaining / 9);
   let carbs = Math.round(remaining * (1 - def.fatOfRemaining) / 4);
 
-  // ── Cap de grasa al 28% para diabetes tipo 2 ───────────────────────────────
-  // Exceso redistribuido a proteína (mejora saciedad y control glucémico)
+  // ── Diabetes tipo 2: relajar el cap de grasa a 35% (evidencia ADA/EASD) ─────
+  // Antes: cap a 28% con TODO el excedente movido a proteína, sin techo.
+  // Corrección (auditoría): un techo de grasa tan bajo va por detrás de la
+  // evidencia actual (los patrones mediterráneo / bajo en carbohidratos con
+  // grasa MUFA alta son opciones válidas y a menudo preferibles para el
+  // control glucémico — ADA Standards of Care, EASD). Además, mover TODO el
+  // excedente a proteína sin límite es arriesgado en pacientes con nefropatía
+  // diabética no diagnosticada (frecuente y silente en DM2). Ahora: cap a 35%
+  // (coherente con patrón mediterráneo) y el excedente se reparte entre
+  // proteína (con techo de seguridad 2.0 g/kg) y carbohidratos, en vez de ir
+  // todo a proteína.
   if (conditions?.includes(Condition.DiabetesType2)) {
-    const maxFatG = Math.floor(targetCalories * 0.28 / 9);
+    const maxFatG = Math.floor(targetCalories * 0.35 / 9);
     if (fats > maxFatG) {
       const savedCals = (fats - maxFatG) * 9;
-      fats    = maxFatG;
-      protein = Math.round(protein + savedCals / 4);
+      fats = maxFatG;
+      const proteinCeilingG = Math.round(2.0 * referenceWeightKg);
+      const proteinRoom  = Math.max(0, proteinCeilingG - protein);
+      const proteinAddG  = Math.min(proteinRoom, Math.round(savedCals / 4 * 0.5));
+      protein += proteinAddG;
+      const usedCals = proteinAddG * 4;
+      carbs += Math.round((savedCals - usedCals) / 4);
+    }
+  }
+
+  // ── Enfermedad renal / ERC: cap de proteína (KDOQI ~0.8 g/kg en ERC no dialítica) ──
+  // Se aplica DESPUÉS de cualquier redistribución (incluida la de diabetes T2)
+  // porque es una restricción de seguridad que prevalece sobre el resto.
+  if (conditions?.includes(Condition.RenalDisease)) {
+    const maxProteinG = Math.round(RENAL_PROTEIN_CAP_G_PER_KG * referenceWeightKg);
+    if (protein > maxProteinG) {
+      const savedCals = (protein - maxProteinG) * 4;
+      protein = maxProteinG;
+      // El excedente se reparte a carbohidratos y grasa según la proporción de la dieta
+      carbs += Math.round(savedCals * (1 - def.fatOfRemaining) / 4);
+      fats  += Math.round(savedCals * def.fatOfRemaining / 9);
     }
   }
 
@@ -256,7 +296,9 @@ export const calculateAllMetrics = (data: PatientData): ExtendedMetrics => {
   const idealWeight    = calculateIdealWeight(data.height, data.gender);
   const adjustedWeight = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : null;
   const refWeight      = adjustedWeight ?? data.weight;
-  const macros         = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal);
+  const macros         = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
+    isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
+  });
   const dailyWater     = calculateDailyWater(data.weight, data.activity);
 
   return { imc, imcCategory, bmr, tee, idealWeight, adjustedWeight, dailyWater, macros };

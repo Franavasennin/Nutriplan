@@ -200,10 +200,37 @@ describe('calculateMacros', () => {
     expect(m.calories).toBeGreaterThanOrEqual(1500);
   });
 
-  it('diabetes T2 — grasas ≤ 28% de calorías', () => {
+  it('diabetes T2 — grasas ≤ 35% de calorías (evidencia ADA/EASD)', () => {
     const m = calculateMacros(2000, DietType.Keto, 70, undefined, 22, [Condition.DiabetesType2]);
-    const maxFatG = Math.floor(m.calories * 0.28 / 9);
+    const maxFatG = Math.floor(m.calories * 0.35 / 9);
     expect(m.fats).toBeLessThanOrEqual(maxFatG + 1);
+  });
+
+  it('diabetes T2 — el excedente de grasa no eleva la proteína por encima de 2.0 g/kg', () => {
+    const m = calculateMacros(2000, DietType.Keto, 70, undefined, 22, [Condition.DiabetesType2]);
+    expect(m.protein).toBeLessThanOrEqual(Math.round(2.0 * 70));
+  });
+
+  // ─── Seguridad clínica (auditoría) ───────────────────────────────────────────
+
+  it('perfil vulnerable (menor) → sin déficit aunque haya CalorieGoal.DeficitFast', () => {
+    const m = calculateMacros(2000, DietType.Balanced, 50, undefined, 22, [], CalorieGoal.DeficitFast, { isMinor: true });
+    expect(m.calories).toBe(2000);
+  });
+
+  it('perfil vulnerable (embarazo) → sin déficit automático por obesidad (IMC > 30)', () => {
+    const m = calculateMacros(2500, DietType.Balanced, 70, undefined, 32, [], undefined, { isPregnant: true });
+    expect(m.calories).toBe(2500);
+  });
+
+  it('perfil vulnerable (lactancia) → atleta en definición se fuerza a mantenimiento', () => {
+    const vulnerable = calculateMacros(2500, DietType.Athlete, 75, AthleteGoal.Definition, undefined, [], undefined, { isLactating: true });
+    expect(vulnerable.calories).toBe(2500);
+  });
+
+  it('enfermedad renal → proteína limitada a 0.8 g/kg independientemente de la dieta', () => {
+    const m = calculateMacros(2000, DietType.Protein, 70, undefined, 22, [Condition.RenalDisease]);
+    expect(m.protein).toBeLessThanOrEqual(Math.round(0.8 * 70) + 1);
   });
 
   it('cetogénica tiene más grasa que equilibrada al mismo TEE', () => {
