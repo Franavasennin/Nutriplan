@@ -361,6 +361,7 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [showRegen,      setShowRegen]      = useState(false);
   const [showVersions,   setShowVersions]   = useState(false);
   const [showShopping,   setShowShopping]   = useState(false);
+  const [showEducation,  setShowEducation]  = useState(false); // mejora #13: módulo educativo
   const [selectedDiet,   setSelectedDiet]   = useState<DietType>(patientData?.dietType ?? DietType.Balanced);
   const [swappingKey,    setSwappingKey]    = useState<string | null>(null); // `${day}-${mealKey}`
   const [listHasChanges, setListHasChanges] = useState(false);   // feature 4: lista compra
@@ -699,6 +700,11 @@ const DietPlanDisplay: React.FC<Props> = ({
                 <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
                 <span className="hidden sm:inline">Lista compra</span>
               </button>
+              <button onClick={() => { setShowEducation(v => !v); setShowRegen(false); setShowVersions(false); }}
+                className={`flex items-center gap-2 h-11 px-6 rounded-xl border text-sm font-bold transition-all ${showEducation ? 'bg-sky-500 text-white border-sky-500' : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark hover:border-sky-400'}`}>
+                <span className="material-symbols-outlined text-[20px]">school</span>
+                <span className="hidden sm:inline">Aprende</span>
+              </button>
               {onRegenerateDay && (
                 <button onClick={handleRegenerateDayConfirm}
                   disabled={isLoading}
@@ -798,6 +804,24 @@ const DietPlanDisplay: React.FC<Props> = ({
               </div>
             ))}
           </div>
+
+          {/* Objetivos adicionales derivados de condiciones clínicas (auditoría) */}
+          {metrics.targets && (
+            <div className="flex flex-wrap gap-3 -mt-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-sub dark:text-gray-400 bg-surface-light dark:bg-surface-dark px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
+                <span className="material-symbols-outlined text-[14px] text-emerald-500">grass</span>
+                Fibra mín. {metrics.targets.fiberG}g
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-sub dark:text-gray-400 bg-surface-light dark:bg-surface-dark px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
+                <span className="material-symbols-outlined text-[14px] text-pink-500">icecream</span>
+                Azúcar libre máx. {metrics.targets.addedSugarG}g
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-sub dark:text-gray-400 bg-surface-light dark:bg-surface-dark px-3 py-1.5 rounded-full border border-border-light dark:border-border-dark">
+                <span className="material-symbols-outlined text-[14px] text-blue-500">water_drop</span>
+                Sodio máx. {metrics.targets.sodiumMg}mg
+              </div>
+            </div>
+          )}
 
           {/* Version history panel */}
           {showVersions && planVersions && planVersions.length > 0 && onRestoreVersion && (
@@ -929,6 +953,76 @@ const DietPlanDisplay: React.FC<Props> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Panel educativo (auditoría, mejora #13) — sin llamadas a IA, contenido estático */}
+          {showEducation && (
+            <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-sky-300/60 dark:border-sky-700/40 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-text-main dark:text-white flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sky-500 text-[20px]">school</span>
+                  ¿Por qué estas cantidades?
+                </h3>
+                <button onClick={() => setShowEducation(false)} className="text-text-sub hover:text-text-main transition-colors">
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              <div className="space-y-2 mb-5 text-sm text-text-main dark:text-gray-300">
+                <p>
+                  Tu objetivo de <strong className="text-primary">{metrics.macros.calories} kcal/día</strong> sale de tu gasto energético estimado ({metrics.tee} kcal)
+                  {metrics.macros.calories < metrics.tee && ' con un déficit para perder peso'}
+                  {metrics.macros.calories > metrics.tee && ' con un superávit para ganar peso/masa muscular'}
+                  {metrics.macros.calories === metrics.tee && ' sin ajuste (mantenimiento)'}.
+                </p>
+                <p>
+                  La <strong className="text-blue-500">proteína ({metrics.macros.protein}g)</strong> se calcula por kg de peso corporal según tu tipo de dieta — más alta si el objetivo es perder grasa manteniendo músculo, o si entrenas fuerza.
+                  Los <strong className="text-yellow-600 dark:text-yellow-400">carbohidratos ({metrics.macros.carbs}g)</strong> y las <strong className="text-red-400">grasas ({metrics.macros.fats}g)</strong> reparten el resto de la energía según el patrón de tu dieta ({DIET_TYPE_LABELS[patientData?.dietType ?? DietType.Balanced]}).
+                </p>
+                <p className="text-xs text-text-sub dark:text-gray-400 italic">
+                  Estas cantidades son una guía — no hace falta ser exacto al gramo cada día. Lo importante es acercarse a lo largo de la semana.
+                </p>
+              </div>
+
+              <h4 className="text-xs font-black uppercase tracking-wide text-text-sub dark:text-gray-400 mb-2">Tabla de sustituciones (por ración equivalente)</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3">
+                  <p className="font-bold text-blue-500 mb-1.5">Proteína — 25-30g equivalen a:</p>
+                  <ul className="space-y-0.5 text-text-sub dark:text-gray-400">
+                    <li>• 100g pechuga de pollo/pavo</li>
+                    <li>• 130g salmón o atún fresco</li>
+                    <li>• 115g atún en agua (lata)</li>
+                    <li>• 4 huevos medianos</li>
+                    <li>• 200g tofu firme</li>
+                    <li>• 150g legumbres cocidas + 50g queso fresco</li>
+                  </ul>
+                </div>
+                <div className="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3">
+                  <p className="font-bold text-yellow-600 dark:text-yellow-400 mb-1.5">Carbohidratos — 30g equivalen a:</p>
+                  <ul className="space-y-0.5 text-text-sub dark:text-gray-400">
+                    <li>• 105g arroz/pasta cocidos</li>
+                    <li>• 50g avena seca</li>
+                    <li>• 65g pan integral</li>
+                    <li>• 175g patata cocida</li>
+                    <li>• 1 plátano grande + 1 manzana</li>
+                    <li>• 150g legumbres cocidas</li>
+                  </ul>
+                </div>
+                <div className="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3">
+                  <p className="font-bold text-red-400 mb-1.5">Grasas — 10g equivalen a:</p>
+                  <ul className="space-y-0.5 text-text-sub dark:text-gray-400">
+                    <li>• 10ml AOVE (1 cda sopera)</li>
+                    <li>• 18g nueces/almendras</li>
+                    <li>• 70g aguacate (~½ unidad)</li>
+                    <li>• 75g salmón</li>
+                    <li>• 2 huevos (por la yema)</li>
+                  </ul>
+                </div>
+              </div>
+              <p className="text-[10px] text-text-sub dark:text-gray-500 mt-3 italic">
+                Equivalencias aproximadas orientativas — no sustituyen una tabla de composición de alimentos ni el criterio profesional.
+              </p>
             </div>
           )}
 

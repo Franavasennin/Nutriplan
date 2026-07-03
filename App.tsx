@@ -31,8 +31,9 @@ import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
 import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, CouplesDiet } from './types';
-import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from './utils/calculations';
+import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat } from './utils/calculations';
 import { enforceClinicalSafety } from './utils/clinicalSafety';
+import { getClinicalTargets } from './utils/clinicalTargets';
 import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
 
 type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
@@ -84,11 +85,20 @@ const AppContent: React.FC = () => {
       const bmr         = calculateBMR(data);
       const tee         = calculateTEE(bmr, data.activity);
       const idealWeight = calculateIdealWeight(data.height, data.gender);
-      const refWeight   = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight;
+      // Auditoría (mejora #11): si hay % graso medido (viene del seguimiento
+      // del cliente), usar masa magra real en vez de estimarla por IMC —
+      // detecta también obesidad sarcopénica (IMC normal, % graso alto).
+      const refWeight   = data.bodyFatPercent != null
+        ? calculateAdjustedWeightFromBodyFat(data.weight, data.bodyFatPercent)
+        : (imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight);
       const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
         isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
       });
-      const calc        = { imc, bmr, tee, macros };
+      const clinicalTargets = getClinicalTargets(data, macros.calories);
+      const calc        = {
+        imc, bmr, tee, macros,
+        targets: { fiberG: clinicalTargets.fiberGMin, addedSugarG: clinicalTargets.addedSugarGMax, sodiumMg: clinicalTargets.sodiumMgMax },
+      };
 
       // Aviso clínico si el floor de 1.500 kcal se ha aplicado
       if (data.dietType === DietType.Athlete && macros.calories === 1500 && tee - 350 < 1500) {
@@ -119,11 +129,17 @@ const AppContent: React.FC = () => {
     const bmr         = calculateBMR(data);
     const tee         = calculateTEE(bmr, data.activity);
     const idealWeight = calculateIdealWeight(data.height, data.gender);
-    const refWeight   = imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight;
+    const refWeight   = data.bodyFatPercent != null
+      ? calculateAdjustedWeightFromBodyFat(data.weight, data.bodyFatPercent)
+      : (imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight);
     const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
       isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
     });
-    return { imc, bmr, tee, macros };
+    const clinicalTargets = getClinicalTargets(data, macros.calories);
+    return {
+      imc, bmr, tee, macros,
+      targets: { fiberG: clinicalTargets.fiberGMin, addedSugarG: clinicalTargets.addedSugarGMax, sodiumMg: clinicalTargets.sodiumMgMax },
+    };
   };
 
   // ── Generación de dieta para pareja ───────────────────────────────────────────
@@ -193,6 +209,12 @@ const AppContent: React.FC = () => {
       if (latest.weight && latest.weight !== diet.patientData.weight) {
         merged = { ...merged, weight: latest.weight };
         notice += `Peso actualizado a ${latest.weight} kg (seguimiento del ${dateStr}). `;
+      }
+      // Auditoría (mejora #11): si la báscula registró % graso, realimenta el
+      // cálculo de macros con la composición corporal real en vez de estimarla.
+      if (latest.bodyFat != null && latest.bodyFat !== diet.patientData.bodyFatPercent) {
+        merged = { ...merged, bodyFatPercent: latest.bodyFat };
+        notice += `Composición corporal actualizada (${latest.bodyFat}% grasa, seguimiento del ${dateStr}). `;
       }
       // Si tiene objetivo de peso guardado en el seguimiento, lo aplica
       if (progress?.weightGoal && progress.weightGoal !== diet.patientData.targetWeight) {

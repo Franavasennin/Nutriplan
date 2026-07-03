@@ -25,14 +25,18 @@ export const getIMCCategory = (imc: number): IMCCategory => {
   return 'Obesidad grado III';
 };
 
-// ─── Peso ideal (Lorentz) ─────────────────────────────────────────────────────
+// ─── Peso de referencia saludable (OMS — punto medio del rango de IMC) ────────
+// Sustituye a la antigua fórmula de Lorentz (1929, sin base fisiológica
+// moderna). Usa el punto medio del rango de IMC saludable de la OMS que la
+// app ya emplea para clasificar el IMC (18.5–24.9 → punto medio ≈ 21.7),
+// coherente con el resto del sistema (auditoría, mejora #10). Los cortes de
+// IMC de la OMS son los mismos para ambos sexos; `gender` se conserva en la
+// firma por compatibilidad con las llamadas existentes.
+const HEALTHY_BMI_MIDPOINT = 21.7;
 
-export const calculateIdealWeight = (height: number, gender: Gender): number => {
-  // Fórmula de Lorentz
-  if (gender === Gender.Male) {
-    return parseFloat((height - 100 - (height - 150) / 4).toFixed(1));
-  }
-  return parseFloat((height - 100 - (height - 150) / 2).toFixed(1));
+export const calculateIdealWeight = (height: number, _gender: Gender): number => {
+  const h = height / 100;
+  return parseFloat((HEALTHY_BMI_MIDPOINT * h * h).toFixed(1));
 };
 
 // ─── Peso ajustado (para obesidad — cálculos de macro y dosis) ────────────────
@@ -43,6 +47,22 @@ export const calculateAdjustedWeight = (
   idealWeight: number
 ): number => {
   return parseFloat((idealWeight + 0.25 * (actualWeight - idealWeight)).toFixed(1));
+};
+
+// ─── Peso ajustado a partir de composición corporal MEDIDA (auditoría #11) ────
+// Cuando se conoce el % de grasa corporal real (báscula de bioimpedancia,
+// pliegues, DEXA...) esta es una estimación más precisa que la basada en IMC:
+// usa la masa magra real + el mismo factor de seguridad 0.25 sobre la masa
+// grasa real que ya se aplicaba sobre el "exceso estimado" en la fórmula de
+// obesidad por IMC. Detecta también la "obesidad sarcopénica" (IMC normal
+// pero % graso alto), que el IMC por sí solo no revela.
+export const calculateAdjustedWeightFromBodyFat = (
+  weightKg: number,
+  bodyFatPercent: number
+): number => {
+  const fatMassKg  = weightKg * (bodyFatPercent / 100);
+  const leanMassKg = weightKg - fatMassKg;
+  return parseFloat((leanMassKg + 0.25 * fatMassKg).toFixed(1));
 };
 
 // ─── BMR — Ecuaciones OMS-FAO ─────────────────────────────────────────────────
@@ -254,19 +274,25 @@ export const calculateDailyWater = (weight: number, activity: ActivityLevel): nu
 };
 
 // ─── Ratio cintura / talla (RCT) ─────────────────────────────────────────────
-// Indicador de riesgo cardiometabólico. Valor seguro: < 0.5 en adultos.
+// Indicador de riesgo cardiometabólico. Umbrales alineados con NICE (guía
+// pública de salud, Reino Unido): el punto de corte accionable es 0.5 — por
+// debajo se considera riesgo bajo y NO debe mostrarse como "moderado" (la
+// versión anterior marcaba como riesgo intermedio valores objetivamente
+// saludables, un mensaje innecesariamente alarmista — corrección auditoría).
+// < 0.5              → Bajo riesgo (rango saludable)
+// 0.5 – 0.59         → Riesgo aumentado (valorar cambios de hábitos)
+// ≥ 0.6              → Riesgo alto (recomendable valoración clínica)
 
 export const calculateWaistHeightRatio = (waistCm: number, heightCm: number): number => {
   return parseFloat((waistCm / heightCm).toFixed(3));
 };
 
-export type WaistRiskLevel = 'Bajo' | 'Moderado' | 'Alto' | 'Muy alto';
+export type WaistRiskLevel = 'Bajo' | 'Aumentado' | 'Alto';
 
 export const getWaistRisk = (ratio: number): WaistRiskLevel => {
-  if (ratio < 0.43) return 'Bajo';
-  if (ratio < 0.50) return 'Moderado';
-  if (ratio < 0.58) return 'Alto';
-  return 'Muy alto';
+  if (ratio < 0.50) return 'Bajo';
+  if (ratio < 0.60) return 'Aumentado';
+  return 'Alto';
 };
 
 // ─── Resumen completo de métricas ─────────────────────────────────────────────

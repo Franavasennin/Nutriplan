@@ -7,11 +7,67 @@ import {
   CustomFood, RecipeFilters, Recipe, AthleteGoal, ATHLETE_GOAL_LABELS,
   SavedDiet, Gender, ActivityLevel, Duration, Condition,
   CalorieGoal, CALORIE_GOAL_LABELS, CALORIE_GOAL_ADJUST,
-  DayPlan, Meal,
+  DayPlan, Meal, BudgetLevel,
 } from '../types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from '../utils/calculations';
 import { reconcileMealMacros, reconcileDayPlan, reconcileDietResponse } from '../utils/macroValidation';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
+import { getClinicalTargets } from '../utils/clinicalTargets';
+
+// ─── Micronutrientes obligatorios en dietas vegana/vegetariana (auditoría #7) ─
+/**
+ * Antes, la suplementación de B12 y la vigilancia de hierro/calcio/omega-3
+ * en dietas veganas dependía de que la IA se acordara de mencionarlo, mezclado
+ * genéricamente con el resto de suplementos. Ahora se GARANTIZA en código:
+ * si el modelo no las incluyó, se añaden aquí de forma determinista.
+ */
+export function ensureMicronutrientGuidelines(guidelines: string[], dietType: DietType): string[] {
+  const isVegan      = dietType === DietType.Vegan;
+  const isVegetarian = dietType === DietType.Vegetarian;
+  if (!isVegan && !isVegetarian) return guidelines;
+
+  const has = (kw: string) => guidelines.some(g => g.toLowerCase().includes(kw));
+  const additions: string[] = [];
+
+  if (!has('b12') && !has('cobalamina')) {
+    additions.push(
+      'Suplementación de vitamina B12 OBLIGATORIA (cianocobalamina 25-100 mcg/día o 1000-2000 mcg/semana): no existen fuentes vegetales fiables que cubran los requerimientos. Su déficit no da síntomas hasta fases avanzadas — no es opcional, consultar con el médico/nutricionista la pauta exacta.'
+    );
+  }
+  if (isVegan) {
+    if (!has('hierro')) {
+      additions.push('Vigilar hierro: combina legumbres/tofu/espinacas (hierro no-hemo, se absorbe peor) con vitamina C en la misma comida (cítricos, pimiento, kiwi) para mejorar su absorción.');
+    }
+    if (!has('calcio')) {
+      additions.push('Vigilar calcio: incluye a diario bebidas vegetales fortificadas, tofu cuajado con calcio, sésamo/tahini y verduras de hoja verde (col rizada, brócoli).');
+    }
+    if (!has('omega') && !has('dha') && !has('epa')) {
+      additions.push('Omega-3 (DHA/EPA): las fuentes vegetales (lino, chía, nueces) solo aportan ALA, con conversión limitada a DHA/EPA — valorar suplemento de algas si no hay control analítico periódico.');
+    }
+  }
+
+  return additions.length ? [...guidelines, ...additions] : guidelines;
+}
+
+// ─── Fase de mantenimiento / transición anti-rebote (auditoría #9) ───────────
+/**
+ * Los planes en déficit o superávit no incluían ninguna indicación sobre qué
+ * hacer al alcanzar el objetivo — un factor de riesgo conocido de efecto
+ * rebote. Se garantiza una pauta de transición gradual, independientemente
+ * de si la IA la mencionó.
+ */
+export function ensureTransitionGuideline(guidelines: string[], calorieGoal: CalorieGoal | undefined): string[] {
+  const isRestrictive = calorieGoal !== undefined && calorieGoal !== CalorieGoal.Maintenance;
+  if (!isRestrictive) return guidelines;
+
+  const has = guidelines.some(g => /transici[oó]n|mantenimiento|efecto rebote/i.test(g));
+  if (has) return guidelines;
+
+  return [
+    ...guidelines,
+    'Fase de transición al alcanzar el objetivo: NO vuelvas de golpe a comer "normal". Sube las calorías gradualmente (+100-150 kcal/semana) durante 2-4 semanas hasta llegar a mantenimiento, para minimizar el efecto rebote y dar tiempo al metabolismo a readaptarse.',
+  ];
+}
 
 const GROQ_API_URL   = 'https://api.mistral.ai/v1/chat/completions';
 const MISTRAL_OCR_URL = 'https://api.mistral.ai/v1/ocr';
@@ -442,9 +498,34 @@ const buildUserPrompt = (
     ? `\nIncluye estos alimentos si encajan: ${customFoods.map(f => sanitizeForPrompt(f.name, 60)).join(', ')}`
     : '';
 
-  const excludedText = patient.excludedFoods?.trim()
-    ? `\nEXCLUIR COMPLETAMENTE: ${sanitizeForPrompt(patient.excludedFoods, 200)}`
+  // Auditoría (mejora #5): las condiciones clínicas dejan de ser solo texto
+  // libre — celiaquía e intolerancia a la lactosa generan exclusiones
+  // OBLIGATORIAS que se fusionan con las del usuario, independientemente de
+  // si el modelo interpreta correctamente el nombre de la condición.
+  const clinicalTargets = getClinicalTargets(patient, metrics.macros.calories);
+  const allExclusions = [
+    ...(patient.excludedFoods?.trim() ? [sanitizeForPrompt(patient.excludedFoods, 200)] : []),
+    ...clinicalTargets.mandatoryExclusions,
+  ].join(', ');
+  const excludedText = allExclusions
+    ? `\nEXCLUIR COMPLETAMENTE: ${allExclusions}`
     : '';
+
+  // Auditoría (mejora #6): objetivos numéricos de fibra/azúcar/sodio, antes
+  // ausentes del prompt por completo.
+  const clinicalTargetsNote = `\n- OBJETIVOS ADICIONALES: fibra mínima ${clinicalTargets.fiberGMin}g/día, azúcares libres máximo ${clinicalTargets.addedSugarGMax}g/día, sodio máximo ${clinicalTargets.sodiumMgMax}mg/día${clinicalTargets.sodiumMgMax <= 1500 ? ' (restricción por hipertensión — evitar embutidos, conservas saladas, precocinados)' : ''}.`;
+
+  // Auditoría (mejora #12): el presupuesto sesga los alimentos sugeridos.
+  const budgetNote = (() => {
+    const level = patient.budgetLevel ?? BudgetLevel.Standard;
+    if (level === BudgetLevel.Tight) {
+      return '\n- PRESUPUESTO AJUSTADO: prioriza SIEMPRE alimentos económicos — legumbres, huevo, pollo/pavo, atún en lata, arroz, avena, pasta, verduras y frutas de temporada (plátano, manzana, naranja). EVITA salmón, marisco, frutos secos premium, quinoa importada y "superalimentos" caros salvo que sean imprescindibles por alguna condición.';
+    }
+    if (level === BudgetLevel.Unlimited) {
+      return '\n- SIN RESTRICCIÓN DE PRESUPUESTO: puedes usar salmón, marisco, frutos secos, quinoa y productos gourmet libremente cuando mejoren la calidad nutricional del plan.';
+    }
+    return '';
+  })();
 
   const isDAP = patient.dietType === DietType.ProteinDAP4 || patient.dietType === DietType.ProteinDAP5;
 
@@ -559,6 +640,7 @@ ${weightGoalText}
     · G ${fatsPerMeal}g: necesitas ~${Math.round(fatsPerMeal / 0.55)}g nueces, o ~${Math.round(fatsPerMeal / 1.00)}ml AOVE, o combina (ej: ${Math.round(fatsPerMeal * 0.4 / 0.13)}g salmón aporta ${Math.round(fatsPerMeal * 0.4)}g G + ${Math.round(fatsPerMeal * 0.6 / 1.00)}ml AOVE).
   → Si usas solo 100g de un cereal o 100g de aceite en cada toma, el plan NO alcanza el objetivo.${carbsPerMeal > 80 ? `
   ⚠ ALERTA HC ELEVADO (${carbsPerMeal}g por toma): Una sola fuente de cereal NO alcanza este objetivo. DEBES combinar 2-3 fuentes de HC en cada toma principal. Ejemplo para ${carbsPerMeal}g HC: ${Math.round(carbsPerMeal * 0.5 / 0.28)}g arroz integral cocido (${Math.round(carbsPerMeal * 0.5)}g HC) + ${Math.round(carbsPerMeal * 0.3 / 0.20)}g legumbres (${Math.round(carbsPerMeal * 0.3)}g HC) + 1 fruta mediana (${Math.round(carbsPerMeal * 0.2)}g HC). Ajusta según el plato.` : ''}
+${clinicalTargetsNote}${budgetNote}
 ${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
@@ -630,7 +712,12 @@ export const generateDietPlan = async (
 
   // Validación determinista de macros (auditoría): corrige inconsistencias
   // aritméticas entre las kcal declaradas y los macros declarados por la IA.
-  return reconcileDietResponse({ weeklyPlan: allDayPlans, generalGuidelines, durationText });
+  // También garantiza pautas de B12/hierro/calcio/omega-3 en vegana/vegetariana.
+  const finalGuidelines = ensureTransitionGuideline(
+    ensureMicronutrientGuidelines(generalGuidelines, patient.dietType),
+    patient.calorieGoal
+  );
+  return reconcileDietResponse({ weeklyPlan: allDayPlans, generalGuidelines: finalGuidelines, durationText });
 };
 
 // ─── Recipe search ────────────────────────────────────────────────────────────
@@ -1066,7 +1153,10 @@ Devuelve SOLO el JSON con los ${chunk.length} día(s), mismos platos, cantidades
 
   return reconcileDietResponse({
     weeklyPlan: adaptedDays,
-    generalGuidelines: basePlan.generalGuidelines ?? [],
+    generalGuidelines: ensureTransitionGuideline(
+      ensureMicronutrientGuidelines(basePlan.generalGuidelines ?? [], partner.dietType),
+      partner.calorieGoal
+    ),
     durationText: basePlan.durationText ?? '',
   });
 };

@@ -7,6 +7,7 @@ import {
   getActivityFactor,
   calculateIdealWeight,
   calculateAdjustedWeight,
+  calculateAdjustedWeightFromBodyFat,
   calculateDailyWater,
   calculateWaistHeightRatio,
   getWaistRisk,
@@ -131,14 +132,16 @@ describe('calculateTEE', () => {
 // ─── calculateIdealWeight ─────────────────────────────────────────────────────
 
 describe('calculateIdealWeight', () => {
-  it('hombre 180 cm → Lorentz correcto', () => {
-    // 180 - 100 - (180 - 150) / 4 = 80 - 7.5 = 72.5
-    expect(calculateIdealWeight(180, Gender.Male)).toBe(72.5);
+  it('180 cm → punto medio IMC OMS saludable (21.7 × 1.8²)', () => {
+    expect(calculateIdealWeight(180, Gender.Male)).toBeCloseTo(21.7 * 1.8 * 1.8, 1);
   });
 
-  it('mujer 165 cm → Lorentz correcto', () => {
-    // 165 - 100 - (165 - 150) / 2 = 65 - 7.5 = 57.5
-    expect(calculateIdealWeight(165, Gender.Female)).toBe(57.5);
+  it('165 cm → punto medio IMC OMS saludable (21.7 × 1.65²)', () => {
+    expect(calculateIdealWeight(165, Gender.Female)).toBeCloseTo(21.7 * 1.65 * 1.65, 1);
+  });
+
+  it('unisex — mismo resultado para ambos sexos a igual altura', () => {
+    expect(calculateIdealWeight(170, Gender.Male)).toBe(calculateIdealWeight(170, Gender.Female));
   });
 });
 
@@ -152,6 +155,27 @@ describe('calculateAdjustedWeight', () => {
 
   it('igual al ideal si no hay exceso', () => {
     expect(calculateAdjustedWeight(70, 70)).toBe(70);
+  });
+});
+
+// ─── calculateAdjustedWeightFromBodyFat (auditoría #11) ──────────────────────
+
+describe('calculateAdjustedWeightFromBodyFat', () => {
+  it('80kg con 30% grasa → masa magra 56kg + 0.25×24kg grasa = 62kg', () => {
+    expect(calculateAdjustedWeightFromBodyFat(80, 30)).toBe(62);
+  });
+
+  it('detecta obesidad sarcopénica: peso normal pero % graso alto reduce el peso de referencia', () => {
+    // 70kg con 35% grasa (alto) → referencia baja considerablemente por debajo del peso real
+    const result = calculateAdjustedWeightFromBodyFat(70, 35);
+    expect(result).toBeLessThan(70);
+  });
+
+  it('% graso bajo (deportista) → peso de referencia cercano al peso real', () => {
+    // 70kg, 10% grasa: masa magra 63kg + 0.25×7kg = 64.75kg (cercano a 70, no muy reducido)
+    const result = calculateAdjustedWeightFromBodyFat(70, 10);
+    expect(result).toBeCloseTo(64.75, 1);
+    expect(result).toBeGreaterThan(60);
   });
 });
 
@@ -274,10 +298,10 @@ describe('waistHeightRatio', () => {
     expect(calculateWaistHeightRatio(80, 175)).toBeCloseTo(0.457, 2);
   });
 
-  it('< 0.43 → Bajo',      () => expect(getWaistRisk(0.40)).toBe('Bajo'));
-  it('0.43–0.50 → Moderado', () => expect(getWaistRisk(0.46)).toBe('Moderado'));
-  it('0.50–0.58 → Alto',   () => expect(getWaistRisk(0.54)).toBe('Alto'));
-  it('>= 0.58 → Muy alto', () => expect(getWaistRisk(0.60)).toBe('Muy alto'));
+  it('< 0.5 → Bajo (rango saludable, no alarmista)', () => expect(getWaistRisk(0.46)).toBe('Bajo'));
+  it('0.5–0.59 → Aumentado', () => expect(getWaistRisk(0.54)).toBe('Aumentado'));
+  it('>= 0.6 → Alto',      () => expect(getWaistRisk(0.62)).toBe('Alto'));
+  it('límite exacto 0.5 → Aumentado', () => expect(getWaistRisk(0.5)).toBe('Aumentado'));
 });
 
 // ─── calculateAllMetrics ──────────────────────────────────────────────────────

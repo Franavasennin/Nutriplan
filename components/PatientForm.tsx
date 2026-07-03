@@ -12,6 +12,8 @@ import {
   ATHLETE_GOAL_LABELS,
   CalorieGoal,
   CALORIE_GOAL_LABELS,
+  BudgetLevel,
+  BUDGET_LEVEL_LABELS,
 } from '../types';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 
@@ -71,6 +73,7 @@ const DEFAULT_FORM: PatientData = {
   targetWeight: undefined,
   calorieGoal: CalorieGoal.Maintenance,
   clinicalNotes: '',
+  budgetLevel: BudgetLevel.Standard,
 };
 
 const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubmitCouple }) => {
@@ -406,6 +409,12 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                   );
                                 })}
                               </div>
+                              {currentGoal !== CalorieGoal.Maintenance && (
+                                <div className="flex items-start gap-1.5 p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700">
+                                  <span className="material-symbols-outlined text-sky-500 text-[16px] shrink-0 mt-0.5">sync_alt</span>
+                                  <p className="text-[11px] text-sky-700 dark:text-sky-300 font-medium">Al alcanzar el objetivo, planifica una fase de transición gradual (2-4 semanas) hacia mantenimiento para evitar el efecto rebote. El plan incluirá esta pauta.</p>
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -496,6 +505,23 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                     onChange={(e) => setFormData({...formData, excludedFoods: e.target.value})}
                                 />
                                 <span className="text-xs text-text-sub dark:text-gray-500">Separa con comas los alimentos que no quieres en el plan.</span>
+                            </label>
+                            <label className="flex flex-col gap-2">
+                                <span className="text-sm font-semibold text-text-main dark:text-slate-200">Presupuesto</span>
+                                <div className="relative">
+                                    <select
+                                        title="Nivel de presupuesto"
+                                        className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white outline-none"
+                                        value={formData.budgetLevel ?? BudgetLevel.Standard}
+                                        onChange={(e) => setFormData({...formData, budgetLevel: e.target.value as BudgetLevel})}
+                                    >
+                                        {Object.values(BudgetLevel).map(b => (
+                                            <option key={b} value={b}>{BUDGET_LEVEL_LABELS[b]}</option>
+                                        ))}
+                                    </select>
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined pointer-events-none text-text-sub">expand_more</span>
+                                </div>
+                                <span className="text-xs text-text-sub dark:text-gray-500">Ajustado prioriza legumbres/huevo/pollo/conservas; sin límite permite salmón, marisco, frutos secos.</span>
                             </label>
                         </div>
 

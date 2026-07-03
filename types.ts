@@ -77,6 +77,21 @@ export enum FastingProtocol {
   IF5_2  = '5:2',
 }
 
+// ─── Nivel de presupuesto (auditoría, mejora #12) ─────────────────────────────
+// Sesga los alimentos que sugiere la IA hacia opciones más económicas o
+// premium según el presupuesto real del cliente.
+export enum BudgetLevel {
+  Tight     = 'ajustado',
+  Standard  = 'estandar',
+  Unlimited = 'sin_limite',
+}
+
+export const BUDGET_LEVEL_LABELS: Record<BudgetLevel, string> = {
+  [BudgetLevel.Tight]:     'Ajustado',
+  [BudgetLevel.Standard]:  'Estándar',
+  [BudgetLevel.Unlimited]: 'Sin límite',
+};
+
 export enum Condition {
   None = 'ninguna',
   DiabetesType1 = 'diabetes_t1',
@@ -120,12 +135,25 @@ export interface PatientData {
   // ─── Cribado de seguridad clínica (auditoría) ──────────────────────────────
   isPregnant?: boolean;     // embarazo — bloquea déficit calórico y ayuno automáticos
   isLactating?: boolean;    // lactancia — bloquea déficit calórico y ayuno automáticos
+  // ─── Realimentación con composición corporal (auditoría, mejora #11) ──────
+  // Última medición conocida de % graso (viene de ProgressTracker). Si está
+  // presente, el peso de referencia para dosificar macros se calcula a
+  // partir de masa magra + grasa medida, en vez de estimarla por IMC.
+  bodyFatPercent?: number;
+  budgetLevel?: BudgetLevel; // presupuesto del cliente — sesga los alimentos sugeridos
 }
 
 export interface CalculatedMetrics {
   imc: number;
   bmr: number; // Tasa Metabólica Basal
   tee: number; // Gasto Energético Total
+  // Objetivos derivados de condiciones clínicas (auditoría). Opcional por
+  // compatibilidad con dietas guardadas antes de esta mejora.
+  targets?: {
+    fiberG: number;      // fibra mínima recomendada (g/día)
+    addedSugarG: number; // azúcares libres máximos (g/día)
+    sodiumMg: number;    // sodio máximo (mg/día)
+  };
   macros: {
     protein: number; // grams
     carbs: number; // grams
