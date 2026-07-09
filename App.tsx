@@ -34,6 +34,7 @@ import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat } from './utils/calculations';
 import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { getClinicalTargets } from './utils/clinicalTargets';
+import { verifyPlanAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
 import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
 
 type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
@@ -125,6 +126,13 @@ const AppContent: React.FC = () => {
 
       setMetrics(calc);
       const dietPlan = await generateDietPlan(data, calc, customFoods);
+      // Verificador determinista post-generación (auditoría iteración 002,
+      // MEJORA-010): red de seguridad adicional por si el modelo no respetó
+      // la Regla 0 (prioridad absoluta de exclusiones) del prompt.
+      const allergenViolations = verifyPlanAgainstAllergens(dietPlan, data);
+      if (allergenViolations.length > 0) {
+        toast(formatAllergenViolationsMessage(allergenViolations), 'error');
+      }
       setPlan(dietPlan);
       // Siempre crea un registro nuevo → historial automático por cliente
       const savedId = saveDiet(data, calc, dietPlan);
