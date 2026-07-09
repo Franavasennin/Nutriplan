@@ -168,3 +168,25 @@ describe('findMatchingAllergens (MEJORA-001, iteración 001)', () => {
     expect(matches).toEqual([]);
   });
 });
+
+describe('findMatchingAllergens — excepción de leche vegetal (MEJORA-009, iteración 002)', () => {
+  it('NO marca Leche para "leche de almendras" (falso positivo corregido)', () => {
+    const matches = findMatchingAllergens('200ml leche de almendras', [Allergen.Leche]);
+    expect(matches).toEqual([]);
+  });
+
+  it('NO marca Leche para "leche de avena"', () => {
+    const matches = findMatchingAllergens('1L leche de avena', [Allergen.Leche]);
+    expect(matches).toEqual([]);
+  });
+
+  it('sigue marcando Leche para leche real (vaca)', () => {
+    const matches = findMatchingAllergens('1L leche entera', [Allergen.Leche]);
+    expect(matches).toEqual([Allergen.Leche]);
+  });
+
+  it('sigue marcando Gluten en avena (correcto según Reglamento UE 1169/2011)', () => {
+    const matches = findMatchingAllergens('100g avena', [Allergen.Gluten]);
+    expect(matches).toEqual([Allergen.Gluten]);
+  });
+});

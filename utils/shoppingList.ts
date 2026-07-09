@@ -3,10 +3,24 @@ import { DietResponse, Allergen, ALLERGEN_KEYWORDS } from '../types';
 // ─── Alérgenos en la lista de la compra (MEJORA-001, iteración 001) ───────────
 // Coincidencia simple por palabra clave (no NLP) — ver
 // docs/loop/iteracion-001/MEJORA-001.md, no-alcance.
+//
+// Excepción (MEJORA-009, iteración 002, hallazgo M-001): "leche de X" para
+// bebidas vegetales (almendra, avena, soja, coco, arroz) no contiene lácteo
+// real — sin esta excepción, "leche de almendras" marcaría falsamente el
+// alérgeno Leche. La "avena" bajo Gluten SÍ es correcta (Reglamento UE
+// 1169/2011 Anexo II incluye la avena entre los cereales con gluten) y no
+// se toca.
+const PLANT_MILK_PATTERN = /\bleche\s+de\s+(almendras?|avena|soja|coco|arroz|anacardos?)\b/;
+
 export function findMatchingAllergens(ingredientName: string, declaredAllergens: Allergen[]): Allergen[] {
   if (!declaredAllergens.length) return [];
   const lower = ingredientName.toLowerCase();
-  return declaredAllergens.filter(a => ALLERGEN_KEYWORDS[a].some(keyword => lower.includes(keyword)));
+  const isPlantMilk = PLANT_MILK_PATTERN.test(lower);
+
+  return declaredAllergens.filter(a => {
+    if (a === Allergen.Leche && isPlantMilk) return false;
+    return ALLERGEN_KEYWORDS[a].some(keyword => lower.includes(keyword));
+  });
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
