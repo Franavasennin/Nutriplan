@@ -236,7 +236,7 @@ SNACKS / MERIENDAS (morningSnack, afternoonSnack) — SOLO alimentos ligeros:
 - Prohibido: guisos, platos elaborados, fritos pesados, embutidos en cantidad
 `.trim();
 
-const buildDietSystemPrompt = (mealKeys: string[], fastingProtocol?: string, dietNote?: string): string => {
+export const buildDietSystemPrompt = (mealKeys: string[], fastingProtocol?: string, dietNote?: string): string => {
   const mealStructure = mealKeys.map(k => `        "${k}": { "name": "string", "description": "string", "ingredients": ["string con gramos/medida"], "calories": número, "protein": número, "carbs": número, "fats": número }`).join(',\n');
   const fastingNote = (fastingProtocol && fastingProtocol !== FastingProtocol.None)
     ? `\nAYUNO INTERMITENTE: ${FASTING_WINDOW[fastingProtocol] ?? ''}\n- Adapta los horarios de las tomas a la ventana indicada.\n- NO incluyas tomas fuera de la ventana de alimentación.`
@@ -246,6 +246,7 @@ const buildDietSystemPrompt = (mealKeys: string[], fastingProtocol?: string, die
 Eres un nutricionista clínico experto. Generas planes nutricionales precisos en formato JSON.
 
 REGLAS CRÍTICAS — INCUMPLIR CUALQUIERA INVALIDA EL PLAN:
+0. PRIORIDAD ABSOLUTA — EXCLUSIONES DEL PACIENTE: las exclusiones indicadas más abajo (alergias, intolerancias, alimentos excluidos) tienen prioridad sobre CUALQUIER otra regla de este documento, incluida la Regla 5 de rotación de proteínas. Si un alimento de la rotación obligatoria coincide con una exclusión del paciente, sustitúyelo por la alternativa de proteína más próxima que no esté excluida, sin romper la variedad exigida.
 1. Responde ÚNICAMENTE con el JSON solicitado, sin texto adicional.
 2. RACIONES CALIBRADAS: Las raciones de cada toma deben ser suficientes para alcanzar el objetivo de macros por toma. No uses porciones "estándar" de restaurante — usa las gramos exactos que el cálculo requiera. Ejemplo: si el objetivo es 56g proteína por toma, necesitas 220g pechuga de pollo (63g P) o 200g atún en agua (48g P) + 2 huevos (14g P).
 3. SUMA EXACTA: La suma de "calories"/"protein"/"carbs"/"fats" de todas las tomas del día DEBE coincidir con el objetivo indicado en el prompt (±3%). Verifica la suma mentalmente antes de responder.
@@ -261,6 +262,7 @@ REGLAS CRÍTICAS — INCUMPLIR CUALQUIERA INVALIDA EL PLAN:
    - Día 7: pavo o conejo  /  salmón o sardinas
    Desayunos: cada día debe tener una base distinta de este ciclo (en este orden): avena, huevos, yogur griego, pan integral + aguacate, avena con frutas distintas a día 1, tortilla, yogur + fruta.
    PROHIBIDO: repetir la misma comida completa (mismo nombre + mismos ingredientes) en más de 1 día. Si dos días tienen el mismo plato principal, el plan es INVÁLIDO.
+   ESTA ROTACIÓN ESTÁ SUBORDINADA A LA REGLA 0: nunca incluyas un alimento de este esquema si coincide con una exclusión del paciente — sustitúyelo por la alternativa de proteína más próxima disponible.
 6. CAMPOS NUTRICIONALES OBLIGATORIOS: En cada toma rellena "calories", "protein", "carbs" y "fats" con valores estimados en kcal/g basados ÚNICAMENTE en los ingredientes que hayas listado. NO escribas un valor de "fats" mayor de lo que suman los ingredientes reales. Si un ingrediente no está en la lista, no puede contar en los macros.
 10. GRASAS VISIBLES OBLIGATORIAS: Cada toma debe incluir al menos 1 fuente de grasa visible en la lista de ingredientes. Opciones:
     - Proteína grasa presente (salmón, sardinas, caballa, huevos con yema): contribuyen grasa suficiente para tomas con ese ingrediente.
@@ -483,7 +485,7 @@ const getSystemPrompt = (patient: PatientData): string => {
 
 // ─── Build user prompt ─────────────────────────────────────────────────────────
 
-const buildUserPrompt = (
+export const buildUserPrompt = (
   patient: PatientData,
   metrics: CalculatedMetrics,
   customFoods: CustomFood[],
@@ -508,7 +510,7 @@ const buildUserPrompt = (
     ...clinicalTargets.mandatoryExclusions,
   ].join(', ');
   const excludedText = allExclusions
-    ? `\nEXCLUIR COMPLETAMENTE: ${allExclusions}`
+    ? `\nEXCLUIR COMPLETAMENTE (prioridad absoluta sobre cualquier regla, incluida la rotación de proteínas): ${allExclusions}`
     : '';
 
   // Auditoría (mejora #6): objetivos numéricos de fibra/azúcar/sodio, antes
