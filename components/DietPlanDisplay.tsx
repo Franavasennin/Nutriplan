@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietType, DIET_TYPE_LABELS, PatientData, ActivityLevel, Condition, PlanVersion, Recipe } from '../types';
+import {
+  CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietType, DIET_TYPE_LABELS,
+  PatientData, ActivityLevel, Condition, PlanVersion, Recipe, Gender, FASTING_LABELS,
+  CALORIE_GOAL_LABELS, ATHLETE_GOAL_LABELS, BUDGET_LEVEL_LABELS, BudgetLevel,
+} from '../types';
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
 import { generateShoppingList, ShoppingList } from '../utils/shoppingList';
+import { normalizeIngredient } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
@@ -37,7 +42,7 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
   const [tab,         setTab]         = useState<'manual' | 'recipes'>('manual');
   const [name,        setName]        = useState(meal.name);
   const [description, setDescription] = useState(meal.description);
-  const [ingredients, setIngredients] = useState(meal.ingredients.join('\n'));
+  const [ingredients, setIngredients] = useState(meal.ingredients.map(normalizeIngredient).join('\n'));
   const [recipeQuery, setRecipeQuery] = useState('');
 
   const mealTagMap: Record<string, string> = {
@@ -185,7 +190,7 @@ const MealRow: React.FC<{ meal: Meal; onEditRequest: () => void; onSwapRequest?:
               <span key={idx}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 dark:bg-primary/15 text-[11px] font-semibold text-green-800 dark:text-primary border border-primary/20">
                 <span className="material-symbols-outlined text-[11px]">grocery</span>
-                {ing}
+                {normalizeIngredient(ing)}
               </span>
             ))}
           </div>
@@ -344,6 +349,93 @@ function sumDayMacros(meals: DayPlan['meals']) {
   }
   return hasData ? { calories: Math.round(calories), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) } : null;
 }
+
+// ─── Datos del paciente (pestaña) ─────────────────────────────────────────────
+
+const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
+  [ActivityLevel.Sedentary]: 'Sedentario',
+  [ActivityLevel.Light]:     'Ligero',
+  [ActivityLevel.Moderate]:  'Moderado',
+  [ActivityLevel.Heavy]:     'Intenso',
+  [ActivityLevel.Athlete]:   'Muy intenso (atleta)',
+};
+
+const CONDITION_LABELS: Record<Condition, string> = {
+  [Condition.None]:                  'Ninguna',
+  [Condition.DiabetesType1]:         'Diabetes Tipo 1',
+  [Condition.DiabetesType2]:         'Diabetes Tipo 2',
+  [Condition.Hypertension]:          'Hipertensión',
+  [Condition.Hypothyroidism]:        'Hipotiroidismo',
+  [Condition.Hyperthyroidism]:       'Hipertiroidismo',
+  [Condition.LactoseIntolerance]:    'Intolerancia a la lactosa',
+  [Condition.Hypertriglyceridemia]:  'Hipertrigliceridemia',
+  [Condition.Celiac]:                'Celiaquía',
+  [Condition.Obesity]:               'Obesidad',
+  [Condition.RenalDisease]:          'Enfermedad renal / ERC',
+  [Condition.EatingDisorderHistory]: 'Antecedente TCA',
+};
+
+const PatientDataPanel: React.FC<{ patientData: PatientData }> = ({ patientData: p }) => {
+  const field = (label: string, value: React.ReactNode) => value == null || value === '' ? null : (
+    <div className="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3">
+      <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-500 mb-1">{label}</p>
+      <p className="text-sm font-bold text-text-main dark:text-white">{value}</p>
+    </div>
+  );
+
+  const realConditions = (p.conditions ?? []).filter(c => c !== Condition.None);
+
+  return (
+    <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-transparent dark:border-[#233629] p-6 shadow-sm">
+      <h3 className="font-bold text-lg text-text-main dark:text-white mb-4">Datos del Paciente</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {field('Nombre', p.name)}
+        {field('Edad', `${p.age} años`)}
+        {field('Sexo', p.gender === Gender.Male ? 'Hombre' : 'Mujer')}
+        {field('Peso', `${p.weight} kg`)}
+        {field('Altura', `${p.height} cm`)}
+        {field('% Grasa corporal', p.bodyFatPercent != null ? `${p.bodyFatPercent}%` : null)}
+        {field('Peso objetivo', p.targetWeight != null ? `${p.targetWeight} kg` : null)}
+        {field('Actividad', ACTIVITY_LABELS[p.activity])}
+        {field('Tipo de dieta', DIET_TYPE_LABELS[p.dietType])}
+        {field('Objetivo calórico', p.calorieGoal ? CALORIE_GOAL_LABELS[p.calorieGoal].title : null)}
+        {field('Objetivo atleta', p.athleteGoal ? ATHLETE_GOAL_LABELS[p.athleteGoal] : null)}
+        {field('Ayuno intermitente', p.fastingProtocol ? FASTING_LABELS[p.fastingProtocol] : null)}
+        {field('Hora de entrenamiento', p.trainingTime)}
+        {field('Presupuesto', p.budgetLevel ? BUDGET_LEVEL_LABELS[p.budgetLevel] : BUDGET_LEVEL_LABELS[BudgetLevel.Standard])}
+        {field('Embarazo', p.isPregnant ? 'Sí' : null)}
+        {field('Lactancia', p.isLactating ? 'Sí' : null)}
+      </div>
+
+      {realConditions.length > 0 && (
+        <div className="mt-4">
+          <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-500 mb-2">Condiciones médicas</p>
+          <div className="flex flex-wrap gap-2">
+            {realConditions.map(c => (
+              <span key={c} className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs font-semibold">
+                {CONDITION_LABELS[c]}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {p.excludedFoods && (
+        <div className="mt-4">
+          <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-500 mb-1">Alimentos excluidos</p>
+          <p className="text-sm text-text-main dark:text-white">{p.excludedFoods}</p>
+        </div>
+      )}
+
+      {p.clinicalNotes && (
+        <div className="mt-4">
+          <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-500 mb-1">Notas clínicas</p>
+          <p className="text-sm text-text-main dark:text-white whitespace-pre-wrap">{p.clinicalNotes}</p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -705,7 +797,7 @@ const DietPlanDisplay: React.FC<Props> = ({
                 <span className="material-symbols-outlined text-[20px]">school</span>
                 <span className="hidden sm:inline">Aprende</span>
               </button>
-              {onRegenerateDay && (
+              {onRegenerateDay && activeDay !== 0 && (
                 <button onClick={handleRegenerateDayConfirm}
                   disabled={isLoading}
                   title={`Rehacer el menú del día ${activeDay}`}
@@ -1028,6 +1120,18 @@ const DietPlanDisplay: React.FC<Props> = ({
 
           {/* Day tabs */}
           <div className="flex overflow-x-auto pb-2 gap-2 border-b border-border-light dark:border-border-dark items-center">
+            {patientData && (
+              <button
+                onClick={() => { setActiveDay(0); setActiveEdit(null); }}
+                className={`shrink-0 whitespace-nowrap px-5 py-2.5 font-bold rounded-xl text-sm transition-all flex items-center gap-1.5 ${
+                  activeDay === 0
+                    ? 'bg-primary text-background-dark shadow-lg shadow-primary/20'
+                    : 'bg-transparent text-text-sub dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}>
+                <span className="material-symbols-outlined text-[18px]">person</span>
+                Datos
+              </button>
+            )}
             {localPlan.weeklyPlan?.map(day => (
               <button
                 key={day.day}
@@ -1042,8 +1146,11 @@ const DietPlanDisplay: React.FC<Props> = ({
             ))}
           </div>
 
+          {/* Datos del paciente */}
+          {activeDay === 0 && patientData && <PatientDataPanel patientData={patientData} />}
+
           {/* Meals */}
-          {activeDayPlan?.meals && (() => {
+          {activeDay !== 0 && activeDayPlan?.meals && (() => {
             // Render según las tomas PRESENTES en el día (en orden lógico), no según mealCount.
             // Esto permite que las tomas añadidas aparezcan y las eliminadas desaparezcan.
             const timeMap = new Map(mealSections.map(s => [s.key, s.time]));
@@ -1181,7 +1288,7 @@ const DietPlanDisplay: React.FC<Props> = ({
                           {(meal.ingredients?.length ?? 0) > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {meal.ingredients.map((ing, idx) => (
-                                <span key={idx} className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{ing}</span>
+                                <span key={idx} className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{normalizeIngredient(ing)}</span>
                               ))}
                             </div>
                           )}

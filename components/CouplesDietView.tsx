@@ -4,6 +4,7 @@ import DietPlanDisplay from './DietPlanDisplay';
 import { getMealSwap } from '../services/geminiService';
 import { useToast } from './Toast';
 import { generateShoppingList, ShoppingList } from '../utils/shoppingList';
+import { normalizeIngredient } from '../utils/macroValidation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ const PersonColumn: React.FC<{ name: string; meal: Meal | undefined }> = ({ name
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 dark:bg-primary/15 text-[10px] font-semibold text-green-800 dark:text-primary border border-primary/20"
             >
               <span className="material-symbols-outlined text-[9px]">grocery</span>
-              {ing}
+              {normalizeIngredient(ing)}
             </span>
           ))}
         </div>

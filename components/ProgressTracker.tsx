@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { ClientProgress, ProgressEntry } from '../types';
+import { ClientProgress, ProgressEntry, Gender } from '../types';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
 
 interface Props {
   clients: string[];
   progressData: ClientProgress[];
+  patientInfo?: Record<string, { age: number; height: number; gender: Gender }>;
   onSaveEntry: (clientName: string, entry: ProgressEntry) => void;
   onUpdateGoal: (clientName: string, weightGoal: number, goalDate: number) => void;
   onDeleteEntry?: (clientName: string, entryId: string) => void;
@@ -45,7 +46,7 @@ const PL = 10, PR = 10, PT = 16, PB = 40;
 const CW = SVG_W - PL - PR;
 const CH = SVG_H - PT - PB;
 
-const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, onUpdateGoal, onDeleteEntry, onUpdateEntry }) => {
+const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, onSaveEntry, onUpdateGoal, onDeleteEntry, onUpdateEntry }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
 
@@ -193,6 +194,121 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
     return new Date(latestEntry.date + weeksNeeded * 7 * 24 * 60 * 60 * 1000);
   })();
 
+  // ── Sugerencias para el profesional ─────────────────────────────────────────
+  // Recomendaciones accionables cuando el ritmo es lento, va a contrarritmo del
+  // objetivo, o el plazo pactado no se va a cumplir al ritmo actual. No
+  // sustituyen el criterio clínico — son un apoyo para priorizar la revisión.
+  const KCAL_PER_KG = 7700;
+  type Suggestion = { icon: string; tone: 'warn' | 'info' | 'success'; text: string; tips?: string[] };
+  // Palancas de estilo de vida con respaldo en evidencia para mejorar la
+  // pérdida de peso sin necesidad de bajar más las calorías (que ya tiene
+  // un límite de seguridad, ver SAFE_MAX_WEEKLY_RATE más abajo).
+  const HEALTHY_PACE_TIPS = [
+    'Dormir 7–9h/noche: la falta de sueño eleva el hambre (grelina) y reduce la adherencia.',
+    'Proteína en cada comida: mayor saciedad y protege la masa muscular en déficit.',
+    'Verdura/fibra al inicio de cada comida: más volumen y saciedad con las mismas calorías.',
+    'Entrenamiento de fuerza 2–3×/semana: preserva músculo y sostiene el metabolismo.',
+    'Aumentar pasos diarios (NEAT): pequeños incrementos de actividad no estructurada suman sin necesidad de más restricción.',
+    'Revisar alcohol y ultraprocesados de picoteo: suelen ser la brecha entre lo planificado y lo real.',
+    'Registrar todas las comidas (incluidos fines de semana): la adherencia percibida suele ser mayor que la real.',
+    'Gestión del estrés y horarios regulares de comida: el cortisol elevado dificulta la pérdida y favorece retención de líquidos.',
+  ];
+  const pickTips = (seed: string, n: number) => {
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    const start = h % HEALTHY_PACE_TIPS.length;
+    return Array.from({ length: n }, (_, i) => HEALTHY_PACE_TIPS[(start + i) % HEALTHY_PACE_TIPS.length]);
+  };
+  const suggestions: Suggestion[] = (() => {
+    if (weeklyRate === null || !latestEntry) return [];
+    const list: Suggestion[] = [];
+
+    // Estancamiento: últimos registros (≥14 días) con variación mínima de peso.
+    const recentSpanEntries = sortedEntries.filter(e => latestEntry.date - e.date <= 21 * 24 * 60 * 60 * 1000);
+    if (recentSpanEntries.length >= 3) {
+      const span = (latestEntry.date - recentSpanEntries[0].date) / (1000 * 60 * 60 * 24);
+      const weights = recentSpanEntries.map(e => e.weight);
+      const range = Math.max(...weights) - Math.min(...weights);
+      if (span >= 14 && range <= 0.3) {
+        list.push({
+          icon: 'trending_flat', tone: 'warn',
+          text: 'Estancamiento: el peso apenas varía desde hace 2+ semanas (normal tras varias semanas de déficit — el metabolismo se adapta). Antes de bajar más las calorías, revisa estos hábitos:',
+          tips: pickTips(selectedClient + 'plateau', 3),
+        });
+      }
+    }
+
+    if (!savedGoalWeight) {
+      list.push({
+        icon: 'flag', tone: 'info',
+        text: 'Este paciente no tiene un objetivo de peso y fecha definidos — sin ellos no se puede calcular el ritmo necesario ni avisar si va con retraso.',
+      });
+      return list;
+    }
+
+    const wantsToLose = savedGoalWeight < latestEntry.weight;
+    const wantsToGain = savedGoalWeight > latestEntry.weight;
+
+    if (wantsToLose && weeklyRate >= 0) {
+      list.push({
+        icon: 'priority_high', tone: 'warn',
+        text: 'El peso no baja pese al objetivo de pérdida. Antes de tocar el plan, revisa adherencia real y estos hábitos (si la adherencia es buena, el GET probablemente ha bajado con el peso ya perdido y toca recalcularlo):',
+        tips: pickTips(selectedClient + 'stuck', 3),
+      });
+    } else if (wantsToLose && Math.abs(weeklyRate) < 0.3) {
+      list.push({
+        icon: 'speed', tone: 'warn',
+        text: `Ritmo lento (${weeklyRate} kg/semana, rango saludable 0,3–1 kg/semana). Antes de recortar más calorías, prueba a reforzar:`,
+        tips: pickTips(selectedClient + 'slow', 3),
+      });
+    } else if (wantsToLose && Math.abs(weeklyRate) > 1) {
+      list.push({
+        icon: 'warning', tone: 'warn',
+        text: 'Ritmo muy rápido (>1 kg/semana): riesgo de pérdida de masa muscular. Revisa que la proteína esté cubierta y considera reducir ligeramente el déficit.',
+      });
+    } else if (wantsToGain && weeklyRate <= 0) {
+      list.push({
+        icon: 'priority_high', tone: 'warn',
+        text: 'El peso no sube pese al objetivo de ganancia. Confirma que el superávit sea real (+150–300 kcal/día) y refuerza el entrenamiento de fuerza para priorizar masa magra.',
+      });
+    } else if (wantsToGain && weeklyRate > 0.5) {
+      list.push({
+        icon: 'warning', tone: 'warn',
+        text: 'Ganancia rápida (>0,5 kg/semana): parte probablemente es grasa. Considera moderar el superávit calórico.',
+      });
+    }
+
+    // Retraso respecto a la fecha objetivo pactada.
+    const SAFE_MAX_WEEKLY_RATE = 1; // kg/semana — límite clínico razonable (ISSN/ACSM)
+    if (clientData?.goalDate && weeklyRate < 0 && savedGoalWeight) {
+      const weeksRemaining = (clientData.goalDate - Date.now()) / (1000 * 60 * 60 * 24 * 7);
+      if (weeksRemaining > 0) {
+        const requiredWeeklyRate = (latestEntry.weight - savedGoalWeight) / weeksRemaining;
+        if (Math.abs(requiredWeeklyRate) > SAFE_MAX_WEEKLY_RATE) {
+          // La fecha pactada exige un ritmo clínicamente no recomendable — el
+          // problema es la fecha, no el déficit. Sugerir un ajuste de plazo en
+          // vez de un déficit calórico extremo.
+          const weeksAtSafeRate = Math.abs(latestEntry.weight - savedGoalWeight) / SAFE_MAX_WEEKLY_RATE;
+          const realisticDate = new Date(Date.now() + weeksAtSafeRate * 7 * 24 * 60 * 60 * 1000);
+          list.push({
+            icon: 'event_busy', tone: 'warn',
+            text: `La fecha objetivo pactada exige un ritmo de ~${Math.abs(requiredWeeklyRate).toFixed(1)} kg/semana, por encima del máximo recomendado (~1 kg/semana). No es la dieta la que falla — conviene renegociar la fecha con el paciente; a ritmo saludable se alcanzaría hacia el ${realisticDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}.`,
+          });
+        } else if (Math.abs(requiredWeeklyRate) > Math.abs(weeklyRate) + 0.05) {
+          const extraKcal = Math.round(((Math.abs(requiredWeeklyRate) - Math.abs(weeklyRate)) * KCAL_PER_KG / 7) / 50) * 50;
+          const daysLate = projectedGoalDate ? Math.round((projectedGoalDate.getTime() - clientData.goalDate) / (1000 * 60 * 60 * 24)) : null;
+          list.push({
+            icon: 'schedule', tone: 'warn',
+            text: `Al ritmo actual llegaría${daysLate && daysLate > 0 ? ` ~${daysLate} días tarde` : ''} a la fecha objetivo (equivaldría a ~${extraKcal} kcal/día extra de déficit). Antes de recortar más calorías, prueba a reforzar hábitos — o ajusta la fecha a algo más realista:`,
+            tips: pickTips(selectedClient + 'late', 3),
+          });
+        }
+      }
+    }
+
+    return list.slice(0, 3);
+  })();
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient || !newEntry.weight) return;
@@ -278,6 +394,25 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
 
         {selectedClient ? (
           <>
+            {/* Datos iniciales del paciente (edad, altura, sexo) — tomados
+                del registro del paciente, no cambian con el seguimiento. */}
+            {patientInfo?.[selectedClient] && (
+              <div className="mb-4 flex flex-wrap gap-4 text-sm text-text-sub dark:text-gray-400">
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">cake</span>
+                  {patientInfo[selectedClient].age} años
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">height</span>
+                  {patientInfo[selectedClient].height} cm
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">wc</span>
+                  {patientInfo[selectedClient].gender === Gender.Male ? 'Hombre' : 'Mujer'}
+                </span>
+              </div>
+            )}
+
             {/* Goal Card */}
             <div className="mb-4 p-4 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark flex flex-col sm:flex-row gap-4 items-start sm:items-end">
               <div className="flex-1 flex flex-col gap-1">
@@ -528,6 +663,38 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, onSaveEntry, 
                 )}
               </div>
             </div>
+
+            {/* Sugerencias para el profesional */}
+            {suggestions.length > 0 && (
+              <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm p-4 mb-6">
+                <h3 className="font-bold text-text-main dark:text-white mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-xl">tips_and_updates</span>
+                  Sugerencias para alcanzar la meta
+                </h3>
+                <div className="flex flex-col gap-2">
+                  {suggestions.map((s, i) => (
+                    <div key={i} className={`flex items-start gap-3 p-3 rounded-lg text-sm ${
+                      s.tone === 'warn'
+                        ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300'
+                        : 'bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
+                    }`}>
+                      <span className="material-symbols-outlined text-[18px] mt-0.5">{s.icon}</span>
+                      <div className="leading-relaxed">
+                        {s.text}
+                        {s.tips && (
+                          <ul className="mt-1.5 space-y-1 list-disc list-inside">
+                            {s.tips.map((tip, ti) => <li key={ti}>{tip}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-text-sub dark:text-gray-500 mt-3 italic">
+                  Sugerencias orientativas basadas en la evolución registrada — no sustituyen el criterio clínico.
+                </p>
+              </div>
+            )}
 
             {/* Body composition breakdown — visible with any single entry that has composition data */}
             {latestEntry && (latestEntry.bodyFat != null || latestEntry.muscleMass != null || latestEntry.waterPercent != null) && (() => {

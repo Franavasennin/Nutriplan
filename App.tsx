@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 
 // Views — carga diferida (code-splitting): cada vista es un chunk aparte,
 // se descarga solo cuando el usuario navega a ella.
@@ -51,6 +51,24 @@ const AppContent: React.FC = () => {
   } = useAppData();
   const { toast }    = useToast();
   const { confirm }  = useConfirm();
+
+  // Datos iniciales del paciente (edad, altura, sexo) por cliente — se toman
+  // de la dieta más reciente, para mostrarlos en Seguimiento (antes no
+  // aparecían en ningún sitio fuera del formulario/PDF del plan).
+  const patientInfoByClient = useMemo(() => {
+    const map: Record<string, { age: number; height: number; gender: PatientData['gender'] }> = {};
+    const byTimestamp = [...savedDiets].sort((a, b) => a.timestamp - b.timestamp);
+    for (const diet of byTimestamp) {
+      const name = diet.patientData.name;
+      if (!name) continue;
+      map[name] = {
+        age:    diet.patientData.age,
+        height: diet.patientData.height,
+        gender: diet.patientData.gender,
+      };
+    }
+    return map;
+  }, [savedDiets]);
 
   // Session state (no need to persist between steps)
   const [currentStep,    setCurrentStep]    = useState<Step>('dashboard');
@@ -410,6 +428,7 @@ const AppContent: React.FC = () => {
           <ProgressTracker
             clients={uniqueClients}
             progressData={progressData}
+            patientInfo={patientInfoByClient}
             onSaveEntry={saveProgressEntry}
             onDeleteEntry={deleteProgressEntry}
             onUpdateEntry={updateProgressEntry}

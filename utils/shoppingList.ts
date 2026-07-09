@@ -214,8 +214,9 @@ export function generateShoppingList(...plans: DietResponse[]): ShoppingList {
     for (const day of plan.weeklyPlan) {
       for (const meal of Object.values(day.meals)) {
         if (!meal?.ingredients) continue;
-        for (const raw of meal.ingredients) {
-          if (!raw?.trim()) continue;
+        for (const rawItem of meal.ingredients) {
+          const raw = typeof rawItem === 'string' ? rawItem : String(rawItem ?? '');
+          if (!raw.trim()) continue;
           const { amount, name } = parseIngredient(raw);
           if (!name) continue;
           const normalized = normalizeName(name);

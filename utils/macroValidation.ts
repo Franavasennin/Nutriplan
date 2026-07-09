@@ -18,24 +18,52 @@ import { Meal, DayPlan, DietResponse } from '../types';
 
 const TOLERANCE = 0.12; // 12% de margen — evita "corregir" redondeos normales
 
+/**
+ * La IA a veces devuelve un ingrediente como objeto ({food, amount}) en vez
+ * del string plano pedido en el prompt ("150g pollo"). Si se deja pasar tal
+ * cual, React revienta al renderizarlo como children y `generateShoppingList`
+ * revienta al llamar `.trim()` sobre un objeto. Se normaliza aquí, en el
+ * único punto por el que pasan todas las respuestas de IA.
+ */
+export function normalizeIngredient(item: unknown): string {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object') {
+    const obj = item as Record<string, unknown>;
+    const amount = obj.amount ?? obj.cantidad ?? obj.quantity ?? '';
+    const food = obj.food ?? obj.name ?? obj.alimento ?? obj.ingredient ?? '';
+    const combined = [amount, food].filter(Boolean).join(' ').trim();
+    if (combined) return combined;
+  }
+  return String(item ?? '').trim();
+}
+
+function normalizeIngredients(ingredients: unknown): string[] {
+  if (!Array.isArray(ingredients)) return [];
+  return ingredients.map(normalizeIngredient).filter(Boolean);
+}
+
 export function reconcileMealMacros(meal: Meal): Meal {
-  if (meal.protein == null || meal.carbs == null || meal.fats == null) return meal;
+  const normalized: Meal = Array.isArray(meal.ingredients)
+    ? { ...meal, ingredients: normalizeIngredients(meal.ingredients) }
+    : meal;
 
-  const derivedCalories = meal.protein * 4 + meal.carbs * 4 + meal.fats * 9;
-  if (derivedCalories <= 0) return meal;
+  if (normalized.protein == null || normalized.carbs == null || normalized.fats == null) return normalized;
 
-  if (meal.calories == null) {
-    return { ...meal, calories: Math.round(derivedCalories) };
+  const derivedCalories = normalized.protein * 4 + normalized.carbs * 4 + normalized.fats * 9;
+  if (derivedCalories <= 0) return normalized;
+
+  if (normalized.calories == null) {
+    return { ...normalized, calories: Math.round(derivedCalories) };
   }
 
-  const diff = Math.abs(meal.calories - derivedCalories) / derivedCalories;
+  const diff = Math.abs(normalized.calories - derivedCalories) / derivedCalories;
   if (diff > TOLERANCE) {
     // Las calorías declaradas no cuadran con los macros declarados — se
     // recalculan desde los macros (más fiable: la IA calibra primero
     // gramos de proteína/HC/grasa y las kcal son una simple suma derivada).
-    return { ...meal, calories: Math.round(derivedCalories) };
+    return { ...normalized, calories: Math.round(derivedCalories) };
   }
-  return meal;
+  return normalized;
 }
 
 export function reconcileDayPlan(day: DayPlan): DayPlan {
