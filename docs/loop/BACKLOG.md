@@ -78,7 +78,13 @@ Nuevos hallazgos menores registrados en esta re-auditoría:
 
 | ID | Categoría | Severidad | Descripción | Estado |
 |---|---|---|---|---|
-| M-001 | Seguridad alimentaria | baja | Falsos positivos en `ALLERGEN_KEYWORDS` por matching de subcadena: "leche de almendras"→Leche, "avena"→Gluten. Erra del lado seguro (sobre-avisa), impacto bajo | abierto |
-| M-002 | Seguridad alimentaria | media | Sin verificador determinista post-generación de que el plan de la IA respeta los alérgenos/exclusiones declarados — el resaltado de la lista de la compra es solo un aviso pasivo. No-alcance ya declarado en MEJORA-001, pero queda como candidato de mejora futura | abierto |
+| M-001 | Seguridad alimentaria | baja | Falsos positivos en `ALLERGEN_KEYWORDS` por matching de subcadena: "leche de almendras"→Leche. **Resuelto en MEJORA-009 (iteración 002)** — "avena"→Gluten confirmado correcto (Reglamento UE), no era un bug | resuelto (iteración 002) |
+| M-002 | Seguridad alimentaria | media | Sin verificador determinista post-generación de que el plan de la IA respeta los alérgenos/exclusiones declarados. **Resuelto en MEJORA-010 (iteración 002)** — cobertura parcial (solo `handleFormSubmit`; `handleCoupleSubmit`/regeneración de día/swap de comida quedan para extensión futura) | resuelto parcialmente (iteración 002) |
 
-Quedan en el backlog para futuras iteraciones: A-001 (fuente 1.1MB), A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase, multi-tenant real), A-008 (campos Recipe, parcialmente cubierto por MEJORA-001), A-009 (evals de IA), M-001, M-002, y la decisión de negocio sobre Monetización.
+## Estado tras iteración 002 (2026-07-09)
+
+3 mejoras ejecutadas: MEJORA-008 (fuente de iconos + fix CLS), MEJORA-009 (fix falso positivo alérgenos), MEJORA-010 (verificador post-generación). Nota global: 56.10 → 59.04 (+2.94, de los cuales +2.34 es efecto contable del repeso de Monetización y +0.60 es mejora real de producto). **Seguridad alimentaria cruza 80 por primera vez** (79→83), desactivando el tope de seguridad de §2.1.
+
+Nuevo ítem de backlog: extender MEJORA-010 (verificador de alérgenos) a `handleCoupleSubmit`, `regenerateSingleDay`, `generateSingleMeal` y `adaptPlanToPartner` para cobertura completa (hoy solo cubre la generación inicial individual).
+
+Quedan en el backlog para futuras iteraciones: A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase, multi-tenant real — candidato prioritario siguiente), A-008 (campos Recipe con alérgenos poblados en las 68 recetas del corpus estático), A-009 (evals de IA — requiere autorización explícita puntual por coste de API), extensión de MEJORA-010, y la decisión de negocio sobre Monetización (ya resuelta: excluida por ahora).
