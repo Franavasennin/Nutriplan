@@ -23,7 +23,7 @@ Puntuación viva y acumulativa. Cada celda enlaza a la evidencia que la respalda
 | 6 | Personalización | 8% | **71** | `iteracion-001/AUDITORIA-orquestador.md` | 2026-07-09 |
 | 7 | Arquitectura | 7% | **62** | `iteracion-001/AUDITORIA-arquitectura.md` | 2026-07-09 |
 | 8 | Rendimiento | 6% | ⬜ pendiente | agente falló (límite de sesión) | — |
-| 9 | Escalabilidad | 5% | ⬜ pendiente | agente falló (límite de sesión) | — |
+| 9 | Escalabilidad | 5% | **28** | `iteracion-001/AUDITORIA-escalabilidad.md` — ⚠️ hallazgo CRÍTICO: RLS deshabilitado en 4/5 tablas, contradice la nota del proyecto | 2026-07-09 |
 | 10 | Accesibilidad | 5% | ⬜ pendiente | agente falló (límite de sesión) | — |
 | 11 | UI | 5% | **66** | `iteracion-001/AUDITORIA-orquestador.md` | 2026-07-09 |
 | 12 | Retención | 5% | **35** | `iteracion-001/AUDITORIA-orquestador.md` | 2026-07-09 |
