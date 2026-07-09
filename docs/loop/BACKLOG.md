@@ -66,8 +66,19 @@ Seleccionadas para ejecución en la iteración 001 (ver `SELECCION.md`, `MEJORA-
 | MEJORA-006 (BMI extremo + DM1 ayuno) | ✅ Implementada | `905e029` |
 | MEJORA-001 (alérgenos) + MEJORA-004 (a11y checkboxes) + MEJORA-007 (disclaimer) | ✅ Implementadas juntas | `6e2d341` |
 | MEJORA-005 (contraste AA) | ✅ Implementada | `e04a8ab` |
-| MEJORA-003 (RLS Supabase) | ✅ Resuelta — verificación de solo lectura confirmó que ya estaba correcto en producción; solo se corrigió el script local desactualizado | (pendiente de commit) |
+| MEJORA-003 (RLS Supabase) | ✅ Resuelta — verificación de solo lectura confirmó que ya estaba correcto en producción; solo se corrigió el script local desactualizado | `d3b55bf` |
 
 Todas verificadas: 127/127 tests OK, `tsc` limpio, build limpio, axe-core en vivo (0 violaciones en Dashboard tras MEJORA-005), atributos ARIA confirmados en el DOM real (MEJORA-004).
 
-Quedan en el backlog para futuras iteraciones: A-001 (fuente 1.1MB), A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase, multi-tenant real), A-008 (campos Recipe, parcialmente cubierto por MEJORA-001), A-009 (evals de IA), y la decisión de negocio sobre Monetización.
+## Estado tras M9/M10 (re-auditoría y recálculo, 2026-07-09)
+
+Nota global: 53.61 → **56.10** (+2.49). Ver `DELTA.md`. Bloqueantes B-001, B-002, B-003, P-001 confirmados resueltos por agentes distintos a los que implementaron cada mejora (regla anti-inflación §2.2). 0 regresiones detectadas.
+
+Nuevos hallazgos menores registrados en esta re-auditoría:
+
+| ID | Categoría | Severidad | Descripción | Estado |
+|---|---|---|---|---|
+| M-001 | Seguridad alimentaria | baja | Falsos positivos en `ALLERGEN_KEYWORDS` por matching de subcadena: "leche de almendras"→Leche, "avena"→Gluten. Erra del lado seguro (sobre-avisa), impacto bajo | abierto |
+| M-002 | Seguridad alimentaria | media | Sin verificador determinista post-generación de que el plan de la IA respeta los alérgenos/exclusiones declarados — el resaltado de la lista de la compra es solo un aviso pasivo. No-alcance ya declarado en MEJORA-001, pero queda como candidato de mejora futura | abierto |
+
+Quedan en el backlog para futuras iteraciones: A-001 (fuente 1.1MB), A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase, multi-tenant real), A-008 (campos Recipe, parcialmente cubierto por MEJORA-001), A-009 (evals de IA), M-001, M-002, y la decisión de negocio sobre Monetización.
