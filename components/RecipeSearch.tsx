@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Recipe, RecipeFilters, MealType, DietType } from '../types';
+import { Recipe, RecipeFilters, MealType, DietType, ALLERGEN_LABELS } from '../types';
 import { findRecipes } from '../services/geminiService';
 import { RECIPES } from '../data/recipes';
+import { getRecipeAllergens } from '../utils/allergenVerification';
 
 interface RecipeSearchProps {
   /** External recipe catalogue (e.g. synced from DB). Falls back to static RECIPES. */
@@ -77,7 +78,11 @@ const MEAL_LABELS: Record<MealType, string> = {
 };
 
 const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes }) => {
-  const catalogue = externalRecipes ?? RECIPES;
+  // Bug preexistente corregido (iteración 003, descubierto verificando
+  // MEJORA-013): useAppData siempre pasa dbRecipes=[] (no hay tabla de
+  // recetas), y `[] ?? RECIPES` devuelve [] — el corpus estático de 68
+  // recetas nunca llegaba a usarse y el buscador local mostraba "0 recetas".
+  const catalogue = externalRecipes?.length ? externalRecipes : RECIPES;
   const [recipes,        setRecipes]        = useState<Recipe[]>([]);
   const [aiLoading,      setAiLoading]      = useState(false);
   const [aiError,        setAiError]        = useState<string | null>(null);
@@ -400,6 +405,29 @@ const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes })
                   <span key={tag} className="text-xs bg-primary/10 text-green-700 dark:text-primary px-2 py-0.5 rounded-full capitalize">{tag}</span>
                 ))}
               </div>
+
+              {/* Alérgenos (MEJORA-013, iteración 003): derivados heurísticamente
+                  de los ingredientes salvo que la receta los declare explícitamente. */}
+              {(() => {
+                const { allergens, derived } = getRecipeAllergens(selectedRecipe);
+                if (allergens.length === 0) return null;
+                return (
+                  <div className="flex items-center gap-2 mb-6 flex-wrap">
+                    <span className="material-symbols-outlined text-[16px] text-red-500">warning</span>
+                    <span className="text-xs font-semibold text-text-main dark:text-gray-300">Alérgenos:</span>
+                    {allergens.map(a => (
+                      <span key={a} className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full font-medium">
+                        {ALLERGEN_LABELS[a]}
+                      </span>
+                    ))}
+                    {derived && (
+                      <span className="text-[10px] text-text-sub dark:text-gray-500 italic">
+                        (detección automática por ingredientes — no sustituye el etiquetado profesional)
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="grid md:grid-cols-2 gap-8">
                 <div>

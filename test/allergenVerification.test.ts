@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from '../utils/allergenVerification';
-import { Gender, ActivityLevel, DietType, Duration, Allergen, type PatientData, type DietResponse } from '../types';
+import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, getRecipeAllergens, formatAllergenViolationsMessage } from '../utils/allergenVerification';
+import { Gender, ActivityLevel, DietType, Duration, Allergen, type PatientData, type DietResponse, type Recipe } from '../types';
 
 const basePatient: PatientData = {
   age: 38,
@@ -110,6 +110,50 @@ describe('verifyDayAgainstAllergens — MEJORA-011 (iteración 003, regenerar d�
     expect(violations).toHaveLength(2);
     expect(violations.every(v => v.day === 5)).toBe(true);
     expect(violations.map(v => v.mealName)).toEqual(['Desayuno', 'Cena']);
+  });
+});
+
+describe('getRecipeAllergens — MEJORA-013 (iteración 003, corpus de recetas)', () => {
+  const baseRecipe: Recipe = {
+    id: 'test-1',
+    title: 'Receta de prueba',
+    description: '',
+    prepTime: 20,
+    calories: 400,
+    protein: 30,
+    carbs: 40,
+    fats: 12,
+    ingredients: ['200g gambas', '80g arroz', '10ml AOVE'],
+    instructions: [],
+    tags: [],
+  };
+
+  it('deriva alérgenos heurísticamente de los ingredientes cuando la receta no los declara', () => {
+    const { allergens, derived } = getRecipeAllergens(baseRecipe);
+    expect(derived).toBe(true);
+    expect(allergens).toContain(Allergen.Crustaceos);
+  });
+
+  it('los alérgenos declarados explícitamente tienen prioridad sobre la heurística', () => {
+    const recipe: Recipe = { ...baseRecipe, allergens: [Allergen.Sulfitos] };
+    const { allergens, derived } = getRecipeAllergens(recipe);
+    expect(derived).toBe(false);
+    expect(allergens).toEqual([Allergen.Sulfitos]);
+  });
+
+  it('devuelve vacío (derivado) para una receta sin ingredientes con alérgenos', () => {
+    const recipe: Recipe = { ...baseRecipe, ingredients: ['150g pechuga de pollo', '100g brócoli'] };
+    const { allergens, derived } = getRecipeAllergens(recipe);
+    expect(derived).toBe(true);
+    expect(allergens).toEqual([]);
+  });
+
+  it('respeta la excepción de leche vegetal en la derivación', () => {
+    const recipe: Recipe = { ...baseRecipe, ingredients: ['200ml leche de almendras'] };
+    const { allergens } = getRecipeAllergens(recipe);
+    expect(allergens).not.toContain(Allergen.Leche);
+    // "almendras" sí debe marcar frutos de cáscara — la excepción es solo para Leche
+    expect(allergens).toContain(Allergen.FrutosCascara);
   });
 });
 

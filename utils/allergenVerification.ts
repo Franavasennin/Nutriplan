@@ -1,5 +1,25 @@
-import { DietResponse, DayPlan, Meal, PatientData, Allergen, ALLERGEN_LABELS } from '../types';
+import { DietResponse, DayPlan, Meal, PatientData, Recipe, Allergen, ALLERGEN_LABELS } from '../types';
 import { findMatchingAllergens } from './shoppingList';
+
+/**
+ * Alérgenos de una receta del corpus (MEJORA-013, iteración 003, hallazgo
+ * A-008): si la receta declara `allergens` explícitos (validados por la
+ * DN), esos mandan; si no, se derivan heurísticamente de los ingredientes
+ * con el mismo matching por palabra clave del resto del sistema. La UI debe
+ * etiquetar la derivación heurística como "detección automática" — no es
+ * verdad clínica validada.
+ */
+export function getRecipeAllergens(recipe: Recipe): { allergens: Allergen[]; derived: boolean } {
+  if (recipe.allergens && recipe.allergens.length > 0) {
+    return { allergens: recipe.allergens, derived: false };
+  }
+  const all = Object.values(Allergen);
+  const found = new Set<Allergen>();
+  for (const ingredient of recipe.ingredients ?? []) {
+    for (const a of findMatchingAllergens(ingredient, all)) found.add(a);
+  }
+  return { allergens: [...found], derived: true };
+}
 
 /**
  * Verificador determinista post-generación (MEJORA-010, iteración 002,
