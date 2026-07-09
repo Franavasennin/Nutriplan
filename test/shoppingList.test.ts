@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateShoppingList } from '../utils/shoppingList';
-import type { DietResponse } from '../types';
+import { generateShoppingList, findMatchingAllergens } from '../utils/shoppingList';
+import { Allergen, type DietResponse } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,5 +144,27 @@ describe('generateShoppingList', () => {
     };
     const list = generateShoppingList(plan);
     expect(list.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('findMatchingAllergens (MEJORA-001, iteración 001)', () => {
+  it('detecta marisco/moluscos en un ingrediente de la lista de la compra (Sintético-07)', () => {
+    const matches = findMatchingAllergens('200g gambas', [Allergen.Crustaceos, Allergen.Huevos, Allergen.FrutosCascara]);
+    expect(matches).toEqual([Allergen.Crustaceos]);
+  });
+
+  it('detecta huevo aunque el paciente tenga varios alérgenos declarados', () => {
+    const matches = findMatchingAllergens('2 huevos', [Allergen.Crustaceos, Allergen.Huevos, Allergen.FrutosCascara]);
+    expect(matches).toEqual([Allergen.Huevos]);
+  });
+
+  it('no marca nada si el ingrediente no coincide con ningún alérgeno declarado', () => {
+    const matches = findMatchingAllergens('150g pechuga de pollo', [Allergen.Crustaceos, Allergen.Huevos]);
+    expect(matches).toEqual([]);
+  });
+
+  it('devuelve array vacío si el paciente no declaró alérgenos', () => {
+    const matches = findMatchingAllergens('200g gambas', []);
+    expect(matches).toEqual([]);
   });
 });

@@ -3,10 +3,11 @@ import {
   CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietType, DIET_TYPE_LABELS,
   PatientData, ActivityLevel, Condition, PlanVersion, Recipe, Gender, FASTING_LABELS,
   CALORIE_GOAL_LABELS, ATHLETE_GOAL_LABELS, BUDGET_LEVEL_LABELS, BudgetLevel,
+  ALLERGEN_LABELS,
 } from '../types';
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
-import { generateShoppingList, ShoppingList } from '../utils/shoppingList';
+import { generateShoppingList, ShoppingList, findMatchingAllergens } from '../utils/shoppingList';
 import { normalizeIngredient } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { useConfirm } from './ConfirmDialog';
@@ -984,11 +985,16 @@ const DietPlanDisplay: React.FC<Props> = ({
                       </span>
                     </div>
                     <ul className="space-y-1">
-                      {cat.items.map((item, ii) => (
+                      {cat.items.map((item, ii) => {
+                        const matchingAllergens = findMatchingAllergens(item.name, patientData?.allergens ?? []);
+                        return (
                         <li key={`${item.name}-${ii}`} className="group flex items-start gap-1.5 text-sm">
                           {/* Checkbox */}
                           <button
                             onClick={() => toggleShopItem(ci, ii)}
+                            role="checkbox"
+                            aria-checked={item.checked}
+                            aria-label={`${item.checked ? 'Desmarcar' : 'Marcar'} ${item.name} como comprado`}
                             className={`mt-0.5 shrink-0 size-4 rounded border flex items-center justify-center transition-all ${
                               item.checked
                                 ? 'bg-emerald-500 border-emerald-500 text-white'
@@ -1000,6 +1006,15 @@ const DietPlanDisplay: React.FC<Props> = ({
                           {/* Name */}
                           <span className={`flex-1 leading-tight transition-all ${item.checked ? 'line-through text-text-sub dark:text-gray-500' : 'text-text-main dark:text-gray-200'}`}>
                             {item.name}
+                            {matchingAllergens.length > 0 && (
+                              <span
+                                title={`Alérgeno declarado: ${matchingAllergens.map(a => ALLERGEN_LABELS[a]).join(', ')}`}
+                                className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-[10px] font-bold align-middle"
+                              >
+                                <span className="material-symbols-outlined text-[11px]">warning</span>
+                                {matchingAllergens.map(a => ALLERGEN_LABELS[a]).join(', ')}
+                              </span>
+                            )}
                           </span>
                           {/* Amount */}
                           {item.amounts.length > 0 && (
@@ -1016,7 +1031,8 @@ const DietPlanDisplay: React.FC<Props> = ({
                             <span className="material-symbols-outlined text-[14px]">remove_circle</span>
                           </button>
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                     {/* Add item */}
                     {addingToCat === ci ? (
@@ -1243,6 +1259,11 @@ const DietPlanDisplay: React.FC<Props> = ({
                 {patientData.age} años · {patientData.weight} kg · {patientData.height} cm
               </p>
             )}
+            {patientData?.allergens && patientData.allergens.length > 0 && (
+              <p className="text-xs font-bold text-red-600 mt-1">
+                ⚠ Alérgenos: {patientData.allergens.map(a => ALLERGEN_LABELS[a]).join(', ')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -1341,7 +1362,10 @@ const DietPlanDisplay: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="mt-10 text-center text-[9px] text-gray-400 italic">
+        <div className="mt-6 pt-3 border-t border-gray-200 text-center text-[9px] text-gray-500">
+          {CLINIC.disclaimer}
+        </div>
+        <div className="mt-2 text-center text-[9px] text-gray-400 italic">
           Documento generado por {CLINIC.appName} AI para {CLINIC.name}.
         </div>
       </div>

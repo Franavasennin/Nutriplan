@@ -30,6 +30,9 @@ dist-ssr
 # Salida generada por /graphify (grafo de conocimiento, no es código fuente)
 graphify-out/
 
+# Artefactos temporales de axe-core CLI (auditorías de accesibilidad puntuales)
+.axe-tmp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

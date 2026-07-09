@@ -14,6 +14,8 @@ import {
   CALORIE_GOAL_LABELS,
   BudgetLevel,
   BUDGET_LEVEL_LABELS,
+  Allergen,
+  ALLERGEN_LABELS,
 } from '../types';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 
@@ -496,7 +498,33 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 </div>
                             </label>
                             <label className="flex flex-col gap-2">
-                                <span className="text-sm font-semibold text-text-main dark:text-slate-200">Alimentos a excluir</span>
+                                <span className="text-sm font-semibold text-text-main dark:text-slate-200">Alérgenos declarados</span>
+                                <div className="flex flex-wrap gap-2 p-3 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
+                                    {Object.values(Allergen).map(a => {
+                                        const checked = (formData.allergens ?? []).includes(a);
+                                        return (
+                                            <label key={a} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium cursor-pointer border transition-colors ${checked ? 'bg-red-100 dark:bg-red-900/30 border-red-400 dark:border-red-600 text-red-800 dark:text-red-300' : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark text-text-sub'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="sr-only"
+                                                    checked={checked}
+                                                    onChange={(e) => {
+                                                        const current = formData.allergens ?? [];
+                                                        const next = e.target.checked
+                                                            ? [...current, a]
+                                                            : current.filter(x => x !== a);
+                                                        setFormData({...formData, allergens: next});
+                                                    }}
+                                                />
+                                                {ALLERGEN_LABELS[a]}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                <span className="text-xs text-text-sub dark:text-gray-500">Los 14 alérgenos de declaración obligatoria (UE). Se excluyen con prioridad absoluta en el plan generado.</span>
+                            </label>
+                            <label className="flex flex-col gap-2">
+                                <span className="text-sm font-semibold text-text-main dark:text-slate-200">Otros alimentos a excluir</span>
                                 <input
                                     className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white placeholder:text-text-sub/60 outline-none"
                                     type="text"
@@ -504,7 +532,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                     value={formData.excludedFoods ?? ''}
                                     onChange={(e) => setFormData({...formData, excludedFoods: e.target.value})}
                                 />
-                                <span className="text-xs text-text-sub dark:text-gray-500">Separa con comas los alimentos que no quieres en el plan.</span>
+                                <span className="text-xs text-text-sub dark:text-gray-500">Separa con comas otros alimentos que no quieres en el plan (preferencias, no solo alergias).</span>
                             </label>
                             <label className="flex flex-col gap-2">
                                 <span className="text-sm font-semibold text-text-main dark:text-slate-200">Presupuesto</span>

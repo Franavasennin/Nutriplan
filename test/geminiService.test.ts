@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildDietSystemPrompt, buildUserPrompt } from '../services/geminiService';
-import { Gender, ActivityLevel, DietType, Duration, Condition, FastingProtocol, type PatientData, type CalculatedMetrics } from '../types';
+import { Gender, ActivityLevel, DietType, Duration, Condition, FastingProtocol, Allergen, type PatientData, type CalculatedMetrics } from '../types';
 
 const basePatient: PatientData = {
   age: 38,
@@ -66,5 +66,33 @@ describe('buildUserPrompt — MEJORA-006: DM1 bloquea ayuno intermitente (iterac
     const patient: PatientData = { ...basePatient, fastingProtocol: FastingProtocol.IF16_8 };
     const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
     expect(prompt).toContain('Protocolo de ayuno');
+  });
+});
+
+describe('buildUserPrompt — MEJORA-001: alérgenos estructurados (iteración 001)', () => {
+  it('un paciente con alérgenos declarados genera una sección de exclusión en el prompt (Sintético-07)', () => {
+    const patient: PatientData = {
+      ...basePatient,
+      allergens: [Allergen.Crustaceos, Allergen.Huevos, Allergen.FrutosCascara],
+    };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+
+    expect(prompt).toContain('EXCLUIR COMPLETAMENTE');
+    expect(prompt).toContain('Crustáceos');
+    expect(prompt).toContain('Huevos');
+    expect(prompt).toContain('Frutos de cáscara');
+  });
+
+  it('fusiona alérgenos estructurados con excludedFoods de texto libre en la misma sección', () => {
+    const patient: PatientData = {
+      ...basePatient,
+      excludedFoods: 'aceitunas',
+      allergens: [Allergen.Leche],
+    };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    const exclusionLine = prompt.split('\n').find(l => l.includes('EXCLUIR COMPLETAMENTE'));
+
+    expect(exclusionLine).toContain('aceitunas');
+    expect(exclusionLine).toContain('Leche');
   });
 });

@@ -7,7 +7,7 @@ import {
   CustomFood, RecipeFilters, Recipe, AthleteGoal, ATHLETE_GOAL_LABELS,
   SavedDiet, Gender, ActivityLevel, Duration, Condition,
   CalorieGoal, CALORIE_GOAL_LABELS, CALORIE_GOAL_ADJUST,
-  DayPlan, Meal, BudgetLevel,
+  DayPlan, Meal, BudgetLevel, ALLERGEN_LABELS,
 } from '../types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from '../utils/calculations';
 import { reconcileMealMacros, reconcileDayPlan, reconcileDietResponse } from '../utils/macroValidation';
@@ -505,9 +505,14 @@ export const buildUserPrompt = (
   // OBLIGATORIAS que se fusionan con las del usuario, independientemente de
   // si el modelo interpreta correctamente el nombre de la condición.
   const clinicalTargets = getClinicalTargets(patient, metrics.macros.calories);
+  // MEJORA-001 (iteración 001): alérgenos estructurados (14 UE) se fusionan
+  // con las exclusiones de texto libre y las clínicas obligatorias, con la
+  // misma prioridad absoluta (Regla 0 de buildDietSystemPrompt).
+  const allergenNames = (patient.allergens ?? []).map(a => ALLERGEN_LABELS[a]);
   const allExclusions = [
     ...(patient.excludedFoods?.trim() ? [sanitizeForPrompt(patient.excludedFoods, 200)] : []),
     ...clinicalTargets.mandatoryExclusions,
+    ...allergenNames,
   ].join(', ');
   const excludedText = allExclusions
     ? `\nEXCLUIR COMPLETAMENTE (prioridad absoluta sobre cualquier regla, incluida la rotación de proteínas): ${allExclusions}`

@@ -113,6 +113,65 @@ export enum Duration {
   SixMonths = '6_meses'
 }
 
+// ─── Alérgenos UE (Reglamento (UE) 1169/2011, Anexo II) ───────────────────────
+// Sistema mínimo de alérgenos estructurados (auditoría iteración 001,
+// MEJORA-001). Complementa a PatientData.excludedFoods (texto libre), no lo
+// sustituye — un paciente puede tener alérgenos declarados Y exclusiones de
+// texto libre adicionales (preferencias, no solo alergias).
+export enum Allergen {
+  Gluten = 'gluten',
+  Crustaceos = 'crustaceos',
+  Huevos = 'huevos',
+  Pescado = 'pescado',
+  Cacahuetes = 'cacahuetes',
+  Soja = 'soja',
+  Leche = 'leche',
+  FrutosCascara = 'frutos_cascara',
+  Apio = 'apio',
+  Mostaza = 'mostaza',
+  Sesamo = 'sesamo',
+  Sulfitos = 'sulfitos',
+  Altramuces = 'altramuces',
+  Moluscos = 'moluscos',
+}
+
+export const ALLERGEN_LABELS: Record<Allergen, string> = {
+  [Allergen.Gluten]: 'Gluten (cereales)',
+  [Allergen.Crustaceos]: 'Crustáceos',
+  [Allergen.Huevos]: 'Huevos',
+  [Allergen.Pescado]: 'Pescado',
+  [Allergen.Cacahuetes]: 'Cacahuetes',
+  [Allergen.Soja]: 'Soja',
+  [Allergen.Leche]: 'Leche (lácteos)',
+  [Allergen.FrutosCascara]: 'Frutos de cáscara (nueces, almendras...)',
+  [Allergen.Apio]: 'Apio',
+  [Allergen.Mostaza]: 'Mostaza',
+  [Allergen.Sesamo]: 'Sésamo',
+  [Allergen.Sulfitos]: 'Sulfitos',
+  [Allergen.Altramuces]: 'Altramuces',
+  [Allergen.Moluscos]: 'Moluscos',
+};
+
+// Palabras clave para detectar coincidencias en ingredientes de texto libre
+// (lista de la compra). Coincidencia simple por substring, no NLP — ver
+// docs/loop/iteracion-001/MEJORA-001.md, no-alcance.
+export const ALLERGEN_KEYWORDS: Record<Allergen, string[]> = {
+  [Allergen.Gluten]: ['trigo', 'harina', 'pan', 'pasta', 'cebada', 'centeno', 'avena', 'cuscús', 'seitan'],
+  [Allergen.Crustaceos]: ['gamba', 'langostino', 'cangrejo', 'bogavante', 'langosta', 'camarón'],
+  [Allergen.Huevos]: ['huevo'],
+  [Allergen.Pescado]: ['pescado', 'salmón', 'atún', 'merluza', 'bacalao', 'sardina', 'caballa', 'anchoa', 'boquerón'],
+  [Allergen.Cacahuetes]: ['cacahuete', 'maní'],
+  [Allergen.Soja]: ['soja', 'tofu', 'edamame', 'tempeh'],
+  [Allergen.Leche]: ['leche', 'queso', 'yogur', 'nata', 'mantequilla', 'requesón', 'lácteo'],
+  [Allergen.FrutosCascara]: ['nuez', 'nueces', 'almendra', 'avellana', 'pistacho', 'anacardo', 'macadamia'],
+  [Allergen.Apio]: ['apio'],
+  [Allergen.Mostaza]: ['mostaza'],
+  [Allergen.Sesamo]: ['sésamo', 'sesamo', 'tahini'],
+  [Allergen.Sulfitos]: ['sulfito', 'vino', 'vinagre'],
+  [Allergen.Altramuces]: ['altramuz', 'altramuces', 'lupino'],
+  [Allergen.Moluscos]: ['mejillón', 'almeja', 'calamar', 'pulpo', 'sepia', 'ostra', 'vieira'],
+};
+
 export interface PatientData {
   age: number;
   gender: Gender;
@@ -141,6 +200,8 @@ export interface PatientData {
   // partir de masa magra + grasa medida, en vez de estimarla por IMC.
   bodyFatPercent?: number;
   budgetLevel?: BudgetLevel; // presupuesto del cliente — sesga los alimentos sugeridos
+  // ─── Alérgenos estructurados (auditoría iteración 001, MEJORA-001) ─────────
+  allergens?: Allergen[];
 }
 
 export interface CalculatedMetrics {
@@ -303,4 +364,8 @@ export interface Recipe {
   ingredients: string[];
   instructions: string[];
   tags: string[];
+  // ─── Alérgenos estructurados (auditoría iteración 001, MEJORA-001) ─────────
+  // Opcional: el corpus existente no se rellena retroactivamente (WF-R,
+  // fuera de alcance de esta mejora puntual).
+  allergens?: Allergen[];
 }

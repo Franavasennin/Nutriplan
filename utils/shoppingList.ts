@@ -1,4 +1,13 @@
-import { DietResponse } from '../types';
+import { DietResponse, Allergen, ALLERGEN_KEYWORDS } from '../types';
+
+// ─── Alérgenos en la lista de la compra (MEJORA-001, iteración 001) ───────────
+// Coincidencia simple por palabra clave (no NLP) — ver
+// docs/loop/iteracion-001/MEJORA-001.md, no-alcance.
+export function findMatchingAllergens(ingredientName: string, declaredAllergens: Allergen[]): Allergen[] {
+  if (!declaredAllergens.length) return [];
+  const lower = ingredientName.toLowerCase();
+  return declaredAllergens.filter(a => ALLERGEN_KEYWORDS[a].some(keyword => lower.includes(keyword)));
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
