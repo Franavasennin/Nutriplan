@@ -467,7 +467,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                                 onClick={() => setFormData({ ...formData, athleteGoal: goal })}
                                                 className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                                                     active
-                                                        ? 'border-primary bg-primary/10 text-primary dark:text-primary'
+                                                        ? 'border-primary bg-primary/10 text-primary-accessible dark:text-primary'
                                                         : 'border-border-light dark:border-border-dark text-text-sub dark:text-gray-400 hover:border-primary/50'
                                                 }`}
                                             >
@@ -558,7 +558,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-semibold text-text-main dark:text-slate-200">Nº de comidas al día</span>
-                                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] font-bold text-primary-accessible dark:text-primary bg-primary/10 px-2 py-0.5 rounded-full">
                                         Recomendado: {recommendation.count}
                                     </span>
                                 </div>

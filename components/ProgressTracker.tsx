@@ -434,7 +434,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                         <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${goalProgress}%` }} />
                         </div>
-                        <span className="text-xs font-bold text-primary">{goalProgress}%</span>
+                        <span className="text-xs font-bold text-primary-accessible dark:text-primary">{goalProgress}%</span>
                       </div>
                     )}
                   </div>
@@ -557,7 +557,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                           hasEntry  ? 'cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/20' : '',
                         ].join(' ')}
                       >
-                        <span className={`font-semibold text-[11px] ${isToday ? 'text-primary' : ''}`}>{date.getDate()}</span>
+                        <span className={`font-semibold text-[11px] ${isToday ? 'text-primary-accessible dark:text-primary' : ''}`}>{date.getDate()}</span>
                         {hasEntry && (
                           <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-0.5 absolute bottom-1" />
                         )}
@@ -575,7 +575,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500" /> Revisión registrada
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-text-sub dark:text-gray-400">
-                    <span className="w-4 h-4 rounded flex items-center justify-center ring-2 ring-primary bg-primary/10 text-[9px] font-bold text-primary">H</span> Hoy
+                    <span className="w-4 h-4 rounded flex items-center justify-center ring-2 ring-primary bg-primary/10 text-[9px] font-bold text-primary-accessible dark:text-primary">H</span> Hoy
                   </div>
                   {goalDateStr && (
                     <div className="flex items-center gap-1.5 text-[11px] text-text-sub dark:text-gray-400">

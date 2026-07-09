@@ -35,7 +35,7 @@ const LoadingOverlay: React.FC = () => {
         <h2 className="text-xl font-black text-text-main dark:text-white mb-4 uppercase tracking-tight">Procesando Plan Clínico</h2>
         
         <div className="h-6 overflow-hidden w-full mb-6">
-            <p className="text-primary font-bold text-xs uppercase tracking-widest">
+            <p className="text-primary-accessible dark:text-primary font-bold text-xs uppercase tracking-widest">
                 {messages[msgIndex]}
             </p>
         </div>

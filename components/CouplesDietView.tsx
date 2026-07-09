@@ -45,7 +45,7 @@ const PersonColumn: React.FC<{ name: string; meal: Meal | undefined }> = ({ name
           <span className="text-sm font-bold text-text-main dark:text-white">{name}</span>
         </div>
         {meal.calories != null && (
-          <span className="text-xs font-black text-primary">{meal.calories} kcal</span>
+          <span className="text-xs font-black text-primary-accessible dark:text-primary">{meal.calories} kcal</span>
         )}
       </div>
       {meal.ingredients?.length > 0 && (
@@ -364,7 +364,7 @@ const CouplesDietView: React.FC<Props> = ({ couplesDiet, customFoods = [], onUpd
                   <div className="min-w-0">
                     <p className="font-bold text-text-main dark:text-white text-sm truncate">{name}</p>
                     <p className="text-[11px] text-text-sub dark:text-gray-400 mt-0.5">
-                      <span className="font-bold text-primary">{metrics.macros.calories} kcal</span>
+                      <span className="font-bold text-primary-accessible dark:text-primary">{metrics.macros.calories} kcal</span>
                       {' · '}P {metrics.macros.protein}g
                       {' · '}HC {metrics.macros.carbs}g
                       {' · '}G {metrics.macros.fats}g

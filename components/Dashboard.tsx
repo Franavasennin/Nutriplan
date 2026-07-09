@@ -294,7 +294,7 @@ const Dashboard: React.FC<Props> = ({
                                         <div>
                                             <div className="flex justify-between text-xs mb-1">
                                                 <span className="font-semibold text-text-sub dark:text-gray-400 uppercase tracking-wider">Calorías</span>
-                                                <span className="text-primary font-bold">{diet.metrics.tee} kcal</span>
+                                                <span className="text-primary-accessible dark:text-primary font-bold">{diet.metrics.tee} kcal</span>
                                             </div>
                                             <div className="h-2 w-full rounded-full bg-background-light dark:bg-background-dark overflow-hidden">
                                                 <div className="h-full rounded-full bg-primary w-3/4" />

@@ -110,7 +110,7 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
                     <p className="text-[11px] text-text-sub dark:text-gray-400 mt-0.5">{recipe.description}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-xs font-bold text-primary">{recipe.calories} kcal</p>
+                    <p className="text-xs font-bold text-primary-accessible dark:text-primary">{recipe.calories} kcal</p>
                     <p className="text-[10px] text-text-sub">{recipe.prepTime} min</p>
                   </div>
                 </div>
@@ -231,7 +231,7 @@ const MealSection: React.FC<MealSectionProps> = ({
         </div>
         {meal.calories != null && (
           <div className="ml-auto flex items-center gap-3 text-[11px] font-semibold text-text-sub dark:text-gray-400">
-            <span className="text-primary font-bold">{meal.calories} kcal</span>
+            <span className="text-primary-accessible dark:text-primary font-bold">{meal.calories} kcal</span>
             {meal.protein != null && <span>P {meal.protein}g</span>}
             {meal.carbs   != null && <span>HC {meal.carbs}g</span>}
             {meal.fats    != null && <span>G {meal.fats}g</span>}
@@ -1079,7 +1079,7 @@ const DietPlanDisplay: React.FC<Props> = ({
 
               <div className="space-y-2 mb-5 text-sm text-text-main dark:text-gray-300">
                 <p>
-                  Tu objetivo de <strong className="text-primary">{metrics.macros.calories} kcal/día</strong> sale de tu gasto energético estimado ({metrics.tee} kcal)
+                  Tu objetivo de <strong className="text-primary-accessible dark:text-primary">{metrics.macros.calories} kcal/día</strong> sale de tu gasto energético estimado ({metrics.tee} kcal)
                   {metrics.macros.calories < metrics.tee && ' con un déficit para perder peso'}
                   {metrics.macros.calories > metrics.tee && ' con un superávit para ganar peso/masa muscular'}
                   {metrics.macros.calories === metrics.tee && ' sin ajuste (mantenimiento)'}.
