@@ -33,6 +33,9 @@ graphify-out/
 # Artefactos temporales de axe-core CLI (auditorías de accesibilidad puntuales)
 .axe-tmp/
 
+# Salida de cobertura de Vitest (se regenera con npm run test:coverage)
+coverage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
