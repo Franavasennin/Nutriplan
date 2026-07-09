@@ -8,6 +8,8 @@ import { PatientData, Condition, CalorieGoal, FastingProtocol, AthleteGoal, Diet
  *   - Menores de 18 años
  *   - Embarazo / lactancia
  *   - Antecedente de trastorno de la conducta alimentaria (TCA)
+ *   - IMC extremadamente bajo (<17 — infrapeso severo, posible TCA no
+ *     declarado o malnutrición; auditoría iteración 001, MEJORA-006)
  *
  * Perfil con restricción específica (no bloqueo general):
  *   - Enfermedad renal / ERC → cap de proteína (KDOQI, ~0.8 g/kg en ERC no
@@ -16,33 +18,53 @@ import { PatientData, Condition, CalorieGoal, FastingProtocol, AthleteGoal, Diet
 
 export const RENAL_PROTEIN_CAP_G_PER_KG = 0.8;
 
+// Umbral de IMC bajo el cual se considera infrapeso severo (auditoría
+// iteración 001, MEJORA-006). Provisional — pendiente de confirmación por
+// el Humano-DN (Ester Correa), ver docs/loop/iteracion-001/MEJORA-006.md.
+export const SEVERE_UNDERWEIGHT_BMI_THRESHOLD = 17;
+
+// Cálculo local de IMC (sin importar utils/calculations.ts, que ya importa
+// de este fichero — evita una dependencia circular).
+function calculateBMILocal(weight: number, height: number): number {
+  const h = height / 100;
+  return weight / (h * h);
+}
+
 export interface ClinicalSafetyFlags {
   isMinor: boolean;
   isPregnantOrLactating: boolean;
   hasEatingDisorderHistory: boolean;
   hasRenalDisease: boolean;
+  hasSevereUnderweight: boolean;
+  hasDiabetesType1: boolean;
   /** Cualquier condición que exige desactivar déficit/superávit y ayuno automáticos. */
   isVulnerable: boolean;
   /** Motivos legibles para mostrar en la UI. */
   reasons: string[];
 }
 
-export function getClinicalSafetyFlags(data: Pick<PatientData, 'age' | 'conditions' | 'isPregnant' | 'isLactating'>): ClinicalSafetyFlags {
+export function getClinicalSafetyFlags(data: Pick<PatientData, 'age' | 'conditions' | 'isPregnant' | 'isLactating' | 'weight' | 'height'>): ClinicalSafetyFlags {
   const isMinor = (data.age ?? 0) < 18;
   const isPregnantOrLactating = !!data.isPregnant || !!data.isLactating;
   const hasEatingDisorderHistory = !!data.conditions?.includes(Condition.EatingDisorderHistory);
   const hasRenalDisease = !!data.conditions?.includes(Condition.RenalDisease);
+  const hasDiabetesType1 = !!data.conditions?.includes(Condition.DiabetesType1);
+  const hasSevereUnderweight = data.weight != null && data.height != null
+    ? calculateBMILocal(data.weight, data.height) < SEVERE_UNDERWEIGHT_BMI_THRESHOLD
+    : false;
 
-  const isVulnerable = isMinor || isPregnantOrLactating || hasEatingDisorderHistory;
+  const isVulnerable = isMinor || isPregnantOrLactating || hasEatingDisorderHistory || hasSevereUnderweight;
 
   const reasons: string[] = [];
   if (isMinor) reasons.push('Paciente menor de 18 años');
   if (data.isPregnant) reasons.push('Embarazo');
   if (data.isLactating) reasons.push('Lactancia');
   if (hasEatingDisorderHistory) reasons.push('Antecedente de trastorno de la conducta alimentaria');
+  if (hasSevereUnderweight) reasons.push('IMC muy bajo (infrapeso severo) — revisar antes de aplicar déficit');
   if (hasRenalDisease) reasons.push('Enfermedad renal / ERC (proteína limitada)');
+  if (hasDiabetesType1) reasons.push('Diabetes tipo 1 (ayuno intermitente desaconsejado sin supervisión médica)');
 
-  return { isMinor, isPregnantOrLactating, hasEatingDisorderHistory, hasRenalDisease, isVulnerable, reasons };
+  return { isMinor, isPregnantOrLactating, hasEatingDisorderHistory, hasRenalDisease, hasSevereUnderweight, hasDiabetesType1, isVulnerable, reasons };
 }
 
 /**

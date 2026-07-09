@@ -566,9 +566,9 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 <div className="relative">
                                     <select
                                         title="Protocolo de ayuno intermitente"
-                                        disabled={safety.isVulnerable}
+                                        disabled={safety.isVulnerable || safety.hasDiabetesType1}
                                         className="h-12 w-full appearance-none rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 pr-10 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                                        value={safety.isVulnerable ? FastingProtocol.None : (formData.fastingProtocol ?? FastingProtocol.None)}
+                                        value={(safety.isVulnerable || safety.hasDiabetesType1) ? FastingProtocol.None : (formData.fastingProtocol ?? FastingProtocol.None)}
                                         onChange={(e) => setFormData({...formData, fastingProtocol: e.target.value as FastingProtocol})}
                                     >
                                         {Object.values(FastingProtocol).map(f => (
@@ -583,7 +583,13 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                         <p className="text-[11px] font-semibold text-red-700 dark:text-red-300">Ayuno bloqueado — perfil vulnerable.</p>
                                     </div>
                                 )}
-                                {!safety.isVulnerable && formData.fastingProtocol !== FastingProtocol.None && (
+                                {!safety.isVulnerable && safety.hasDiabetesType1 && (
+                                    <div className="flex items-center gap-1.5 p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700">
+                                        <span className="material-symbols-outlined text-red-600 dark:text-red-400 text-[16px]">lock</span>
+                                        <p className="text-[11px] font-semibold text-red-700 dark:text-red-300">Ayuno bloqueado — diabetes tipo 1 (riesgo de hipoglucemia/cetoacidosis sin supervisión médica).</p>
+                                    </div>
+                                )}
+                                {!safety.isVulnerable && !safety.hasDiabetesType1 && formData.fastingProtocol !== FastingProtocol.None && (
                                     <div className="flex items-start gap-1.5 p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
                                         <span className="material-symbols-outlined text-blue-500 text-[16px] shrink-0 mt-0.5">schedule</span>
                                         <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">

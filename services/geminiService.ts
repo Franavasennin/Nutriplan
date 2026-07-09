@@ -554,7 +554,9 @@ Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
   // fastingProtocol en None antes de llegar aquí, este es el último filtro
   // antes de construir el prompt que recibe la IA.
   const safetyFlags = getClinicalSafetyFlags(patient);
-  const blockFasting = hasT2Diabetes || safetyFlags.isVulnerable;
+  // MEJORA-006 (iteración 001): DM1 bloquea ayuno igual que DM2 — riesgo de
+  // hipoglucemia/cetoacidosis con ventanas de ayuno sin supervisión médica.
+  const blockFasting = hasT2Diabetes || safetyFlags.hasDiabetesType1 || safetyFlags.isVulnerable;
 
   const fastingNote = (!blockFasting && patient.fastingProtocol && patient.fastingProtocol !== FastingProtocol.None)
     ? `\n- Protocolo de ayuno: ${patient.fastingProtocol} — ${FASTING_WINDOW[patient.fastingProtocol] ?? ''}`

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildDietSystemPrompt, buildUserPrompt } from '../services/geminiService';
-import { Gender, ActivityLevel, DietType, Duration, type PatientData, type CalculatedMetrics } from '../types';
+import { Gender, ActivityLevel, DietType, Duration, Condition, FastingProtocol, type PatientData, type CalculatedMetrics } from '../types';
 
 const basePatient: PatientData = {
   age: 38,
@@ -48,5 +48,23 @@ describe('buildUserPrompt — exclusiones con prioridad absoluta (MEJORA-002)', 
   it('no incluye la línea de exclusión si el paciente no tiene alimentos excluidos ni condiciones con exclusión obligatoria', () => {
     const prompt = buildUserPrompt(basePatient, baseMetrics, [], 1, 7);
     expect(prompt).not.toContain('EXCLUIR COMPLETAMENTE');
+  });
+});
+
+describe('buildUserPrompt — MEJORA-006: DM1 bloquea ayuno intermitente (iteración 001)', () => {
+  it('no incluye protocolo de ayuno para un paciente DM1 aunque tenga fastingProtocol configurado (Sintético-09)', () => {
+    const patient: PatientData = {
+      ...basePatient,
+      conditions: [Condition.DiabetesType1],
+      fastingProtocol: FastingProtocol.IF16_8,
+    };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    expect(prompt).not.toContain('Protocolo de ayuno');
+  });
+
+  it('sí incluye protocolo de ayuno para un paciente sano con fastingProtocol configurado (Sintético-19)', () => {
+    const patient: PatientData = { ...basePatient, fastingProtocol: FastingProtocol.IF16_8 };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    expect(prompt).toContain('Protocolo de ayuno');
   });
 });
