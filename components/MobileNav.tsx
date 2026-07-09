@@ -25,16 +25,21 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentStep, onNavigate, h
     {MOBILE_NAV.map(({ step, icon, requiresPlan }) => {
       const disabled = requiresPlan && !hasPlan;
       const active   = currentStep === step;
+      const labels: Record<string, string> = {
+        dashboard: 'Dashboard', form: 'Nuevo cliente', result: 'Plan actual', progress: 'Seguimiento',
+      };
       return (
         <button
           key={step}
           onClick={() => !disabled && onNavigate(step)}
           disabled={disabled}
+          aria-current={active ? 'page' : undefined}
+          aria-label={labels[step] ?? step}
           className={`p-2 rounded-xl flex flex-col items-center transition-colors disabled:opacity-30 ${
             active ? 'text-primary bg-primary/10' : 'text-text-sub'
           }`}
         >
-          <span className="material-symbols-outlined">{icon}</span>
+          <span className="material-symbols-outlined" aria-hidden="true">{icon}</span>
         </button>
       );
     })}

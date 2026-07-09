@@ -31,6 +31,7 @@ interface NavButtonProps {
 const NavButton: React.FC<NavButtonProps> = ({ item, isActive, onClick }) => (
   <button
     onClick={onClick}
+    aria-current={isActive ? 'page' : undefined}
     className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left w-full ${
       isActive
         ? 'bg-primary text-background-dark font-black shadow-lg shadow-primary/20'
