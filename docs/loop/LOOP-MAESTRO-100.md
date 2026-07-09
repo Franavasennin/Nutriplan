@@ -503,18 +503,18 @@ flowchart LR
 
 ## 11. Checklist de preparación para la ejecución (pre-vuelo)
 
-- [ ] **1. Repo limpio:** commitear o descartar los cambios pendientes actuales (`App.tsx`, `CouplesDietView`, `DietPlanDisplay`, `ProgressTracker`, `macroValidation`, `shoppingList`); crear rama `loop/iteracion-001`.
-- [ ] **2. Línea base técnica:** `npm test` y `npm run build` verdes, con salida guardada como evidencia baseline.
-- [ ] **3. Estructura de artefactos:** crear `docs/loop/` con plantillas (ficha de mejora, informe de auditoría, scorecard vacío, ficha de receta, ficha de riesgo).
-- [ ] **4. Auditoría baseline:** ejecutar M1 completo una vez y registrar el `SCORECARD.md` inicial (iteración 000).
-- [ ] **5. Accesos y límites:** API key de Gemini y proyecto Supabase operativos; presupuesto por iteración definido (horas-IA, tokens, nº de mejoras).
-- [ ] **6. Humanos asignados:** Humano-PO (Fran) con cadencia de checkpoint; Humano-DN identificado con SLA de revisión clínica acordado.
-- [ ] **7. Datos sintéticos:** juego de ≥ 20 pacientes sintéticos cubriendo poblaciones de riesgo (embarazo, IMC extremos, alergias múltiples, patologías) para evals y E2E. **Prohibido usar pacientes reales.**
-- [ ] **8. Subagentes verificados:** confirmar disponibilidad de `typescript-reviewer`, `security-reviewer`, `database-reviewer`, `healthcare-reviewer`, `performance-optimizer`, `e2e-runner`, `planner`, `architect`.
-- [ ] **9. Herramientas de medición instaladas:** Lighthouse, axe-core, análisis de bundle — verificadas con una ejecución de prueba.
-- [ ] **10. Aprobación del diseño:** este documento revisado y aprobado por el Humano-PO (las condiciones de parada de §3.4 son vinculantes desde ese momento).
+- [x] **1. Repo limpio:** commitear o descartar los cambios pendientes actuales (`App.tsx`, `CouplesDietView`, `DietPlanDisplay`, `ProgressTracker`, `macroValidation`, `shoppingList`); crear rama `loop/iteracion-001`. *(2026-07-09: commiteado en `cd7eb58`, rama `loop/iteracion-001` creada)*
+- [x] **2. Línea base técnica:** `npm test` y `npm run build` verdes, con salida guardada como evidencia baseline. *(2026-07-09: 104/104 tests, `tsc` limpio, build OK — ver `iteracion-000/BASELINE-TECNICO.md`)*
+- [x] **3. Estructura de artefactos:** crear `docs/loop/` con plantillas (ficha de mejora, informe de auditoría, scorecard vacío, ficha de receta, ficha de riesgo). *(2026-07-09: creada, commit `0b21329`)*
+- [ ] **4. Auditoría baseline:** ejecutar M1 completo una vez y registrar el `SCORECARD.md` inicial (iteración 000). **Pendiente — es la primera ejecución real del loop.**
+- [ ] **5. Accesos y límites:** API key de Gemini y proyecto Supabase operativos; presupuesto por iteración definido (horas-IA, tokens, nº de mejoras). *(2026-07-09: presupuesto fijado — 8–16 h-IA / 5–8 mejoras por iteración, ver §3.6. Accesos Gemini/Supabase sin verificar aún.)*
+- [x] **6. Humanos asignados:** Humano-PO (Fran) con cadencia de checkpoint; Humano-DN identificado con SLA de revisión clínica acordado. *(2026-07-09: Humano-DN = Ester Correa, nutricionista cliente de la app. SLA de revisión pendiente de acordar con ella directamente — hasta entonces, todo contenido clínico queda etiquetado "PENDIENTE DE VALIDACIÓN CLÍNICA" y no puede alcanzar el 100 en Nutrición/Seguridad alimentaria.)*
+- [x] **7. Datos sintéticos:** juego de ≥ 20 pacientes sintéticos cubriendo poblaciones de riesgo (embarazo, IMC extremos, alergias múltiples, patologías) para evals y E2E. **Prohibido usar pacientes reales.** *(2026-07-09: 24 pacientes sintéticos en `docs/loop/datos-sinteticos/pacientes-sinteticos.json`)*
+- [x] **8. Subagentes verificados:** confirmar disponibilidad de `typescript-reviewer`, `security-reviewer`, `database-reviewer`, `healthcare-reviewer`, `performance-optimizer`, `e2e-runner`, `planner`, `architect`. *(2026-07-09: los 8 disponibles en el entorno actual)*
+- [ ] **9. Herramientas de medición instaladas:** Lighthouse, axe-core, análisis de bundle — verificadas con una ejecución de prueba. **Pendiente — no instaladas.**
+- [x] **10. Aprobación del diseño:** este documento revisado y aprobado por el Humano-PO (las condiciones de parada de §3.4 son vinculantes desde ese momento). *(2026-07-09: aprobado por Fran — "activamos")*
 
-**El loop no arranca hasta que los 10 ítems estén marcados.**
+**El loop no arranca hasta que los 10 ítems estén marcados. Quedan 3 pendientes: #4 (auditoría baseline), #5 (verificar accesos Gemini/Supabase), #9 (instalar herramientas de medición).**
 
 ---
 
