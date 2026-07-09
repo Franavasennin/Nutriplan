@@ -9,7 +9,8 @@ Puntuación viva y acumulativa. Cada celda enlaza a la evidencia que la respalda
 | 000 (baseline técnico) | 2026-07-09 | *pendiente de M1* | *pendiente* | *pendiente* | Solo se registró línea base técnica (tests/build), no auditoría completa. Ver `iteracion-000/BASELINE-TECNICO.md` |
 | 001 (M1, antes de M8) | 2026-07-09 | 53.61 / 100 — banda Básico | 74 | 67 | Primera auditoría completa de las 16 categorías (histórico). |
 | 001 (M9/M10, tras M8) | 2026-07-09 | 56.10 / 100 — banda Básico (40-59) | 75 | 79 | 7 mejoras ejecutadas y re-auditadas. Δ +2.49 vs. cierre de M1 (histórico, pesos originales — superado por la fila de abajo). |
-| **002 (M9/M10)** | 2026-07-09 | **59.04 / 100** — banda Básico (40-59) | 75 | 83 | Pesos reponderados (Monetización 4%→0%, M12) + 3 mejoras (fuente de iconos, fix alérgenos, verificador post-generación). Ver `DELTA-002.md` y cálculo abajo. |
+| 002 (M9/M10) | 2026-07-09 | 59.04 / 100 — banda Básico (40-59) | 75 | 83 | Pesos reponderados (Monetización 4%→0%, M12) + 3 mejoras. Ver `DELTA-002.md` (histórico, superado por la fila de abajo). |
+| **003 (M9/M10)** | 2026-07-09 | **60.49 / 100** — banda Funcional (60-74) 🎉 | 75 | 86 | 5 mejoras autónomas + 1 bug preexistente descubierto y corregido (el buscador local de recetas mostraba siempre "0 recetas"). Δ +1.45, todo mejora real (sin cambios de pesos). **Primera vez en banda Funcional.** Ver `iteracion-003/DELTA-003.md`. |
 
 ### Cálculo de la nota global tras M8/M9 (§2.1)
 
@@ -116,3 +117,19 @@ NOTA GLOBAL OFICIAL ITERACIÓN 002 = 59.04 / 100
 | 16 | Competencia | 2.08% | 55 | 0 | Sin cambios |
 
 **Iteración 002 cerrada.** 2 categorías tocadas (Rendimiento, Seguridad alimentaria), ambas con delta autocertificado ≤5 (no requirió despachar subagentes de re-auditoría). 13 categorías sin cambio.
+
+---
+
+## Iteración 003 — 5 mejoras autónomas (2026-07-09)
+
+Notas actualizadas (deltas ≤5, autocertificados con evidencia — ver `iteracion-003/DELTA-003.md` para el detalle y el cálculo completo):
+
+| Categoría | 002 | 003 | Δ | Mejora |
+|---|---|---|---|---|
+| Seguridad alimentaria | 83 | **86** | +3 | MEJORA-011: verificador de alérgenos en todos los puntos de generación |
+| Arquitectura | 62 | **66** | +4 | MEJORA-012: cobertura instrumentada — núcleo clínico 95.36% (cumple C4 ≥90%) |
+| Motor de recetas | 48 | **53** | +5 | MEJORA-013: alérgenos derivados + fix del buscador local (bug preexistente: siempre "0 recetas") |
+| Accesibilidad | 54 | **58** | +4 | MEJORA-014: ARIA en ConfirmDialog + aria-current/aria-label en navegación |
+| UX | 60 | **62** | +2 | MEJORA-015: estado vacío de bienvenida en Dashboard |
+
+Resto de categorías sin cambio. **Nota global: 60.49 — cruza a banda "Funcional" (60-74) por primera vez.** 145/145 tests, 0 regresiones.
