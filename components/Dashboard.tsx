@@ -204,6 +204,28 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                 </div>
 
+                {/* Estado vacío de bienvenida (MEJORA-015, iteración 003):
+                    sin ningún cliente todavía — mensaje de arranque + CTA,
+                    en vez de contadores a 0 y una rejilla vacía sin contexto. */}
+                {allDiets.length === 0 && (
+                    <section className="flex flex-col items-center justify-center py-20 px-6 text-center gap-4 rounded-2xl border-2 border-dashed border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark">
+                        <span className="material-symbols-outlined text-6xl text-primary" aria-hidden="true">nutrition</span>
+                        <h2 className="text-xl font-black text-text-main dark:text-white">Bienvenida a tu consulta digital</h2>
+                        <p className="text-sm text-text-sub dark:text-gray-400 max-w-md">
+                            Todavía no hay ningún cliente registrado. Crea el primero para generar su plan
+                            nutricional personalizado en minutos: datos antropométricos, condiciones clínicas,
+                            alérgenos y objetivo — el resto lo calcula el sistema.
+                        </p>
+                        <button
+                            onClick={onNewClient}
+                            className="mt-2 flex items-center gap-2 rounded-lg h-11 px-6 bg-primary text-background-dark text-sm font-bold hover:brightness-90 transition-all shadow-md shadow-primary/20"
+                        >
+                            <span className="material-symbols-outlined" aria-hidden="true">person_add</span>
+                            Crear tu primer cliente
+                        </button>
+                    </section>
+                )}
+
                 {/* Clients Grid */}
                 <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filtered.length === 0 && search && (
