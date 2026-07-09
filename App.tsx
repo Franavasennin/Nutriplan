@@ -34,7 +34,7 @@ import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat } from './utils/calculations';
 import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { getClinicalTargets } from './utils/clinicalTargets';
-import { verifyPlanAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
+import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
 import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
 
 type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
@@ -182,6 +182,12 @@ const AppContent: React.FC = () => {
       // 2) La persona B come LO MISMO: se adapta el menú de A a sus macros (mismos platos,
       //    porciones distintas). Así B sale siempre con TODOS los días que tiene A.
       const planB = await adaptPlanToPartner(planA, b, metricsB);
+      // MEJORA-011 (iteración 003): verificación de alérgenos también en
+      // planes de pareja — cada plan contra los alérgenos de su persona.
+      const violationsA = verifyPlanAgainstAllergens(planA, a);
+      const violationsB = verifyPlanAgainstAllergens(planB, b);
+      if (violationsA.length > 0) toast(`[${a.name || 'Persona A'}] ${formatAllergenViolationsMessage(violationsA)}`, 'error');
+      if (violationsB.length > 0) toast(`[${b.name || 'Persona B'}] ${formatAllergenViolationsMessage(violationsB)}`, 'error');
       const now = Date.now();
       const savedA: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: a, metrics: metricsA, plan: planA, planVersions: [] };
       const savedB: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: b, metrics: metricsB, plan: planB, planVersions: [] };
@@ -265,6 +271,9 @@ const AppContent: React.FC = () => {
     setIsLoading(true);
     try {
       const newDay = await regenerateSingleDay(patientData, metrics, dayNumber, customFoods);
+      // MEJORA-011 (iteración 003): verificación de alérgenos del día regenerado.
+      const dayViolations = verifyDayAgainstAllergens(newDay, patientData);
+      if (dayViolations.length > 0) toast(formatAllergenViolationsMessage(dayViolations), 'error');
       const updatedPlan: DietResponse = {
         ...plan,
         weeklyPlan: plan.weeklyPlan.map(d => d.day === dayNumber ? newDay : d),
@@ -282,7 +291,11 @@ const AppContent: React.FC = () => {
   // ── Meal swap ────────────────────────────────────────────────────────────────
   const handleSwapMeal = async (_dayNumber: number, mealKey: string, currentMeal: Meal): Promise<Meal> => {
     if (!patientData || !metrics) throw new Error('No hay datos del paciente');
-    return getMealSwap(currentMeal, mealKey, patientData, metrics);
+    const swapped = await getMealSwap(currentMeal, mealKey, patientData, metrics);
+    // MEJORA-011 (iteración 003): verificación de alérgenos de la comida sustituida.
+    const mealViolations = verifyMealAgainstAllergens(swapped, patientData, _dayNumber);
+    if (mealViolations.length > 0) toast(formatAllergenViolationsMessage(mealViolations), 'error');
+    return swapped;
   };
 
   // ── Restore plan version ─────────────────────────────────────────────────────

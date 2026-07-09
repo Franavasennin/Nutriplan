@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { verifyPlanAgainstAllergens, formatAllergenViolationsMessage } from '../utils/allergenVerification';
+import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from '../utils/allergenVerification';
 import { Gender, ActivityLevel, DietType, Duration, Allergen, type PatientData, type DietResponse } from '../types';
 
 const basePatient: PatientData = {
@@ -72,6 +72,44 @@ describe('verifyPlanAgainstAllergens — MEJORA-010 (iteración 002)', () => {
     const violations = verifyPlanAgainstAllergens(plan, patient);
     expect(violations).toHaveLength(2);
     expect(violations.map(v => v.day)).toEqual([1, 2]);
+  });
+});
+
+describe('verifyMealAgainstAllergens — MEJORA-011 (iteración 003, swap/añadir toma)', () => {
+  it('detecta un alérgeno en una comida suelta con el día indicado', () => {
+    const patient: PatientData = { ...basePatient, allergens: [Allergen.Pescado] };
+    const meal = { name: 'Cena', description: '', ingredients: ['200g salmón', '100g brócoli'] };
+
+    const violations = verifyMealAgainstAllergens(meal, patient, 3);
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ day: 3, mealName: 'Cena', ingredient: '200g salmón', allergens: [Allergen.Pescado] });
+  });
+
+  it('devuelve vacío para una comida limpia o sin alérgenos declarados', () => {
+    const meal = { name: 'Cena', description: '', ingredients: ['200g salmón'] };
+    expect(verifyMealAgainstAllergens(meal, { ...basePatient, allergens: [Allergen.Huevos] }, 1)).toEqual([]);
+    expect(verifyMealAgainstAllergens(meal, { ...basePatient, allergens: [] }, 1)).toEqual([]);
+  });
+});
+
+describe('verifyDayAgainstAllergens — MEJORA-011 (iteración 003, regenerar día)', () => {
+  it('detecta violaciones en varias comidas del mismo día', () => {
+    const patient: PatientData = { ...basePatient, allergens: [Allergen.Huevos] };
+    const day = {
+      day: 5,
+      meals: {
+        breakfast: { name: 'Desayuno', description: '', ingredients: ['2 huevos'] },
+        lunch:     { name: 'Comida',   description: '', ingredients: ['150g pollo'] },
+        dinner:    { name: 'Cena',     description: '', ingredients: ['tortilla de 1 huevo'] },
+      },
+    };
+
+    const violations = verifyDayAgainstAllergens(day, patient);
+
+    expect(violations).toHaveLength(2);
+    expect(violations.every(v => v.day === 5)).toBe(true);
+    expect(violations.map(v => v.mealName)).toEqual(['Desayuno', 'Cena']);
   });
 });
 

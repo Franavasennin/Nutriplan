@@ -1,4 +1,4 @@
-import { DietResponse, PatientData, Allergen, ALLERGEN_LABELS } from '../types';
+import { DietResponse, DayPlan, Meal, PatientData, Allergen, ALLERGEN_LABELS } from '../types';
 import { findMatchingAllergens } from './shoppingList';
 
 /**
@@ -16,22 +16,43 @@ export interface AllergenViolation {
   allergens: Allergen[];
 }
 
+/**
+ * Variante por-comida (MEJORA-011, iteración 003): para los puntos donde la
+ * IA genera una sola comida (swap, añadir toma). `day` = 0 cuando el día no
+ * aplica o no se conoce.
+ */
+export function verifyMealAgainstAllergens(meal: Meal, patient: PatientData, day = 0): AllergenViolation[] {
+  const declared = patient.allergens ?? [];
+  if (!declared.length || !meal?.ingredients) return [];
+
+  const violations: AllergenViolation[] = [];
+  for (const raw of meal.ingredients) {
+    const ingredient = typeof raw === 'string' ? raw : String(raw ?? '');
+    const matches = findMatchingAllergens(ingredient, declared);
+    if (matches.length > 0) {
+      violations.push({ day, mealName: meal.name, ingredient, allergens: matches });
+    }
+  }
+  return violations;
+}
+
+/** Variante por-día (MEJORA-011): para la regeneración de un día suelto. */
+export function verifyDayAgainstAllergens(day: DayPlan, patient: PatientData): AllergenViolation[] {
+  const violations: AllergenViolation[] = [];
+  for (const meal of Object.values(day.meals ?? {})) {
+    if (!meal) continue;
+    violations.push(...verifyMealAgainstAllergens(meal, patient, day.day));
+  }
+  return violations;
+}
+
 export function verifyPlanAgainstAllergens(plan: DietResponse, patient: PatientData): AllergenViolation[] {
   const declared = patient.allergens ?? [];
   if (!declared.length) return [];
 
   const violations: AllergenViolation[] = [];
   for (const day of plan.weeklyPlan ?? []) {
-    for (const meal of Object.values(day.meals ?? {})) {
-      if (!meal?.ingredients) continue;
-      for (const raw of meal.ingredients) {
-        const ingredient = typeof raw === 'string' ? raw : String(raw ?? '');
-        const matches = findMatchingAllergens(ingredient, declared);
-        if (matches.length > 0) {
-          violations.push({ day: day.day, mealName: meal.name, ingredient, allergens: matches });
-        }
-      }
-    }
+    violations.push(...verifyDayAgainstAllergens(day, patient));
   }
   return violations;
 }
