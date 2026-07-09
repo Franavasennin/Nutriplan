@@ -52,4 +52,10 @@ Estos NO son resultado de una auditoría formal — son señales ya visibles en 
 ### Decisión de negocio pendiente (no técnica)
 - **Monetización (0/100):** confirmar con Humano-PO si debe repesarse/excluirse dado el modelo actual de herramienta interna mono-cliente, antes de tratarla como deuda técnica a resolver.
 
-*M1 completo (16/16 categorías). Nota global oficial: 53.61/100 — ver `SCORECARD.md`. Backlog listo para M3 (priorización) de la iteración 002.*
+*M1 completo (16/16 categorías). Nota global oficial: 53.61/100 — ver `SCORECARD.md`.*
+
+## Estado tras M3 (priorización, 2026-07-09)
+
+Seleccionadas para ejecución en la iteración 001 (ver `SELECCION.md`, `MEJORA-001.md` a `MEJORA-007.md`): B-001, B-002, P-001, B-003, A-002, A-005, A-010 → estado "en iteración 001".
+
+Quedan en el backlog para futuras iteraciones: A-001 (fuente 1.1MB), A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase), A-008 (campos Recipe, parcialmente cubierto por MEJORA-001), A-009 (evals de IA), y la decisión de negocio sobre Monetización.
