@@ -20,5 +20,6 @@ Estos NO son resultado de una auditoría formal — son señales ya visibles en 
 | O-004 | Motor de recetas | media | Corpus de recetas hardcodeado en TS (`data/recipes.ts`, ~1.908 líneas) sin persistencia en Supabase — limita pipeline R1–R7 de WF-R | abierto |
 | O-005 | Accesibilidad | media | Sin auditoría a11y registrada hasta la fecha (axe-core, navegación por teclado) | abierto |
 | O-006 | UX / Tests | media | Suite de tests cubre solo `utils/` (104 tests); sin E2E de los 5 flujos núcleo | abierto |
+| O-007 | Arquitectura / Escalabilidad | baja | `npm install lighthouse @axe-core/cli` (herramientas de medición del pre-vuelo) introdujo 19 vulnerabilidades transitivas (1 alta, 17 moderadas, 1 baja) en devDependencies de telemetría (Sentry/OpenTelemetry). 0 vulnerabilidades en dependencias de producción. `npm audit fix --force` implicaría un major de lighthouse — evaluar en iteración futura si compensa | abierto |
 
 *Backlog formal (P-nnn/O-nnn con evidencia completa) se genera en M2 tras la primera auditoría M1.*
