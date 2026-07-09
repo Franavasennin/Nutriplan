@@ -39,7 +39,7 @@ NOTA GLOBAL OFICIAL ITERACIÓN 001 = 53.61 / 100
 | 6 | Personalización | 8% | **71** | `iteracion-001/AUDITORIA-orquestador.md` | 2026-07-09 |
 | 7 | Arquitectura | 7% | **62** | `iteracion-001/AUDITORIA-arquitectura.md` | 2026-07-09 |
 | 8 | Rendimiento | 6% | **40** | `iteracion-001/AUDITORIA-rendimiento.md` — hallazgo crítico: fuente de iconos de 1.1MB domina el peso de página | 2026-07-09 |
-| 9 | Escalabilidad | 5% | **28** | `iteracion-001/AUDITORIA-escalabilidad.md` — ⚠️ hallazgo CRÍTICO: RLS deshabilitado en 4/5 tablas, contradice la nota del proyecto | 2026-07-09 |
+| 9 | Escalabilidad | 5% | 28 (M1) | `iteracion-001/AUDITORIA-escalabilidad.md` — hallazgo C-1/C-2 (RLS) **resuelto en M8**: verificación de solo lectura confirmó RLS activo en producción; solo se corrigió el script local desactualizado. Nota pendiente de recalcular en M9 (persisten A-1/A-2/A-3 sin resolver: paginación, índices, multi-tenant) | 2026-07-09 |
 | 10 | Accesibilidad | 5% | **38** | `iteracion-001/AUDITORIA-ux-accesibilidad.md` — ⚠️ hallazgo CRÍTICO: 46 checkboxes sin nombre accesible en lista de la compra | 2026-07-09 |
 | 11 | UI | 5% | **66** | `iteracion-001/AUDITORIA-orquestador.md` | 2026-07-09 |
 | 12 | Retención | 5% | **35** | `iteracion-001/AUDITORIA-orquestador.md` | 2026-07-09 |

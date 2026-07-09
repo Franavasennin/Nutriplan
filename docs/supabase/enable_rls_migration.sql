@@ -1,0 +1,36 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MEJORA-003 (iteración 001, Loop Maestro) — RESUELTO, verificado en producción
+--
+-- Este fichero se creó inicialmente como una migración PENDIENTE de aplicar,
+-- porque `public/supabase_setup.sql` (commiteado) decía "disable row level
+-- security" en las 4 tablas núcleo, contradiciendo la nota de proyecto
+-- (Obsidian, 2026-05-28) que documentaba RLS habilitado con allow_all_anon.
+--
+-- Verificación realizada el 2026-07-09 (MCP Supabase, solo lectura, proyecto
+-- oodbwiknxuldokaajwdc / "nutriplan"):
+--
+--   SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
+--   → client_goals=true · couples_diets=true · custom_foods=true ·
+--     progress_entries=true · saved_diets=true   (LAS 5 CON RLS ACTIVO)
+--
+--   SELECT tablename, policyname, cmd, qual, with_check FROM pg_policies
+--   WHERE schemaname = 'public';
+--   → política "allow_all_anon" (ALL, using true, with check true) presente
+--     en las 5 tablas, coherente con la nota de proyecto y con
+--     couples_diets.sql.
+--
+-- CONCLUSIÓN: el estado real de producción SIEMPRE fue correcto (RLS activo).
+-- La discrepancia era solo del fichero `public/supabase_setup.sql` commiteado
+-- (desactualizado respecto a una migración real aplicada directamente en el
+-- dashboard, sin actualizar el script). Ya corregido en ese fichero — ver el
+-- commit de MEJORA-003. NO se aplicó ningún cambio a la base de datos real;
+-- solo se corrigió la documentación/script local para que coincida con la
+-- realidad.
+--
+-- Nota de seguridad (no nueva, ya conocida): Supabase advisors marca
+-- (WARN, no crítico) que "allow_all_anon" es una política sin restricción
+-- real — esperado y coherente con la decisión de negocio ya documentada de
+-- "app 100% intranet, mono-usuario" (nota Obsidian 2026-05-29). Si esa
+-- decisión cambiara, haría falta autenticación real + políticas por usuario
+-- (ver A-007 en BACKLOG.md).
+-- ─────────────────────────────────────────────────────────────────────────────

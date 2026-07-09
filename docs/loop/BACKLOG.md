@@ -21,7 +21,7 @@ Estos NO son resultado de una auditoría formal — son señales ya visibles en 
 | O-005 | Accesibilidad | media | Sin auditoría a11y registrada hasta la fecha (axe-core, navegación por teclado) | abierto |
 | O-006 | UX / Tests | media | Suite de tests cubre solo `utils/` (104 tests); sin E2E de los 5 flujos núcleo | abierto |
 | O-007 | Arquitectura / Escalabilidad | baja | `npm install lighthouse @axe-core/cli` (herramientas de medición del pre-vuelo) introdujo 19 vulnerabilidades transitivas (1 alta, 17 moderadas, 1 baja) en devDependencies de telemetría (Sentry/OpenTelemetry). 0 vulnerabilidades en dependencias de producción. `npm audit fix --force` implicaría un major de lighthouse — evaluar en iteración futura si compensa | abierto |
-| P-001 | Escalabilidad / Seguridad | **CRÍTICA** | `public/supabase_setup.sql:58-61` (idéntico en `dist/`) **deshabilita RLS explícitamente** en `saved_diets`, `custom_foods`, `progress_entries`, `client_goals` (datos de salud, RGPD art. 9). Contradice la nota de proyecto (Obsidian, 2026-05-28) que afirma RLS habilitado con `allow_all_anon`. La `anon key` está embebida en el bundle JS público (CVE-2 histórico) — si esta discrepancia se confirma en el proyecto Supabase real, cualquiera con esa key puede leer/escribir/borrar todos los datos de pacientes. Requiere verificación urgente en el dashboard real de Supabase (`oodbwiknxuldokaajwdc.supabase.co`), fuera del alcance de esta auditoría de código. Ver `iteracion-001/AUDITORIA-escalabilidad.md` hallazgos C-1/C-2 | abierto — **veto automático de §3.3(a), entra en iteración 001/002 sin esperar priorización** |
+| P-001 | Escalabilidad / Seguridad | CRÍTICA (era) | `public/supabase_setup.sql:58-61` deshabilitaba RLS explícitamente en el script commiteado, contradiciendo la nota de proyecto. **RESUELTO 2026-07-09:** verificación de solo lectura vía MCP Supabase confirmó que RLS estaba correctamente activo en producción (5/5 tablas, política `allow_all_anon`) desde antes — el script commiteado era el único desactualizado. Corregido en MEJORA-003, sin necesidad de tocar producción. Ver `iteracion-001/MEJORA-003.md` | **resuelto (iteración 001)** |
 
 ## Backlog formal M1 — iteración 001 (síntesis M2)
 
@@ -56,6 +56,18 @@ Estos NO son resultado de una auditoría formal — son señales ya visibles en 
 
 ## Estado tras M3 (priorización, 2026-07-09)
 
-Seleccionadas para ejecución en la iteración 001 (ver `SELECCION.md`, `MEJORA-001.md` a `MEJORA-007.md`): B-001, B-002, P-001, B-003, A-002, A-005, A-010 → estado "en iteración 001".
+Seleccionadas para ejecución en la iteración 001 (ver `SELECCION.md`, `MEJORA-001.md` a `MEJORA-007.md`): B-001, B-002, P-001, B-003, A-002, A-005, A-010.
 
-Quedan en el backlog para futuras iteraciones: A-001 (fuente 1.1MB), A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase), A-008 (campos Recipe, parcialmente cubierto por MEJORA-001), A-009 (evals de IA), y la decisión de negocio sobre Monetización.
+## Estado tras M8 (ejecución, 2026-07-09) — 7/7 mejoras completadas
+
+| Mejora | Estado | Commit |
+|---|---|---|
+| MEJORA-002 (jerarquía exclusión>rotación) | ✅ Implementada | `ab5dcca` |
+| MEJORA-006 (BMI extremo + DM1 ayuno) | ✅ Implementada | `905e029` |
+| MEJORA-001 (alérgenos) + MEJORA-004 (a11y checkboxes) + MEJORA-007 (disclaimer) | ✅ Implementadas juntas | `6e2d341` |
+| MEJORA-005 (contraste AA) | ✅ Implementada | `e04a8ab` |
+| MEJORA-003 (RLS Supabase) | ✅ Resuelta — verificación de solo lectura confirmó que ya estaba correcto en producción; solo se corrigió el script local desactualizado | (pendiente de commit) |
+
+Todas verificadas: 127/127 tests OK, `tsc` limpio, build limpio, axe-core en vivo (0 violaciones en Dashboard tras MEJORA-005), atributos ARIA confirmados en el DOM real (MEJORA-004).
+
+Quedan en el backlog para futuras iteraciones: A-001 (fuente 1.1MB), A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase, multi-tenant real), A-008 (campos Recipe, parcialmente cubierto por MEJORA-001), A-009 (evals de IA), y la decisión de negocio sobre Monetización.

@@ -54,8 +54,19 @@ create table if not exists client_goals (
 );
 
 -- ─── Permisos: app privada de un solo usuario ─────────────────────
--- Desactivamos RLS para acceso directo con la publishable key
-alter table saved_diets     disable row level security;
-alter table custom_foods    disable row level security;
-alter table progress_entries disable row level security;
-alter table client_goals    disable row level security;
+-- RLS habilitado con política de acceso abierto (allow_all_anon) — mismo
+-- patrón que couples_diets.sql. Corregido en la auditoría iteración 001
+-- (MEJORA-003): este script decía "disable row level security", pero el
+-- estado real verificado en el proyecto Supabase (2026-07-09, vía MCP,
+-- solo lectura) tenía RLS activo con estas políticas desde antes — el
+-- script commiteado estaba desactualizado respecto a la migración real
+-- aplicada. Ver docs/loop/iteracion-001/MEJORA-003.md.
+alter table saved_diets      enable row level security;
+alter table custom_foods     enable row level security;
+alter table progress_entries enable row level security;
+alter table client_goals     enable row level security;
+
+create policy if not exists "allow_all_anon" on saved_diets      for all using (true) with check (true);
+create policy if not exists "allow_all_anon" on custom_foods     for all using (true) with check (true);
+create policy if not exists "allow_all_anon" on progress_entries for all using (true) with check (true);
+create policy if not exists "allow_all_anon" on client_goals     for all using (true) with check (true);
