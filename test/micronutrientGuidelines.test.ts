@@ -72,6 +72,34 @@ describe('ensureMicronutrientGuidelines', () => {
     const g = ['Hidratación 2L/día'];
     expect(ensureMicronutrientGuidelines(g, DietType.Balanced, {})).toEqual(g);
   });
+
+  // ── Fixes de la revisión healthcare (iteración 003) ────────────────────────
+
+  it('embarazo vegano: DHA recomienda aceite de microalgas, no pescado (revisión #2)', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Vegan, { isPregnant: true });
+    const dhaLine = result.find(g => g.includes('DHA') && g.includes('EMBARAZO'));
+    expect(dhaLine).toContain('microalgas');
+    expect(dhaLine).not.toContain('pescado azul');
+  });
+
+  it('embarazo vegano: hierro aparece una sola vez (dedup entre bloques, revisión #2)', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Vegan, { isPregnant: true });
+    expect(result.filter(g => g.toLowerCase().includes('hierro'))).toHaveLength(1);
+  });
+
+  it('la nota vegana de omega-3 especifica aceite de microalgas y excluye algas marinas/espirulina (revisión #1)', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Vegan);
+    const omegaLine = result.find(g => g.includes('Omega-3'));
+    expect(omegaLine).toContain('MICROALGAS');
+    expect(omegaLine).toContain('no algas marinas');
+  });
+
+  it('lactancia vegetariana: DHA con microalgas, no pescado', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Vegetarian, { isLactating: true });
+    const dhaLine = result.find(g => g.includes('DHA') && g.includes('LACTANCIA'));
+    expect(dhaLine).toContain('microalgas');
+    expect(dhaLine).not.toContain('pescado azul');
+  });
 });
 
 describe('ensureTransitionGuideline', () => {

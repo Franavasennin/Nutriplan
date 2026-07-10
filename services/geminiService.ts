@@ -40,25 +40,13 @@ export function ensureMicronutrientGuidelines(
   const isLactating  = !!flags?.isLactating;
   if (!isVegan && !isVegetarian && !isPregnant && !isLactating) return guidelines;
 
-  const has = (kw: string) => guidelines.some(g => g.toLowerCase().includes(kw));
   const additions: string[] = [];
-
-  if ((isVegan || isVegetarian) && !has('b12') && !has('cobalamina')) {
-    additions.push(
-      'Suplementación de vitamina B12 OBLIGATORIA (cianocobalamina 25-100 mcg/día o 1000-2000 mcg/semana): no existen fuentes vegetales fiables que cubran los requerimientos. Su déficit no da síntomas hasta fases avanzadas — no es opcional, consultar con el médico/nutricionista la pauta exacta.'
-    );
-  }
-  if (isVegan) {
-    if (!has('hierro')) {
-      additions.push('Vigilar hierro: combina legumbres/tofu/espinacas (hierro no-hemo, se absorbe peor) con vitamina C en la misma comida (cítricos, pimiento, kiwi) para mejorar su absorción.');
-    }
-    if (!has('calcio')) {
-      additions.push('Vigilar calcio: incluye a diario bebidas vegetales fortificadas, tofu cuajado con calcio, sésamo/tahini y verduras de hoja verde (col rizada, brócoli).');
-    }
-    if (!has('omega') && !has('dha') && !has('epa')) {
-      additions.push('Omega-3 (DHA/EPA): las fuentes vegetales (lino, chía, nueces) solo aportan ALA, con conversión limitada a DHA/EPA — valorar suplemento de algas si no hay control analítico periódico.');
-    }
-  }
+  // Dedup entre bloques (revisión healthcare, hallazgo #2): `has` mira también
+  // lo ya añadido en esta pasada, no solo las pautas originales del LLM. Por
+  // eso el bloque embarazo/lactancia va PRIMERO: sus notas (p. ej. hierro con
+  // pauta de suplementación) son más completas que las genéricas veganas.
+  const has = (kw: string) => [...guidelines, ...additions].some(g => g.toLowerCase().includes(kw));
+  const isVeg = isVegan || isVegetarian;
 
   // ── Embarazo (P-002.A / A-2): folato, hierro, yodo, DHA, vitamina D ────────
   if (isPregnant) {
@@ -66,13 +54,15 @@ export function ensureMicronutrientGuidelines(
       additions.push('EMBARAZO — Folato: requerimiento aumentado (~600 mcg EFD/día, EFSA). El suplemento de ácido fólico (400 mcg/día, pauta OMS) lo prescribe el médico/matrona — este plan solo garantiza fuentes dietéticas: verduras de hoja verde, legumbres y cítricos a diario.');
     }
     if (!has('hierro')) {
-      additions.push('EMBARAZO — Hierro: demanda aumentada, el déficit es frecuente. Prioriza fuentes ricas (carnes magras, legumbres, huevo) combinadas con vitamina C; la suplementación, si procede, la decide el profesional con analítica (pauta OMS: 30-60 mg/día bajo supervisión).');
+      additions.push(`EMBARAZO — Hierro: demanda aumentada, el déficit es frecuente. Prioriza fuentes ricas (${isVeg ? 'legumbres, tofu, frutos secos' : 'carnes magras, legumbres, huevo'}) combinadas con vitamina C; la suplementación, si procede, la decide el profesional con analítica (pauta OMS: 30-60 mg/día bajo supervisión).`);
     }
     if (!has('yodo')) {
       additions.push('EMBARAZO — Yodo: requerimiento aumentado (~200 mcg/día EFSA; OMS recomienda hasta 250). Usa sal yodada en la cocina y consulta al profesional la conveniencia de suplemento — crítico para el desarrollo neurológico fetal.');
     }
     if (!has('dha') && !has('omega')) {
-      additions.push('EMBARAZO — DHA: +100-200 mg/día adicionales sobre la recomendación general (EFSA). 2-3 raciones/semana de pescado azul PEQUEÑO (sardina, boquerón, caballa) — evitar los grandes depredadores por mercurio (pez espada, atún rojo, tiburón, lucio; recomendación AESAN).');
+      additions.push(isVeg
+        ? 'EMBARAZO — DHA: +100-200 mg/día adicionales (EFSA). En dieta vegetariana/vegana el suplemento de aceite de microalgas DHA (bajo en yodo) es imprescindible: las fuentes vegetales (lino, chía, nueces) solo aportan ALA y no cubren el DHA fetal — pauta exacta con el profesional.'
+        : 'EMBARAZO — DHA: +100-200 mg/día adicionales sobre la recomendación general (EFSA). 2-3 raciones/semana de pescado azul PEQUEÑO (sardina, boquerón, caballa) — evitar los grandes depredadores por mercurio (pez espada, atún rojo, tiburón, lucio; recomendación AESAN).');
     }
     if (!has('vitamina d')) {
       additions.push('EMBARAZO — Vitamina D: valorar estado con el profesional (ingesta adecuada ~15 mcg/día, EFSA); exposición solar prudente y fuentes dietéticas (pescado azul, huevo, lácteos fortificados).');
@@ -85,10 +75,33 @@ export function ensureMicronutrientGuidelines(
       additions.push('LACTANCIA — Yodo: el requerimiento sigue elevado (~200 mcg/día EFSA; OMS hasta 250) porque se transfiere a la leche. Sal yodada y consulta sobre suplemento con el profesional.');
     }
     if (!has('dha') && !has('omega')) {
-      additions.push('LACTANCIA — DHA: +100-200 mg/día adicionales (EFSA) — el DHA de la leche materna depende de la ingesta. 2-3 raciones/semana de pescado azul pequeño, evitando grandes depredadores por mercurio (AESAN).');
+      additions.push(isVeg
+        ? 'LACTANCIA — DHA: +100-200 mg/día adicionales (EFSA) — el DHA de la leche materna depende de la ingesta. En dieta vegetariana/vegana: suplemento de aceite de microalgas DHA (bajo en yodo), pauta con el profesional.'
+        : 'LACTANCIA — DHA: +100-200 mg/día adicionales (EFSA) — el DHA de la leche materna depende de la ingesta. 2-3 raciones/semana de pescado azul pequeño, evitando grandes depredadores por mercurio (AESAN).');
     }
     if (!has('hidrat') && !has('agua')) {
       additions.push('LACTANCIA — Hidratación: la producción de leche aumenta las necesidades de líquidos (~700 ml/día extra, EFSA) — bebe según sed y vigila el color de la orina como guía práctica.');
+    }
+  }
+
+  if (isVeg && !has('b12') && !has('cobalamina')) {
+    additions.push(
+      'Suplementación de vitamina B12 OBLIGATORIA (cianocobalamina 25-100 mcg/día o 1000-2000 mcg/semana): no existen fuentes vegetales fiables que cubran los requerimientos. Su déficit no da síntomas hasta fases avanzadas — no es opcional, consultar con el médico/nutricionista la pauta exacta.'
+    );
+  }
+  if (isVegan) {
+    if (!has('hierro')) {
+      additions.push('Vigilar hierro: combina legumbres/tofu/espinacas (hierro no-hemo, se absorbe peor) con vitamina C en la misma comida (cítricos, pimiento, kiwi) para mejorar su absorción.');
+    }
+    if (!has('calcio')) {
+      additions.push('Vigilar calcio: incluye a diario bebidas vegetales fortificadas, tofu cuajado con calcio, sésamo/tahini y verduras de hoja verde (col rizada, brócoli).');
+    }
+    if (!has('omega') && !has('dha') && !has('epa')) {
+      // Revisión healthcare, hallazgo #1: "suplemento de algas" genérico
+      // contradecía la exclusión de algas marinas en hipertiroidismo. El
+      // suplemento correcto es aceite de microalgas (bajo en yodo) — se
+      // precisa el texto para eliminar la ambigüedad.
+      additions.push('Omega-3 (DHA/EPA): las fuentes vegetales (lino, chía, nueces) solo aportan ALA, con conversión limitada a DHA/EPA — valorar suplemento de ACEITE DE MICROALGAS (bajo en yodo; no algas marinas enteras ni espirulina) si no hay control analítico periódico.');
     }
   }
 
@@ -680,7 +693,7 @@ Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
   const precookedUserNote = patient.dietType === DietType.Precooked ? `
 DIETA SIN COCINA — RECORDATORIO PARA ESTE PLAN:
 • Genera TODOS los ${daysToGenerate} días completos. No pares en el día 1.
-• Proteína disponible (en conserva): atún en agua (26g P/100g) → para ${proteinPerMeal}g P necesitas ~${Math.round(proteinPerMeal/0.26)}g; sardinas (21g P/100g) → ~${Math.round(proteinPerMeal/0.21)}g; garbanzos cocidos (9g P/100g) → ~${Math.round(proteinPerMeal/0.09)}g + combina con jamón (18g P/100g)
+• Proteína disponible (en conserva): atún en agua (26g P/100g) → para ${proteinPerMeal}g P necesitas ~${Math.round(proteinPerMeal/0.26)}g; sardinas (21g P/100g) → ~${Math.round(proteinPerMeal/0.21)}g; garbanzos cocidos (9g P/100g) → ~${Math.round(proteinPerMeal/0.09)}g + combina con jamón cocido (18g P/100g)
 • HC disponible: bolsa arroz precocinado (28g HC/100g) → para ${carbsPerMeal}g HC necesitas ~${Math.round(carbsPerMeal/0.28)}g; avena (60g HC/100g) → ~${Math.round(carbsPerMeal/0.60)}g; lentejas en lata (20g HC/100g) → combina fuentes
 • Grasa: AOVE (100g G/100ml) → ${fatsPerMeal}g G = ${fatsPerMeal}ml; nueces (55g G/100g) → ${Math.round(fatsPerMeal/0.55)}g
 • USA LA ROTACIÓN DE CONSERVAS del sistema (días 1-7) y GENERA TODOS LOS DÍAS.
