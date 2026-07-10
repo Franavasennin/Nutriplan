@@ -96,3 +96,50 @@ describe('buildUserPrompt — MEJORA-001: alérgenos estructurados (iteración 0
     expect(exclusionLine).toContain('Leche');
   });
 });
+
+describe('buildUserPrompt — P-002.B: directivas deterministas por condición (iteración 003)', () => {
+  it('DM1 inyecta la directiva de recuento de HC en el prompt (Sintético-09)', () => {
+    const patient: PatientData = { ...basePatient, conditions: [Condition.DiabetesType1] };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    expect(prompt).toContain('DIABETES TIPO 1');
+    expect(prompt).toContain('15/15');
+  });
+
+  it('hipotiroidismo inyecta la directiva de levotiroxina (Sintético-11)', () => {
+    const patient: PatientData = { ...basePatient, conditions: [Condition.Hypothyroidism] };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    expect(prompt).toContain('levotiroxina');
+  });
+
+  it('hipertiroidismo excluye algas con prioridad absoluta (Sintético-12)', () => {
+    const patient: PatientData = { ...basePatient, conditions: [Condition.Hyperthyroidism] };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    const exclusionLine = prompt.split('\n').find(l => l.includes('EXCLUIR COMPLETAMENTE'));
+    expect(exclusionLine).toContain('algas');
+  });
+
+  it('hipertrigliceridemia excluye alcohol y baja el techo de azúcares (Sintético-13)', () => {
+    const patient: PatientData = { ...basePatient, conditions: [Condition.Hypertriglyceridemia] };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    const exclusionLine = prompt.split('\n').find(l => l.includes('EXCLUIR COMPLETAMENTE'));
+    expect(exclusionLine).toContain('alcohol');
+    // 1850 kcal * 0.05 / 4 = 23g (frente a 46g al 10%)
+    expect(prompt).toContain('azúcares libres máximo 23g/día');
+  });
+
+  it('embarazo excluye crudos/no pasteurizados/mercurio con prioridad absoluta (Sintético-01)', () => {
+    const patient: PatientData = { ...basePatient, isPregnant: true };
+    const prompt = buildUserPrompt(patient, baseMetrics, [], 1, 7);
+    const exclusionLine = prompt.split('\n').find(l => l.includes('EXCLUIR COMPLETAMENTE'));
+    expect(exclusionLine).toContain('sushi');
+    expect(exclusionLine).toContain('mercurio');
+    expect(exclusionLine).toContain('alcohol');
+  });
+
+  it('paciente sano sin condiciones no recibe ninguna directiva por condición', () => {
+    const prompt = buildUserPrompt(basePatient, baseMetrics, [], 1, 7);
+    expect(prompt).not.toContain('DIABETES TIPO 1');
+    expect(prompt).not.toContain('levotiroxina');
+    expect(prompt).not.toContain('HIPERTRIGLICERIDEMIA');
+  });
+});

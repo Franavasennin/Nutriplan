@@ -568,6 +568,13 @@ export const buildUserPrompt = (
   // ausentes del prompt por completo.
   const clinicalTargetsNote = `\n- OBJETIVOS ADICIONALES: fibra mínima ${clinicalTargets.fiberGMin}g/día, azúcares libres máximo ${clinicalTargets.addedSugarGMax}g/día, sodio máximo ${clinicalTargets.sodiumMgMax}mg/día${clinicalTargets.sodiumMgMax <= 1500 ? ' (restricción por hipertensión — evitar embutidos, conservas saladas, precocinados)' : ''}.`;
 
+  // P-002.B (hallazgo A-3): directivas clínicas deterministas por condición
+  // (hipotiroidismo, hipertiroidismo, hipertrigliceridemia, DM1, obesidad,
+  // ERC) — antes estas condiciones iban solo como texto libre en "Patologías".
+  const conditionDirectivesText = clinicalTargets.clinicalNotes.length
+    ? '\n' + clinicalTargets.clinicalNotes.map(n => `- ${n}`).join('\n')
+    : '';
+
   // Auditoría (mejora #12): el presupuesto sesga los alimentos sugeridos.
   const budgetNote = (() => {
     const level = patient.budgetLevel ?? BudgetLevel.Standard;
@@ -695,7 +702,7 @@ ${weightGoalText}
     · G ${fatsPerMeal}g: necesitas ~${Math.round(fatsPerMeal / 0.55)}g nueces, o ~${Math.round(fatsPerMeal / 1.00)}ml AOVE, o combina (ej: ${Math.round(fatsPerMeal * 0.4 / 0.13)}g salmón aporta ${Math.round(fatsPerMeal * 0.4)}g G + ${Math.round(fatsPerMeal * 0.6 / 1.00)}ml AOVE).
   → Si usas solo 100g de un cereal o 100g de aceite en cada toma, el plan NO alcanza el objetivo.${carbsPerMeal > 80 ? `
   ⚠ ALERTA HC ELEVADO (${carbsPerMeal}g por toma): Una sola fuente de cereal NO alcanza este objetivo. DEBES combinar 2-3 fuentes de HC en cada toma principal. Ejemplo para ${carbsPerMeal}g HC: ${Math.round(carbsPerMeal * 0.5 / 0.28)}g arroz integral cocido (${Math.round(carbsPerMeal * 0.5)}g HC) + ${Math.round(carbsPerMeal * 0.3 / 0.20)}g legumbres (${Math.round(carbsPerMeal * 0.3)}g HC) + 1 fruta mediana (${Math.round(carbsPerMeal * 0.2)}g HC). Ajusta según el plato.` : ''}
-${clinicalTargetsNote}${budgetNote}
+${clinicalTargetsNote}${conditionDirectivesText}${budgetNote}
 ${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
