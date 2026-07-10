@@ -29,6 +29,34 @@ const EMPTY: EmptyEntry = {
   notes: '',
 };
 
+// Adherencia autopercibida por visita. No existe columna propia en
+// progress_entries (tabla con columnas tipadas, no JSONB) -- crear una
+// exigiría una migración de esquema de producción sujeta a aprobación
+// (ver docs/supabase/add_adherence_migration.sql, preparada sin aplicar).
+// Mientras tanto se codifica como un prefijo legible dentro de la propia
+// nota, que ya persiste sin tocar el esquema.
+const ADHERENCE_LEVELS: { value: number; label: string; color: string }[] = [
+  { value: 1, label: 'Muy baja', color: '#ef4444' },
+  { value: 2, label: 'Baja',     color: '#f97316' },
+  { value: 3, label: 'Media',    color: '#eab308' },
+  { value: 4, label: 'Alta',     color: '#84cc16' },
+  { value: 5, label: 'Muy alta', color: '#22c55e' },
+];
+const ADHERENCE_PREFIX_RE = /^\[Adherencia: (Muy baja|Baja|Media|Alta|Muy alta)\]\s*/;
+
+const parseAdherence = (notes?: string): { level: number | null; text: string } => {
+  if (!notes) return { level: null, text: '' };
+  const m = notes.match(ADHERENCE_PREFIX_RE);
+  if (!m) return { level: null, text: notes };
+  const level = ADHERENCE_LEVELS.find(a => a.label === m[1])?.value ?? null;
+  return { level, text: notes.slice(m[0].length) };
+};
+
+const formatAdherence = (level: number | null, text: string): string => {
+  const found = ADHERENCE_LEVELS.find(a => a.value === level);
+  return found ? `[Adherencia: ${found.label}] ${text}`.trim() : text;
+};
+
 const SERIES_CONFIG: { key: NumericKey; label: string; unit: string; color: string }[] = [
   { key: 'weight',          label: 'Peso',        unit: 'kg',   color: '#3b82f6' },
   { key: 'imc',             label: 'IMC',         unit: '',     color: '#8b5cf6' },
@@ -53,6 +81,8 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
   const handleEditEntry = (entry: ProgressEntry) => {
     setEditingId(entry.id);
     setEntryDate(new Date(entry.date).toISOString().split('T')[0]);
+    const { level, text } = parseAdherence(entry.notes);
+    setAdherenceLevel(level);
     setNewEntry({
       weight:          entry.weight,
       imc:             entry.imc,
@@ -63,7 +93,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
       muscleMass:      entry.muscleMass,
       visceralFat:     entry.visceralFat,
       boneMass:        entry.boneMass,
-      notes:           entry.notes,
+      notes:           text,
     });
     // Scroll al formulario
     document.getElementById('progress-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -71,6 +101,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
 
   const handleCancelEdit = () => {
     setEditingId(null);
+    setAdherenceLevel(null);
     setNewEntry({ ...EMPTY, weight: latestEntry?.weight ?? 0 });
     setEntryDate(new Date().toISOString().split('T')[0]);
   };
@@ -94,6 +125,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
 
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [newEntry, setNewEntry] = useState<EmptyEntry>({ ...EMPTY });
+  const [adherenceLevel, setAdherenceLevel] = useState<number | null>(null);
   const [entryDate, setEntryDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeSeries, setActiveSeries] = useState<Set<NumericKey>>(new Set(SERIES_CONFIG.map(s => s.key)));
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -116,6 +148,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
     // Precarga el peso con el último registrado — permite anotar una visita de
     // seguimiento (solo notas, sin repesaje) sin obligar a inventar un peso.
     setNewEntry({ ...EMPTY, weight: latestEntry?.weight ?? 0 });
+    setAdherenceLevel(null);
   }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveGoal = () => {
@@ -328,7 +361,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
       muscleMass:      newEntry.muscleMass      ? Number(newEntry.muscleMass)      : undefined,
       visceralFat:     newEntry.visceralFat     ? Number(newEntry.visceralFat)     : undefined,
       boneMass:        newEntry.boneMass        ? Number(newEntry.boneMass)        : undefined,
-      notes:           newEntry.notes,
+      notes:           formatAdherence(adherenceLevel, newEntry.notes ?? ''),
     };
 
     if (editingId) {
@@ -339,6 +372,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
       onSaveEntry(selectedClient, entry);
     }
 
+    setAdherenceLevel(null);
     setNewEntry({ ...EMPTY, weight: entry.weight });
     setEntryDate(new Date().toISOString().split('T')[0]);
   };
@@ -1011,6 +1045,30 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                       onChange={e => set('boneMass', e.target.value)} />
                   </div>
                   <div>
+                    <label className={labelCls}>Adherencia percibida</label>
+                    <div className="flex gap-1.5">
+                      {ADHERENCE_LEVELS.map(a => {
+                        const active = adherenceLevel === a.value;
+                        return (
+                          <button
+                            type="button"
+                            key={a.value}
+                            title={a.label}
+                            onClick={() => setAdherenceLevel(active ? null : a.value)}
+                            className="flex-1 h-9 rounded-lg text-[11px] font-bold border transition-all"
+                            style={{
+                              borderColor: a.color,
+                              color: active ? 'white' : a.color,
+                              backgroundColor: active ? a.color : 'transparent',
+                            }}
+                          >
+                            {a.value}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
                     <label className={labelCls}>Notas</label>
                     <textarea aria-label="Notas" className={inputCls} rows={2}
                       placeholder="Ej. Visita de control sin repesaje: refiere buena adherencia..."
@@ -1066,7 +1124,25 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.muscleMass != null ? `${entry.muscleMass} kg` : '-'}</td>
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.visceralFat ?? '-'}</td>
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.boneMass != null ? `${entry.boneMass} kg` : '-'}</td>
-                            <td className="p-3 text-text-sub dark:text-gray-500 max-w-[120px] truncate" title={entry.notes || undefined}>{entry.notes || '-'}</td>
+                            <td className="p-3 text-text-sub dark:text-gray-500 max-w-[160px]" title={entry.notes || undefined}>
+                              {(() => {
+                                const { level, text } = parseAdherence(entry.notes);
+                                const adh = ADHERENCE_LEVELS.find(a => a.value === level);
+                                return (
+                                  <div className="flex items-center gap-1.5">
+                                    {adh && (
+                                      <span
+                                        className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white"
+                                        style={{ backgroundColor: adh.color }}
+                                      >
+                                        {adh.value}
+                                      </span>
+                                    )}
+                                    <span className="truncate">{text || (adh ? '' : '-')}</span>
+                                  </div>
+                                );
+                              })()}
+                            </td>
                             {(onDeleteEntry || onUpdateEntry) && (
                               <td className="p-3 text-center">
                                 <div className="flex items-center justify-center gap-1">
