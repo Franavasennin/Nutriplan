@@ -14,22 +14,36 @@ import { reconcileMealMacros, reconcileDayPlan, reconcileDietResponse } from '..
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 import { getClinicalTargets } from '../utils/clinicalTargets';
 
-// ─── Micronutrientes obligatorios en dietas vegana/vegetariana (auditoría #7) ─
+// ─── Micronutrientes obligatorios: vegana/vegetariana (auditoría #7) y
+//     embarazo/lactancia (P-002.A, hallazgo A-2 de la auditoría de Nutrición) ──
 /**
  * Antes, la suplementación de B12 y la vigilancia de hierro/calcio/omega-3
  * en dietas veganas dependía de que la IA se acordara de mencionarlo, mezclado
  * genéricamente con el resto de suplementos. Ahora se GARANTIZA en código:
  * si el modelo no las incluyó, se añaden aquí de forma determinista.
+ *
+ * P-002.A extiende la misma garantía a embarazo y lactancia (folato, hierro,
+ * yodo, DHA, vitamina D), que antes dependían al 100% del LLM. Valores con
+ * referencia (EFSA DRV, OMS) — como el resto de umbrales clínicos del código,
+ * PENDIENTE DE VALIDACIÓN CLÍNICA por la DN (ver §4 de la auditoría 001):
+ * son pautas divulgativas de vigilancia, la pauta de suplementación exacta la
+ * fija siempre el profesional.
  */
-export function ensureMicronutrientGuidelines(guidelines: string[], dietType: DietType): string[] {
+export function ensureMicronutrientGuidelines(
+  guidelines: string[],
+  dietType: DietType,
+  flags?: { isPregnant?: boolean; isLactating?: boolean }
+): string[] {
   const isVegan      = dietType === DietType.Vegan;
   const isVegetarian = dietType === DietType.Vegetarian;
-  if (!isVegan && !isVegetarian) return guidelines;
+  const isPregnant   = !!flags?.isPregnant;
+  const isLactating  = !!flags?.isLactating;
+  if (!isVegan && !isVegetarian && !isPregnant && !isLactating) return guidelines;
 
   const has = (kw: string) => guidelines.some(g => g.toLowerCase().includes(kw));
   const additions: string[] = [];
 
-  if (!has('b12') && !has('cobalamina')) {
+  if ((isVegan || isVegetarian) && !has('b12') && !has('cobalamina')) {
     additions.push(
       'Suplementación de vitamina B12 OBLIGATORIA (cianocobalamina 25-100 mcg/día o 1000-2000 mcg/semana): no existen fuentes vegetales fiables que cubran los requerimientos. Su déficit no da síntomas hasta fases avanzadas — no es opcional, consultar con el médico/nutricionista la pauta exacta.'
     );
@@ -43,6 +57,38 @@ export function ensureMicronutrientGuidelines(guidelines: string[], dietType: Di
     }
     if (!has('omega') && !has('dha') && !has('epa')) {
       additions.push('Omega-3 (DHA/EPA): las fuentes vegetales (lino, chía, nueces) solo aportan ALA, con conversión limitada a DHA/EPA — valorar suplemento de algas si no hay control analítico periódico.');
+    }
+  }
+
+  // ── Embarazo (P-002.A / A-2): folato, hierro, yodo, DHA, vitamina D ────────
+  if (isPregnant) {
+    if (!has('folato') && !has('fólico') && !has('folico')) {
+      additions.push('EMBARAZO — Folato: requerimiento aumentado (~600 mcg EFD/día, EFSA). El suplemento de ácido fólico (400 mcg/día, pauta OMS) lo prescribe el médico/matrona — este plan solo garantiza fuentes dietéticas: verduras de hoja verde, legumbres y cítricos a diario.');
+    }
+    if (!has('hierro')) {
+      additions.push('EMBARAZO — Hierro: demanda aumentada, el déficit es frecuente. Prioriza fuentes ricas (carnes magras, legumbres, huevo) combinadas con vitamina C; la suplementación, si procede, la decide el profesional con analítica (pauta OMS: 30-60 mg/día bajo supervisión).');
+    }
+    if (!has('yodo')) {
+      additions.push('EMBARAZO — Yodo: requerimiento aumentado (~200 mcg/día EFSA; OMS recomienda hasta 250). Usa sal yodada en la cocina y consulta al profesional la conveniencia de suplemento — crítico para el desarrollo neurológico fetal.');
+    }
+    if (!has('dha') && !has('omega')) {
+      additions.push('EMBARAZO — DHA: +100-200 mg/día adicionales sobre la recomendación general (EFSA). 2-3 raciones/semana de pescado azul PEQUEÑO (sardina, boquerón, caballa) — evitar los grandes depredadores por mercurio (pez espada, atún rojo, tiburón, lucio; recomendación AESAN).');
+    }
+    if (!has('vitamina d')) {
+      additions.push('EMBARAZO — Vitamina D: valorar estado con el profesional (ingesta adecuada ~15 mcg/día, EFSA); exposición solar prudente y fuentes dietéticas (pescado azul, huevo, lácteos fortificados).');
+    }
+  }
+
+  // ── Lactancia (P-002.A / A-2): yodo, DHA, hidratación ──────────────────────
+  if (isLactating && !isPregnant) {
+    if (!has('yodo')) {
+      additions.push('LACTANCIA — Yodo: el requerimiento sigue elevado (~200 mcg/día EFSA; OMS hasta 250) porque se transfiere a la leche. Sal yodada y consulta sobre suplemento con el profesional.');
+    }
+    if (!has('dha') && !has('omega')) {
+      additions.push('LACTANCIA — DHA: +100-200 mg/día adicionales (EFSA) — el DHA de la leche materna depende de la ingesta. 2-3 raciones/semana de pescado azul pequeño, evitando grandes depredadores por mercurio (AESAN).');
+    }
+    if (!has('hidrat') && !has('agua')) {
+      additions.push('LACTANCIA — Hidratación: la producción de leche aumenta las necesidades de líquidos (~700 ml/día extra, EFSA) — bebe según sed y vigila el color de la orina como guía práctica.');
     }
   }
 
@@ -723,7 +769,9 @@ export const generateDietPlan = async (
   // aritméticas entre las kcal declaradas y los macros declarados por la IA.
   // También garantiza pautas de B12/hierro/calcio/omega-3 en vegana/vegetariana.
   const finalGuidelines = ensureTransitionGuideline(
-    ensureMicronutrientGuidelines(generalGuidelines, patient.dietType),
+    ensureMicronutrientGuidelines(generalGuidelines, patient.dietType, {
+      isPregnant: patient.isPregnant, isLactating: patient.isLactating,
+    }),
     patient.calorieGoal
   );
   return reconcileDietResponse({ weeklyPlan: allDayPlans, generalGuidelines: finalGuidelines, durationText });
@@ -1163,7 +1211,9 @@ Devuelve SOLO el JSON con los ${chunk.length} día(s), mismos platos, cantidades
   return reconcileDietResponse({
     weeklyPlan: adaptedDays,
     generalGuidelines: ensureTransitionGuideline(
-      ensureMicronutrientGuidelines(basePlan.generalGuidelines ?? [], partner.dietType),
+      ensureMicronutrientGuidelines(basePlan.generalGuidelines ?? [], partner.dietType, {
+        isPregnant: partner.isPregnant, isLactating: partner.isLactating,
+      }),
       partner.calorieGoal
     ),
     durationText: basePlan.durationText ?? '',

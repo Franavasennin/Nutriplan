@@ -32,6 +32,46 @@ describe('ensureMicronutrientGuidelines', () => {
     expect(result.some(g => g.toLowerCase().includes('b12'))).toBe(true);
     expect(result.some(g => g.toLowerCase().includes('hierro'))).toBe(false);
   });
+
+  // ── P-002.A (hallazgo A-2): embarazo y lactancia ───────────────────────────
+
+  it('embarazo garantiza folato, hierro, yodo, DHA y vitamina D aunque la dieta no sea vegana', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Balanced, { isPregnant: true });
+    expect(result.some(g => /folato|fólico/i.test(g))).toBe(true);
+    expect(result.some(g => g.toLowerCase().includes('hierro'))).toBe(true);
+    expect(result.some(g => g.toLowerCase().includes('yodo'))).toBe(true);
+    expect(result.some(g => g.toLowerCase().includes('dha'))).toBe(true);
+    expect(result.some(g => g.toLowerCase().includes('vitamina d'))).toBe(true);
+  });
+
+  it('embarazo advierte del mercurio en grandes depredadores (AESAN)', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Balanced, { isPregnant: true });
+    expect(result.some(g => g.toLowerCase().includes('mercurio'))).toBe(true);
+  });
+
+  it('lactancia garantiza yodo, DHA e hidratación', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Balanced, { isLactating: true });
+    expect(result.some(g => g.toLowerCase().includes('yodo'))).toBe(true);
+    expect(result.some(g => g.toLowerCase().includes('dha'))).toBe(true);
+    expect(result.some(g => /hidrat|agua/i.test(g))).toBe(true);
+  });
+
+  it('no duplica yodo si la IA ya lo mencionó (embarazo)', () => {
+    const g = ['Usa sal yodada a diario para cubrir el yodo.'];
+    const result = ensureMicronutrientGuidelines(g, DietType.Balanced, { isPregnant: true });
+    expect(result.filter(x => x.toLowerCase().includes('yodo'))).toHaveLength(1);
+  });
+
+  it('embarazo + vegana combina ambas garantías (B12 y folato)', () => {
+    const result = ensureMicronutrientGuidelines([], DietType.Vegan, { isPregnant: true });
+    expect(result.some(g => g.toLowerCase().includes('b12'))).toBe(true);
+    expect(result.some(g => /folato|fólico/i.test(g))).toBe(true);
+  });
+
+  it('sin flags y dieta omnívora sigue sin tocar nada (retrocompatible)', () => {
+    const g = ['Hidratación 2L/día'];
+    expect(ensureMicronutrientGuidelines(g, DietType.Balanced, {})).toEqual(g);
+  });
 });
 
 describe('ensureTransitionGuideline', () => {
