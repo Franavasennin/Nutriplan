@@ -97,7 +97,7 @@ El tope de seguridad de §2.1 ("si Nutrición < 80 O Seguridad alimentaria < 80 
 
 | ID | Categoría | Severidad | Descripción | Estado |
 |---|---|---|---|---|
-| P-002 | Nutrición | **bloqueante** | Nutrición en 75/100 desde iteración 001, sin cambios. Mientras no cruce 80, el tope de §2.1 capa la nota global oficial a 59 sin importar qué más mejore. Subir de 75 a 80-89 con evidencia verificable NO requiere el sign-off del Humano-DN (Ester Correa) — eso solo hace falta para llegar a 100 (§2.2.3). Es el ítem de mayor apalancamiento posible ahora mismo. | abierto — próxima prioridad |
+| P-002 | Nutrición | **bloqueante** (era) | Nutrición en 75/100 desde iteración 001. Mientras no cruzara 80, el tope de §2.1 capaba la nota global oficial a 59. **RESUELTO 2026-07-10:** A-2, A-3, M-3 y C1 cerrados con evidencia (4 commits, revisión healthcare independiente) → Nutrición 80, tope levantado, nota global oficial 61.94. Ver `iteracion-003/DELTA-005.md`. | **resuelto (iteración 003)** |
 
 ## Estado tras iteración 003, 2º lote (2026-07-10)
 
@@ -110,3 +110,11 @@ Nuevos ítems:
 | O-008 | Escalabilidad | media | Tabla `appointments` (agenda/citas) preparada en `docs/supabase/add_appointments_migration.sql` — **NO aplicada**, pendiente de aprobación explícita de Fran antes de poder construir la funcionalidad de frontend | bloqueado — esperando aprobación |
 | O-009 | (sin categoría — gap del marco) | media | El marco de 16 categorías no tiene ningún apartado de cumplimiento legal/privacidad (RGPD, retención de datos, etc.). Se implementó un registro de consentimiento (checkbox + fecha) como ayuda de memoria, no como certificación de cumplimiento. Considerar si merece una 17ª categoría o quedarse fuera del scoring | abierto |
 | O-010 | Personalización | baja | Adherencia autopercibida codificada como prefijo de texto en `notes` (columna existente) en vez de columna propia — migración preparada en `docs/supabase/add_adherence_migration.sql`, no aplicada | bloqueado — esperando aprobación |
+
+## Flags para la DN tras P-002 (2026-07-10) — decisiones clínicas, no autónomas
+
+| ID | Categoría | Severidad | Descripción | Estado |
+|---|---|---|---|---|
+| DN-001 | Nutrición | media | La dieta cetogénica produce ~71 g HC/día (14% E) para el paciente de referencia — por encima del umbral cetogénico típico (20-50 g) y del 5-10% E que declara el comentario del código. Corregirlo = subir grasa a ~72% E → decisión de Ester. Fijado en test como DISCREPANCIA CONOCIDA (`macroDistribution.test.ts`) | abierto — espera DN |
+| DN-002 | Nutrición | baja | Rangos del comentario de `calculations.ts` desalineados con la realidad computada: Paleo HC 39.6% (comentario decía 25-35%), Proteica P 28% (comentario decía 30-35%). Decidir rango objetivo o actualizar comentario | abierto — espera DN |
+| DN-003 | Seguridad alimentaria | baja | Dieta "Sin cocina" + embarazo: la exclusión AESAN prevalece por Regla 0 y el texto ya dice "jamón cocido", pero conviene revisión del caso completo por la DN (hallazgo #4 de la revisión healthcare) | abierto — espera DN |

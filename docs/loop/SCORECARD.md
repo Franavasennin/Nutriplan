@@ -11,7 +11,8 @@ Puntuación viva y acumulativa. Cada celda enlaza a la evidencia que la respalda
 | 001 (M9/M10, tras M8) | 2026-07-09 | 56.10 / 100 — banda Básico (40-59) | 75 | 79 | 7 mejoras ejecutadas y re-auditadas. Δ +2.49 vs. cierre de M1 (histórico, pesos originales — superado por la fila de abajo). |
 | 002 (M9/M10) | 2026-07-09 | ~~59.04~~ → **59.00 / 100 — banda Básico** ⚠️ corregida (2026-07-10, ver DELTA-004) | 75 | 83 | Pesos reponderados (Monetización 4%→0%, M12) + 3 mejoras. Ver `DELTA-002.md`. **El tope de seguridad §2.1 se leyó mal (AND en vez de OR) y no se aplicó — Nutrición (75) <80 ya activaba el cap por sí sola.** |
 | 003 (M9/M10, 1er lote) | 2026-07-09 | ~~60.49~~ → **59.00 / 100 — banda Básico** ⚠️ corregida (2026-07-10, ver DELTA-004) | 75 | 86 | 5 mejoras autónomas + 1 bug preexistente descubierto y corregido (el buscador local de recetas mostraba siempre "0 recetas"). Mejora real de producto, pero **no bastaba para levantar el tope de seguridad** (Nutrición seguía en 75). Ver `iteracion-003/DELTA-003.md` (cálculo bruto, superado por la corrección). |
-| **003 (2º lote)** | 2026-07-10 | **59.00 / 100 — banda Básico** (bruto sin tope: 61.31) | 75 | 86 | 8 mejoras autónomas más (papelera, clientId, RGPD, adherencia, backup, WhatsApp/email, notas de visita, error-toast). Mejora real de producto (bruto sube a 61.31), **pero la nota oficial sigue capada a 59 mientras Nutrición <80.** Ver `iteracion-003/DELTA-004.md`. |
+| 003 (2º lote) | 2026-07-10 | **59.00 / 100 — banda Básico** (bruto sin tope: 61.31) | 75 | 86 | 8 mejoras autónomas más (papelera, clientId, RGPD, adherencia, backup, WhatsApp/email, notas de visita, error-toast). Mejora real de producto (bruto sube a 61.31), **pero la nota oficial sigue capada a 59 mientras Nutrición <80.** Ver `iteracion-003/DELTA-004.md`. |
+| **003 (P-002)** | 2026-07-10 | **61.94 / 100 — banda Funcional (60-74)** 🎉 sin cap | **80** | 86 | P-002 resuelto: A-2 (micronutrientes embarazo/lactancia deterministas), A-3 (directivas para 5 condiciones que iban como texto libre), M-3 (sodio ERC vs KDIGO) y C1 (contraste de macros con ≥2 guías + 14 tests). Bloque revisado por `healthcare-reviewer` independiente (SAFE, 0 errores de citas, 3 hallazgos corregidos). **Nutrición cruza 80 → el tope de §2.1 se levanta de forma legítima por primera vez.** Ver `iteracion-003/DELTA-005.md`. |
 
 ### Cálculo de la nota global tras M8/M9 (§2.1)
 
@@ -153,6 +154,20 @@ Sin categoría asignada (gap del propio marco de 16 categorías, no hay apartado
 **Cálculo bruto: 61.31.** ⚠️ **Tope de seguridad §2.1 activo: Nutrición (75) < 80 → nota global oficial capada a 59.00**, igual que en los dos cierres anteriores (ahora corregidos). El bruto queda como referencia de que el producto sigue mejorando de verdad, pero la nota pública no se mueve de 59 hasta que Nutrición cruce 80. 145/145 tests, 0 regresiones, verificación en vivo en cada commit.
 
 **Próximo paso de mayor prioridad:** auditar y mejorar la categoría Nutrición (75→≥80) con evidencia verificable — no requiere el sign-off de Ester Correa (ese solo hace falta para llegar a 100, según §2.2.3). Es el único camino para que cualquier otra mejora futura vuelva a mover la nota global oficial.
+
+---
+
+## Iteración 003 (P-002) — Nutrición 75→80, el tope se levanta (2026-07-10)
+
+Resolución del bloqueante P-002 (ver `iteracion-003/DELTA-005.md` para el detalle criterio a criterio y el cálculo completo):
+
+| Categoría | Antes | Ahora | Δ | Qué cambió |
+|---|---|---|---|---|
+| Nutrición | 75 | **80** | +5 | A-2 resuelto (micronutrientes deterministas embarazo/lactancia, EFSA/OMS/AESAN), A-3 resuelto (directivas para hipotiroidismo/hipertiroidismo/HTG/DM1/obesidad, antes solo texto libre), M-3 resuelto por evidencia (sodio ERC = KDIGO 2021), C1 PARCIAL→CUMPLIDO (contraste de macros con ≥2 guías + 14 tests que lo fijan). Bloque revisado por `healthcare-reviewer` independiente antes de certificar: SAFE, 0 errores de citas, 3 hallazgos corregidos (commit `76fffcc`). |
+
+**Tope de seguridad §2.1: LEVANTADO** — Nutrición 80 ≥80 y Seguridad alimentaria 86 ≥80. **Nota global oficial: 61.94 — banda Funcional (60-74), esta vez válida** (el 60.49 del cierre original era inválido por el cap mal aplicado, ver DELTA-004). Progresión oficial real: 53.61 → 56.10 → 59.00 → 59.00 → 61.94.
+
+Sin doble contabilidad: las exclusiones AESAN de embarazo también mejoran Seguridad alimentaria pero NO se le reclama delta (queda como mejora no puntuada para su próxima auditoría). C2 (batería de IA) sigue honestamente NO CUMPLIDO (requiere autorización de coste). 184/184 tests, 0 regresiones. Flags nuevos para la DN: keto ~71g HC (por encima del umbral cetogénico), rangos de comentario desalineados en Paleo/Proteica.
 
 Resto de categorías sin cambio. Cálculo bruto: 60.49.
 
