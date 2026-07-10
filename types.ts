@@ -182,6 +182,16 @@ export interface PatientData {
   dietType: DietType;
   duration: Duration;
   name?: string;
+  // ID estable del paciente (MEJORA-018, iteración 003 — hallazgo "los
+  // pacientes no existen como entidad, solo un nombre en texto libre").
+  // Se genera una vez al crear el cliente y se conserva en cada edición
+  // (ver App.tsx handleFormSubmit). Vive dentro de patient_data (JSONB),
+  // sin requerir migración de esquema. El seguimiento (progress_entries/
+  // client_goals) sigue indexado por nombre en Supabase — vincularlo por
+  // clientId de verdad requeriría añadir esa columna allí, propuesto en
+  // docs/supabase/add_client_id_migration.sql (no aplicado, pendiente de
+  // aprobación — mismo criterio que la migración de RLS).
+  clientId?: string;
   excludedFoods?: string;   // comma-separated list of foods to avoid
   weeks?: number;           // number of weeks to generate (1-4)
   mealCount?: number;       // number of meals per day (2-5)

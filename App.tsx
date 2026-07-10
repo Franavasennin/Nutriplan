@@ -97,9 +97,16 @@ const AppContent: React.FC = () => {
   // ── Diet generation ─────────────────────────────────────────────────────────
   const handleFormSubmit = async (rawData: PatientData) => {
     setIsLoading(true);
+    // MEJORA-018 (iteración 003): ID estable del paciente — se genera solo
+    // la primera vez (rawData.clientId ausente); si ya existe (edición de
+    // un cliente vía handleEditClient, que precarga patientData completo),
+    // se conserva sin regenerar.
+    const withClientId: PatientData = rawData.clientId
+      ? rawData
+      : { ...rawData, clientId: crypto.randomUUID() };
     // Seguridad clínica (auditoría): fuerza mantenimiento/sin ayuno en perfiles
     // vulnerables aunque el formulario no lo haya aplicado (defensa en profundidad).
-    const data = enforceClinicalSafety(rawData);
+    const data = enforceClinicalSafety(withClientId);
     setPatientData(data);
     try {
       const imc         = calculateIMC(data.weight, data.height);
@@ -174,9 +181,12 @@ const AppContent: React.FC = () => {
   const handleCoupleSubmit = async (rawA: PatientData, rawB: PatientData) => {
     setIsLoading(true);
     try {
+      // MEJORA-018: ID estable por persona (ver handleFormSubmit).
+      const withIdA: PatientData = rawA.clientId ? rawA : { ...rawA, clientId: crypto.randomUUID() };
+      const withIdB: PatientData = rawB.clientId ? rawB : { ...rawB, clientId: crypto.randomUUID() };
       // Seguridad clínica (auditoría): aplica el cribado a cada persona antes de calcular
-      const a = enforceClinicalSafety(rawA);
-      const b = enforceClinicalSafety(rawB);
+      const a = enforceClinicalSafety(withIdA);
+      const b = enforceClinicalSafety(withIdB);
       const metricsA = computeMetrics(a);
       const metricsB = computeMetrics(b);
       // 1) Genera el menú base completo con la persona A (todos los días según semanas).
