@@ -88,3 +88,25 @@ Nuevos hallazgos menores registrados en esta re-auditoría:
 Nuevo ítem de backlog: extender MEJORA-010 (verificador de alérgenos) a `handleCoupleSubmit`, `regenerateSingleDay`, `generateSingleMeal` y `adaptPlanToPartner` para cobertura completa (hoy solo cubre la generación inicial individual).
 
 Quedan en el backlog para futuras iteraciones: A-003/A-004 (objetivos deterministas, requiere sign-off DN previo), A-006 (tsconfig estricto + tests), A-007 (paginación/índices Supabase, multi-tenant real — candidato prioritario siguiente), A-008 (campos Recipe con alérgenos poblados en las 68 recetas del corpus estático), A-009 (evals de IA — requiere autorización explícita puntual por coste de API), extensión de MEJORA-010, y la decisión de negocio sobre Monetización (ya resuelta: excluida por ahora).
+
+## ⚠️ Corrección crítica del scorecard (2026-07-10) — ver `iteracion-003/DELTA-004.md`
+
+El tope de seguridad de §2.1 ("si Nutrición < 80 O Seguridad alimentaria < 80 → nota global capada a 59") se leyó mal como AND en los cierres de las iteraciones 002 y 003, y no se aplicó. Nutrición lleva en 75 desde la iteración 001. **Las notas globales oficiales reales de 002 y 003 son 59.00, no 59.04/60.49.** Corregido en `SCORECARD.md`.
+
+### P-002 — Nutrición capada en 75, bloquea la nota global oficial (BLOQUEANTE, máxima prioridad)
+
+| ID | Categoría | Severidad | Descripción | Estado |
+|---|---|---|---|---|
+| P-002 | Nutrición | **bloqueante** | Nutrición en 75/100 desde iteración 001, sin cambios. Mientras no cruce 80, el tope de §2.1 capa la nota global oficial a 59 sin importar qué más mejore. Subir de 75 a 80-89 con evidencia verificable NO requiere el sign-off del Humano-DN (Ester Correa) — eso solo hace falta para llegar a 100 (§2.2.3). Es el ítem de mayor apalancamiento posible ahora mismo. | abierto — próxima prioridad |
+
+## Estado tras iteración 003, 2º lote (2026-07-10)
+
+8 mejoras autónomas más, fuera del ciclo formal de auditoría (origen: "¿qué le falta a la app que no hayamos visto?"). Ver `iteracion-003/DELTA-004.md` para el detalle de categorías y deltas. Nota global oficial: sigue en **59.00** (capada — ver corrección arriba), aunque el cálculo bruto sube a 61.31.
+
+Nuevos ítems:
+
+| ID | Categoría | Severidad | Descripción | Estado |
+|---|---|---|---|---|
+| O-008 | Escalabilidad | media | Tabla `appointments` (agenda/citas) preparada en `docs/supabase/add_appointments_migration.sql` — **NO aplicada**, pendiente de aprobación explícita de Fran antes de poder construir la funcionalidad de frontend | bloqueado — esperando aprobación |
+| O-009 | (sin categoría — gap del marco) | media | El marco de 16 categorías no tiene ningún apartado de cumplimiento legal/privacidad (RGPD, retención de datos, etc.). Se implementó un registro de consentimiento (checkbox + fecha) como ayuda de memoria, no como certificación de cumplimiento. Considerar si merece una 17ª categoría o quedarse fuera del scoring | abierto |
+| O-010 | Personalización | baja | Adherencia autopercibida codificada como prefijo de texto en `notes` (columna existente) en vez de columna propia — migración preparada en `docs/supabase/add_adherence_migration.sql`, no aplicada | bloqueado — esperando aprobación |

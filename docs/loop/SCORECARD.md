@@ -9,8 +9,9 @@ Puntuación viva y acumulativa. Cada celda enlaza a la evidencia que la respalda
 | 000 (baseline técnico) | 2026-07-09 | *pendiente de M1* | *pendiente* | *pendiente* | Solo se registró línea base técnica (tests/build), no auditoría completa. Ver `iteracion-000/BASELINE-TECNICO.md` |
 | 001 (M1, antes de M8) | 2026-07-09 | 53.61 / 100 — banda Básico | 74 | 67 | Primera auditoría completa de las 16 categorías (histórico). |
 | 001 (M9/M10, tras M8) | 2026-07-09 | 56.10 / 100 — banda Básico (40-59) | 75 | 79 | 7 mejoras ejecutadas y re-auditadas. Δ +2.49 vs. cierre de M1 (histórico, pesos originales — superado por la fila de abajo). |
-| 002 (M9/M10) | 2026-07-09 | 59.04 / 100 — banda Básico (40-59) | 75 | 83 | Pesos reponderados (Monetización 4%→0%, M12) + 3 mejoras. Ver `DELTA-002.md` (histórico, superado por la fila de abajo). |
-| **003 (M9/M10)** | 2026-07-09 | **60.49 / 100** — banda Funcional (60-74) 🎉 | 75 | 86 | 5 mejoras autónomas + 1 bug preexistente descubierto y corregido (el buscador local de recetas mostraba siempre "0 recetas"). Δ +1.45, todo mejora real (sin cambios de pesos). **Primera vez en banda Funcional.** Ver `iteracion-003/DELTA-003.md`. |
+| 002 (M9/M10) | 2026-07-09 | ~~59.04~~ → **59.00 / 100 — banda Básico** ⚠️ corregida (2026-07-10, ver DELTA-004) | 75 | 83 | Pesos reponderados (Monetización 4%→0%, M12) + 3 mejoras. Ver `DELTA-002.md`. **El tope de seguridad §2.1 se leyó mal (AND en vez de OR) y no se aplicó — Nutrición (75) <80 ya activaba el cap por sí sola.** |
+| 003 (M9/M10, 1er lote) | 2026-07-09 | ~~60.49~~ → **59.00 / 100 — banda Básico** ⚠️ corregida (2026-07-10, ver DELTA-004) | 75 | 86 | 5 mejoras autónomas + 1 bug preexistente descubierto y corregido (el buscador local de recetas mostraba siempre "0 recetas"). Mejora real de producto, pero **no bastaba para levantar el tope de seguridad** (Nutrición seguía en 75). Ver `iteracion-003/DELTA-003.md` (cálculo bruto, superado por la corrección). |
+| **003 (2º lote)** | 2026-07-10 | **59.00 / 100 — banda Básico** (bruto sin tope: 61.31) | 75 | 86 | 8 mejoras autónomas más (papelera, clientId, RGPD, adherencia, backup, WhatsApp/email, notas de visita, error-toast). Mejora real de producto (bruto sube a 61.31), **pero la nota oficial sigue capada a 59 mientras Nutrición <80.** Ver `iteracion-003/DELTA-004.md`. |
 
 ### Cálculo de la nota global tras M8/M9 (§2.1)
 
@@ -84,16 +85,18 @@ Nota = (12.5×75 + 10.4167×83 + 9.375×48 + 8.3333×58 + 8.3333×60 + 8.3333×7
         + 3.125×20 + 3.125×64 + 2.0833×55) / 100
 = 5904.16 / 100 = 59.04
 
-Tope de seguridad (§2.1): Seguridad alimentaria (83) ya está ≥80 → no
-  activa el cap. Nutrición (75) sigue <80, pero el cap solo se dispara si
-  Nutrición Y Seguridad están ambas <80 simultáneamente — ya no aplica.
-Tope de mínimos: no aplica (ninguna categoría ≥90).
+Tope de seguridad (§2.1) — ⚠️ CORREGIDO el 2026-07-10 (ver DELTA-004.md):
+  la regla es "si Nutrición < 80 O Seguridad alimentaria < 80" (OR, no AND).
+  Nutrición (75) < 80 por sí sola YA ACTIVA el cap, aunque Seguridad
+  alimentaria (83) esté ≥80. El texto original de este párrafo decía lo
+  contrario (leía la regla como AND) — eso fue un error, no una regla
+  distinta. Con el tope aplicado correctamente:
 
-NOTA GLOBAL OFICIAL ITERACIÓN 002 = 59.04 / 100
-Δ real de producto (excluyendo el efecto contable del repeso) = +0.60
+NOTA GLOBAL OFICIAL ITERACIÓN 002 (corregida) = 59.00 / 100
+(el cálculo bruto de 59.04 queda como referencia interna, no como nota oficial)
 ```
 
-**Lectura importante:** de los +2.94 puntos totales de esta iteración, +2.34 vienen de una decisión de gobernanza (excluir Monetización), no de mejorar el producto. La mejora real de producto es +0.60 — modesto, porque las 3 mejoras (fuente de iconos, fix de alérgenos, verificador post-generación) son de bajo esfuerzo/alto valor de seguridad pero no mueven mucho la aguja de puntos brutos. **Seguridad alimentaria cruza el umbral de 80 por primera vez**, lo que desactiva el tope de seguridad de §2.1 (aunque Nutrición siga por debajo, el cap requiere que ambas lo estén).
+**Lectura importante:** de los +2.94 puntos brutos totales de esta iteración, +2.34 vienen de una decisión de gobernanza (excluir Monetización), no de mejorar el producto. La mejora real de producto es +0.60 — modesto, porque las 3 mejoras (fuente de iconos, fix de alérgenos, verificador post-generación) son de bajo esfuerzo/alto valor de seguridad pero no mueven mucho la aguja de puntos brutos. Seguridad alimentaria cruzó el umbral de 80 por primera vez, pero **eso no desactiva el tope** — Nutrición seguía (y sigue) por debajo de 80, y basta con que una sola de las dos categorías esté baja para que el cap se aplique.
 
 ## Detalle por categoría (tras iteración 002)
 
@@ -132,4 +135,25 @@ Notas actualizadas (deltas ≤5, autocertificados con evidencia — ver `iteraci
 | Accesibilidad | 54 | **58** | +4 | MEJORA-014: ARIA en ConfirmDialog + aria-current/aria-label en navegación |
 | UX | 60 | **62** | +2 | MEJORA-015: estado vacío de bienvenida en Dashboard |
 
-Resto de categorías sin cambio. **Nota global: 60.49 — cruza a banda "Funcional" (60-74) por primera vez.** 145/145 tests, 0 regresiones.
+---
+
+## Iteración 003 (2º lote) — 8 mejoras más, fuera del marco de auditoría formal (2026-07-10)
+
+Origen: respuesta a "¿hay algo que le falte a la aplicación que no hayamos visto?" — hallazgos operativos/de producto reales, no parte del ciclo de auditoría de las 16 categorías. Deltas ≤5, autocertificados (ver `iteracion-003/DELTA-004.md` para el detalle completo y la corrección del tope de seguridad).
+
+| Categoría | Antes | Ahora | Δ | Mejora |
+|---|---|---|---|---|
+| UX | 62 | **65** | +3 | Feedback de error real en escrituras Supabase (toast, no consola); papelera con deshacer (6s) al borrar una dieta |
+| Personalización | 71 | **74** | +3 | Peso precargado en seguimiento (visita de control sin repesaje); adherencia autopercibida de 5 niveles |
+| Arquitectura | 66 | **69** | +3 | clientId estable por paciente; recordatorio de backup + aviso de proyecto Supabase pausado |
+| Retención | 35 | **37** | +2 | Compartir resumen del plan por WhatsApp/email |
+
+Sin categoría asignada (gap del propio marco de 16 categorías, no hay apartado legal/privacidad): registro de consentimiento RGPD. Sin delta (solo documentación, no funcionalidad enviada): migración preparada de `appointments` (bloqueada pendiente de aprobación de Fran).
+
+**Cálculo bruto: 61.31.** ⚠️ **Tope de seguridad §2.1 activo: Nutrición (75) < 80 → nota global oficial capada a 59.00**, igual que en los dos cierres anteriores (ahora corregidos). El bruto queda como referencia de que el producto sigue mejorando de verdad, pero la nota pública no se mueve de 59 hasta que Nutrición cruce 80. 145/145 tests, 0 regresiones, verificación en vivo en cada commit.
+
+**Próximo paso de mayor prioridad:** auditar y mejorar la categoría Nutrición (75→≥80) con evidencia verificable — no requiere el sign-off de Ester Correa (ese solo hace falta para llegar a 100, según §2.2.3). Es el único camino para que cualquier otra mejora futura vuelva a mover la nota global oficial.
+
+Resto de categorías sin cambio. Cálculo bruto: 60.49.
+
+⚠️ **Corrección (2026-07-10, ver `DELTA-004.md`):** el tope de seguridad §2.1 se aplicó mal en el cierre original de esta iteración (se leyó como AND en vez de OR). Nutrición (75) < 80 activa el cap por sí sola, independientemente de Seguridad alimentaria. **La nota global oficial es 59.00, no 60.49** — no llegó a cruzar la banda "Funcional". 145/145 tests, 0 regresiones (eso sí es correcto, no afectado por el error de cálculo).
