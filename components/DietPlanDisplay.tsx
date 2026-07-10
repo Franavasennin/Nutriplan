@@ -732,6 +732,32 @@ const DietPlanDisplay: React.FC<Props> = ({
     if (ok) onRegenerateDay(activeDay);
   };
 
+  // ── compartir resumen por WhatsApp / email ──────────────────────────────────
+  // No hay backend ni URL pública del plan, así que no se puede adjuntar el
+  // PDF automáticamente (ni wa.me ni mailto: soportan adjuntos desde una
+  // página web) — se comparte un resumen en texto y el PDF se adjunta a mano
+  // con el botón "PDF / Imprimir".
+  const buildShareSummary = () => [
+    `${CLINIC.appName} — Plan nutricional`,
+    patientName ? `Paciente: ${patientName}` : null,
+    `Elaborado por: ${CLINIC.title}`,
+    `Duración: ${plan.durationText}`,
+    `Objetivo diario: ${Math.round(metrics.macros.calories)} kcal · ${Math.round(metrics.macros.protein)}g proteína · ${Math.round(metrics.macros.carbs)}g carbohidratos · ${Math.round(metrics.macros.fats)}g grasas`,
+    '',
+    CLINIC.disclaimer,
+    '',
+    '(Adjunta el PDF completo generado con "PDF / Imprimir".)',
+  ].filter((l): l is string => l !== null).join('\n');
+
+  const handleShareWhatsApp = () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(buildShareSummary())}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareEmail = () => {
+    const subject = encodeURIComponent(`Tu plan nutricional — ${CLINIC.title}`);
+    window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(buildShareSummary())}`;
+  };
+
   const handleSwap = useCallback(async (dayNumber: number, mealKey: MealKey) => {
     if (!onSwapMeal) return;
     const dayPlan = localPlan.weeklyPlan.find(d => d.day === dayNumber);
@@ -816,6 +842,18 @@ const DietPlanDisplay: React.FC<Props> = ({
                   Rehacer plan
                 </button>
               )}
+              <button onClick={handleShareWhatsApp}
+                title="Compartir resumen por WhatsApp (el PDF se adjunta a mano)"
+                className="flex items-center gap-2 h-11 px-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold hover:border-green-500 transition-all">
+                <span className="material-symbols-outlined text-[20px] text-green-500">chat</span>
+                <span className="hidden sm:inline">WhatsApp</span>
+              </button>
+              <button onClick={handleShareEmail}
+                title="Compartir resumen por email (el PDF se adjunta a mano)"
+                className="flex items-center gap-2 h-11 px-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold hover:border-sky-500 transition-all">
+                <span className="material-symbols-outlined text-[20px] text-sky-500">mail</span>
+                <span className="hidden sm:inline">Email</span>
+              </button>
               <button onClick={() => window.print()}
                 className="flex items-center gap-2 h-11 px-6 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm">
                 <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
