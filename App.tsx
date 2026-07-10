@@ -43,15 +43,17 @@ type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' |
 const AppContent: React.FC = () => {
   const { isDark, toggleTheme }  = useTheme();
   const { canInstall, install, deferredPrompt } = usePWAInstall();
+  const { toast }    = useToast();
+  const { confirm }  = useConfirm();
+  // MEJORA-020: las escrituras fallidas ahora avisan con un toast real en
+  // vez de perderse en la consola del navegador.
   const {
     savedDiets, customFoods, progressData, couplesDiets, dbRecipes, uniqueClients, dbOnline,
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
     saveCouplesDiet, deleteCouplesDiet, updateCouplesDiet,
     addCustomFood, editCustomFood, deleteCustomFood,
     saveProgressEntry, deleteProgressEntry, updateProgressEntry, updateClientGoal, importAll, appendDiets,
-  } = useAppData();
-  const { toast }    = useToast();
-  const { confirm }  = useConfirm();
+  } = useAppData(msg => toast(msg, 'error'));
 
   // Datos iniciales del paciente (edad, altura, sexo) por cliente — se toman
   // de la dieta más reciente, para mostrarlos en Seguimiento (antes no

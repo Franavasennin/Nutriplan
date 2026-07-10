@@ -52,7 +52,22 @@ const rowToEntry = (r: any): ProgressEntry => ({
 
 // ── hook ─────────────────────────────────────────────────────────────────────
 
-export function useAppData() {
+/**
+ * MEJORA-020 (iteración 003 — hallazgo "escrituras que se pierden en
+ * silencio"): antes, si una escritura a Supabase fallaba (wifi caído,
+ * fila bloqueada, etc.), el único rastro era un console.error que nadie
+ * ve fuera de las DevTools — el dato desaparecía sin que la usuaria se
+ * enterase. `onWriteError` permite avisarla con un toast real.
+ */
+export function useAppData(onWriteError?: (message: string) => void) {
+  const reportError = useCallback((context: string) => (
+    { error }: { error: { message: string } | null }
+  ) => {
+    if (!error) return;
+    console.error(`${context}:`, error.message);
+    onWriteError?.(`No se pudo guardar (${context}). Comprueba tu conexión y vuelve a intentarlo — el cambio no se ha guardado en la base de datos.`);
+  }, [onWriteError]);
+
   const [savedDiets,   setSavedDiets]   = useState<SavedDiet[]>([]);
   const [customFoods,  setCustomFoods]  = useState<CustomFood[]>([]);
   const [progressData, setProgressData] = useState<ClientProgress[]>([]);
@@ -166,14 +181,14 @@ export function useAppData() {
     }
     supabase.from('saved_diets').insert({
       id, timestamp: ts, patient_data: data, metrics, plan, plan_versions: [],
-    }).then(({ error }) => { if (error) console.error('saveDiet:', error.message); });
+    }).then(reportError('saveDiet'));
     return id;
   }, []);
 
   const updateDietPlan = useCallback((id: string, plan: DietResponse) => {
     setSavedDiets(prev => prev.map(d => d.id === id ? { ...d, plan } : d));
     supabase.from('saved_diets').update({ plan }).eq('id', id)
-      .then(({ error }) => { if (error) console.error('updateDietPlan:', error.message); });
+      .then(reportError('updateDietPlan'));
   }, []);
 
   /** Update all fields of an existing diet (re-generate) */
@@ -189,7 +204,7 @@ export function useAppData() {
     supabase.from('saved_diets').update({
       patient_data: data, metrics, plan, timestamp: Date.now(),
     }).eq('id', id)
-      .then(({ error }) => { if (error) console.error('updateFullDiet:', error.message); });
+      .then(reportError('updateFullDiet'));
   }, []);
 
   const updatePatientData = useCallback((id: string, data: Partial<PatientData>) => {
@@ -206,13 +221,13 @@ export function useAppData() {
           prev.map(p => p.clientName === oldName ? { ...p, clientName: data.name! } : p)
         );
         supabase.from('progress_entries').update({ client_name: data.name }).eq('client_name', oldName)
-          .then(({ error }) => { if (error) console.error('rename entries:', error.message); });
+          .then(reportError('rename entries'));
         supabase.from('client_goals').update({ client_name: data.name }).eq('client_name', oldName)
-          .then(({ error }) => { if (error) console.error('rename goals:', error.message); });
+          .then(reportError('rename goals'));
       }
       const merged = { ...original?.patientData, ...data };
       supabase.from('saved_diets').update({ patient_data: merged }).eq('id', id)
-        .then(({ error }) => { if (error) console.error('updatePatientData:', error.message); });
+        .then(reportError('updatePatientData'));
       return current;
     });
   }, []);
@@ -220,7 +235,7 @@ export function useAppData() {
   const deleteDiet = useCallback((id: string) => {
     setSavedDiets(prev => prev.filter(d => d.id !== id));
     supabase.from('saved_diets').delete().eq('id', id)
-      .then(({ error }) => { if (error) console.error('deleteDiet:', error.message); });
+      .then(reportError('deleteDiet'));
   }, []);
 
   /** Append multiple diets (CSV/PDF import) */
@@ -235,13 +250,13 @@ export function useAppData() {
         patient_data: d.patientData, metrics: d.metrics, plan: d.plan,
         plan_versions: d.planVersions ?? [],
       }))
-    ).then(({ error }) => { if (error) console.error('appendDiets:', error.message); });
+    ).then(reportError('appendDiets'));
   }, []);
 
   const restorePlanVersion = useCallback((id: string, version: PlanVersion) => {
     setSavedDiets(prev => prev.map(d => d.id === id ? { ...d, plan: version.plan } : d));
     supabase.from('saved_diets').update({ plan: version.plan }).eq('id', id)
-      .then(({ error }) => { if (error) console.error('restorePlanVersion:', error.message); });
+      .then(reportError('restorePlanVersion'));
   }, []);
 
   // ── Couples diets ───────────────────────────────────────────────────────────
@@ -254,20 +269,20 @@ export function useAppData() {
     setCouplesDiets(prev => [couples, ...prev]);
     supabase.from('couples_diets').insert({
       id, timestamp: ts, person_a: personA, person_b: personB,
-    }).then(({ error }) => { if (error) console.error('saveCouplesDiet:', error.message); });
+    }).then(reportError('saveCouplesDiet'));
     return id;
   }, []);
 
   const deleteCouplesDiet = useCallback((id: string) => {
     setCouplesDiets(prev => prev.filter(c => c.id !== id));
     supabase.from('couples_diets').delete().eq('id', id)
-      .then(({ error }) => { if (error) console.error('deleteCouplesDiet:', error.message); });
+      .then(reportError('deleteCouplesDiet'));
   }, []);
 
   const updateCouplesDiet = useCallback((id: string, personA: SavedDiet, personB: SavedDiet) => {
     setCouplesDiets(prev => prev.map(c => c.id === id ? { ...c, personA, personB } : c));
     supabase.from('couples_diets').update({ person_a: personA, person_b: personB }).eq('id', id)
-      .then(({ error }) => { if (error) console.error('updateCouplesDiet:', error.message); });
+      .then(reportError('updateCouplesDiet'));
   }, []);
 
   // ── Foods ─────────────────────────────────────────────────────────────────
@@ -278,7 +293,7 @@ export function useAppData() {
       id: food.id, name: food.name, brand: food.brand ?? null,
       calories: food.calories, protein: food.protein, carbs: food.carbs,
       fats: food.fats, portion_size: food.portionSize,
-    }).then(({ error }) => { if (error) console.error('addCustomFood:', error.message); });
+    }).then(reportError('addCustomFood'));
   }, []);
 
   const editCustomFood = useCallback((food: CustomFood) => {
@@ -288,13 +303,13 @@ export function useAppData() {
       calories: food.calories, protein: food.protein, carbs: food.carbs,
       fats: food.fats, portion_size: food.portionSize,
     }).eq('id', food.id)
-      .then(({ error }) => { if (error) console.error('editCustomFood:', error.message); });
+      .then(reportError('editCustomFood'));
   }, []);
 
   const deleteCustomFood = useCallback((id: string) => {
     setCustomFoods(prev => prev.filter(f => f.id !== id));
     supabase.from('custom_foods').delete().eq('id', id)
-      .then(({ error }) => { if (error) console.error('deleteCustomFood:', error.message); });
+      .then(reportError('deleteCustomFood'));
   }, []);
 
   // ── Progress ──────────────────────────────────────────────────────────────
@@ -320,7 +335,7 @@ export function useAppData() {
       visceral_fat:     entry.visceralFat     ?? null,
       bone_mass:        entry.boneMass        ?? null,
       notes:            entry.notes           ?? null,
-    }).then(({ error }) => { if (error) console.error('saveProgressEntry:', error.message); });
+    }).then(reportError('saveProgressEntry'));
   }, []);
 
   const deleteProgressEntry = useCallback((clientName: string, entryId: string) => {
@@ -332,7 +347,7 @@ export function useAppData() {
       )
     );
     supabase.from('progress_entries').delete().eq('id', entryId)
-      .then(({ error }) => { if (error) console.error('deleteProgressEntry:', error.message); });
+      .then(reportError('deleteProgressEntry'));
   }, []);
 
   const updateProgressEntry = useCallback((clientName: string, entry: ProgressEntry) => {
@@ -356,7 +371,7 @@ export function useAppData() {
       bone_mass:        entry.boneMass        ?? null,
       notes:            entry.notes           ?? null,
     }).eq('id', entry.id)
-      .then(({ error }) => { if (error) console.error('updateProgressEntry:', error.message); });
+      .then(reportError('updateProgressEntry'));
   }, []);
 
   const updateClientGoal = useCallback((
@@ -370,7 +385,7 @@ export function useAppData() {
     supabase.from('client_goals').upsert(
       { client_name: clientName, weight_goal: weightGoal, goal_date: goalDate, updated_at: new Date().toISOString() },
       { onConflict: 'client_name' }
-    ).then(({ error }) => { if (error) console.error('updateClientGoal:', error.message); });
+    ).then(reportError('updateClientGoal'));
   }, []);
 
   // ── Import (bulk replace) ─────────────────────────────────────────────────
