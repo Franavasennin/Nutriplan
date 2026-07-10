@@ -2,17 +2,31 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 
 type ToastType = 'success' | 'error' | 'info';
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastItem {
   id: string;
   message: string;
   type: ToastType;
+  action?: ToastAction;
+}
+
+interface ToastOptions {
+  /** Botón de acción (p. ej. "Deshacer" — MEJORA-019, iteración 003). */
+  action?: ToastAction;
+  /** Duración en ms antes de auto-descartarse (por defecto 4000, 8000 si hay acción). */
+  duration?: number;
 }
 
 interface ToastContextValue {
-  toast: (message: string, type?: ToastType) => void;
+  toast: (message: string, type?: ToastType, options?: ToastOptions) => string;
+  dismissToast: (id: string) => void;
 }
 
-const ToastContext = createContext<ToastContextValue>({ toast: () => {} });
+const ToastContext = createContext<ToastContextValue>({ toast: () => '', dismissToast: () => {} });
 
 export const useToast = () => useContext(ToastContext);
 
@@ -33,10 +47,11 @@ const DURATION = 4000;
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  const toast = useCallback((message: string, type: ToastType = 'info') => {
+  const toast = useCallback((message: string, type: ToastType = 'info', options?: ToastOptions): string => {
     const id = crypto.randomUUID();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), DURATION);
+    setToasts(prev => [...prev, { id, message, type, action: options?.action }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), options?.duration ?? (options?.action ? 8000 : DURATION));
+    return id;
   }, []);
 
   const dismiss = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
@@ -48,7 +63,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={{ toast, dismissToast: dismiss }}>
       {children}
       <div className="no-print fixed top-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none max-w-sm w-full">
         {toasts.map(t => (
@@ -58,6 +73,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           >
             <span className="material-symbols-outlined text-lg shrink-0">{ICONS[t.type]}</span>
             <p className="text-sm font-bold flex-1">{t.message}</p>
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => { t.action!.onClick(); dismiss(t.id); }}
+                className="text-sm font-black underline underline-offset-2 hover:opacity-70 transition-opacity shrink-0"
+              >
+                {t.action.label}
+              </button>
+            )}
             <button type="button" onClick={() => dismiss(t.id)} className="opacity-60 hover:opacity-100 transition-opacity">
               <span className="material-symbols-outlined text-base">close</span>
             </button>

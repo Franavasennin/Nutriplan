@@ -1,4 +1,4 @@
-import React, { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useMemo, useRef, lazy, Suspense } from 'react';
 
 // Views — carga diferida (code-splitting): cada vista es un chunk aparte,
 // se descarga solo cuando el usuario navega a ella.
@@ -81,6 +81,17 @@ const AppContent: React.FC = () => {
   const [patientData,    setPatientData]    = useState<PatientData | null>(null);
   const [currentDietId,  setCurrentDietId]  = useState<string | null>(null);
   const [currentCouples, setCurrentCouples] = useState<CouplesDiet | null>(null);
+  // MEJORA-019 (iteración 003, "papelera / deshacer borrado"): las dietas
+  // marcadas para borrar se ocultan al instante pero el DELETE real a
+  // Supabase se retrasa unos segundos, con un botón "Deshacer" en el toast.
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set());
+  const deleteTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // MEJORA-019: oculta las dietas con borrado pendiente (ventana de deshacer)
+  // sin haberlas eliminado todavía de verdad en Supabase.
+  const visibleSavedDiets = useMemo(
+    () => pendingDeleteIds.size ? savedDiets.filter(d => !pendingDeleteIds.has(d.id)) : savedDiets,
+    [savedDiets, pendingDeleteIds]
+  );
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const navigate = (step: Step) => setCurrentStep(step);
@@ -215,17 +226,35 @@ const AppContent: React.FC = () => {
   };
 
   // ── Diet management ─────────────────────────────────────────────────────────
+  const UNDO_WINDOW_MS = 6000;
+
   const handleDeleteDiet = async (id: string) => {
     const ok = await confirm({
       title:        'Eliminar dieta',
-      message:      '¿Estás seguro? Esta acción no se puede deshacer.',
+      message:      'Se ocultará al momento. Tendrás unos segundos para deshacerlo antes de que se borre de verdad.',
       confirmLabel: 'Eliminar',
       danger:       true,
     });
-    if (ok) {
+    if (!ok) return;
+
+    setPendingDeleteIds(prev => new Set(prev).add(id));
+    const timeoutId = setTimeout(() => {
       deleteDiet(id);
-      toast('Dieta eliminada.', 'success');
-    }
+      setPendingDeleteIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      deleteTimeouts.current.delete(id);
+    }, UNDO_WINDOW_MS);
+    deleteTimeouts.current.set(id, timeoutId);
+
+    toast('Dieta eliminada.', 'success', {
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          const t = deleteTimeouts.current.get(id);
+          if (t) { clearTimeout(t); deleteTimeouts.current.delete(id); }
+          setPendingDeleteIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+        },
+      },
+    });
   };
 
   const handleLoadDiet = (diet: SavedDiet) => {
@@ -398,7 +427,7 @@ const AppContent: React.FC = () => {
                 activePlans:  savedDiets.length,
                 customFoods:  customFoods.length,
               }}
-              allDiets={savedDiets}
+              allDiets={visibleSavedDiets}
               onNewClient={() => { setPatientData(null); setCurrentDietId(null); navigate('form'); }}
               onLoadDiet={handleLoadDiet}
               onDeleteDiet={handleDeleteDiet}
@@ -515,7 +544,7 @@ const AppContent: React.FC = () => {
               </div>
             )}
             <SavedDietsList
-            diets={savedDiets}
+            diets={visibleSavedDiets}
             onLoad={handleLoadDiet}
             onDelete={handleDeleteDiet}
             onImportCSV={handleImportCSV}
