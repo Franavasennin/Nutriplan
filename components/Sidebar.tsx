@@ -55,11 +55,12 @@ export interface SidebarProps {
   onExportJSON: () => void;
   onExportCSV: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  lastBackupLabel?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentStep, isDark, dbOnline, onNavigate, onGoHome,
-  onToggleTheme, onExportJSON, onExportCSV, onImport,
+  onToggleTheme, onExportJSON, onExportCSV, onImport, lastBackupLabel,
 }) => (
   <aside className="hidden w-64 flex-col border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark lg:flex z-50 transition-colors duration-200 no-print">
     <div className="flex h-full flex-col justify-between p-4">
@@ -102,7 +103,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-3 bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-bold text-text-sub uppercase">Base de Datos</p>
-            <span className={`flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${dbOnline ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+            <span
+              title={dbOnline ? undefined : 'Sin conexión a Supabase — puede ser un corte de red o que el proyecto gratuito se haya pausado por inactividad. Los datos se guardan solo en este navegador mientras tanto.'}
+              className={`flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${dbOnline ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${dbOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
               {dbOnline ? 'PostgreSQL' : 'Local'}
             </span>
@@ -145,6 +148,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </label>
           </div>
           <p className="text-[8px] text-text-sub text-center leading-tight">Solo el Backup JSON restaura datos</p>
+          {lastBackupLabel && (
+            <p className="text-[8px] text-text-sub text-center leading-tight opacity-75">{lastBackupLabel}</p>
+          )}
         </div>
 
         <button

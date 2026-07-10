@@ -348,10 +348,49 @@ const AppContent: React.FC = () => {
   };
 
   // ── Export / Import ─────────────────────────────────────────────────────────
+  const LAST_BACKUP_KEY = 'nutriplan_last_backup_at';
+  const [lastBackupAt, setLastBackupAt] = useState<number>(
+    () => Number(localStorage.getItem(LAST_BACKUP_KEY) ?? 0)
+  );
+  const lastBackupLabel = lastBackupAt
+    ? `Último backup: hace ${Math.max(0, Math.floor((Date.now() - lastBackupAt) / (1000 * 60 * 60 * 24)))} día(s)`
+    : 'Aún sin backups';
+
   const handleExportJSON = () => {
     exportJSON(savedDiets, customFoods, progressData, couplesDiets);
+    const now = Date.now();
+    localStorage.setItem(LAST_BACKUP_KEY, String(now));
+    setLastBackupAt(now);
     toast('Backup JSON descargado.', 'success');
   };
+
+  // Recordatorio de backup — el plan gratuito de Supabase pausa el proyecto
+  // tras un periodo de inactividad, y no hay backups automáticos del lado
+  // servidor en ese plan. El único backup real es el manual (botón "Backup"
+  // del menú lateral), pero nadie se acuerda de hacerlo solo — este aviso
+  // aparece si nunca se ha exportado o si pasaron más de 14 días, y solo si
+  // ya hay datos que merezca la pena respaldar.
+  const BACKUP_REMINDER_DAYS = 14;
+  const backupReminderShown = useRef(false);
+  React.useEffect(() => {
+    // savedDiets/progressData llegan async desde Supabase — hasta que no hay
+    // algo que respaldar (o de verdad no hay nada tras cargar) no tiene
+    // sentido avisar, y solo se muestra una vez por sesión.
+    if (backupReminderShown.current) return;
+    if (savedDiets.length === 0 && progressData.length === 0) return;
+    backupReminderShown.current = true;
+    const lastBackup = Number(localStorage.getItem(LAST_BACKUP_KEY) ?? 0);
+    const daysSince = (Date.now() - lastBackup) / (1000 * 60 * 60 * 24);
+    if (daysSince < BACKUP_REMINDER_DAYS) return;
+    toast(
+      lastBackup
+        ? `Han pasado más de ${BACKUP_REMINDER_DAYS} días desde tu último backup. Los proyectos gratuitos de Supabase se pausan por inactividad — exporta uno por seguridad.`
+        : 'Aún no has hecho ningún backup. Los proyectos gratuitos de Supabase se pausan por inactividad — exporta uno por seguridad.',
+      'info',
+      { action: { label: 'Exportar ahora', onClick: handleExportJSON } }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedDiets.length, progressData.length]);
 
   const handleExportCSV = () => {
     exportCSV(savedDiets);
@@ -414,6 +453,7 @@ const AppContent: React.FC = () => {
         onExportJSON={handleExportJSON}
         onExportCSV={handleExportCSV}
         onImport={handleImport}
+        lastBackupLabel={lastBackupLabel}
       />
 
       <main className="flex-1 flex flex-col min-h-0 overflow-y-auto bg-background-light dark:bg-background-dark relative transition-colors duration-200">
