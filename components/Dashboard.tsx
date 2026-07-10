@@ -294,6 +294,12 @@ const Dashboard: React.FC<Props> = ({
                                             <div className="overflow-hidden">
                                                 <h3 className="text-base font-bold text-text-main dark:text-white truncate pr-8">{diet.patientData.name || 'Paciente'}</h3>
                                                 <p className="text-xs text-text-sub dark:text-gray-400">{diet.patientData.age} años • {diet.patientData.weight}kg</p>
+                                                {!diet.patientData.gdprConsent?.granted && (
+                                                    <p className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5" title="Registra el consentimiento en 'Editar datos'">
+                                                        <span className="material-symbols-outlined text-[12px]">warning</span>
+                                                        Sin consentimiento RGPD
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                         <span className={`shrink-0 inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
@@ -471,6 +477,29 @@ const Dashboard: React.FC<Props> = ({
                                 })}
                             </div>
                         </div>
+
+                        {/* Consentimiento RGPD */}
+                        <label className={`flex items-start gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${editForm.gdprConsent?.granted ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
+                            <input
+                                type="checkbox"
+                                className="w-4 h-4 mt-0.5 text-green-600 rounded focus:ring-green-500"
+                                checked={!!editForm.gdprConsent?.granted}
+                                onChange={(e) => setEditForm(p => ({
+                                    ...p,
+                                    gdprConsent: e.target.checked
+                                        ? { granted: true, consentedAt: Date.now() }
+                                        : undefined,
+                                }))}
+                            />
+                            <span className="flex flex-col gap-0.5">
+                                <span className="text-sm font-medium text-text-main dark:text-gray-200">El paciente ha dado su consentimiento para el tratamiento de sus datos de salud (RGPD)</span>
+                                {editForm.gdprConsent?.granted && (
+                                    <span className="text-[10px] text-green-700 dark:text-green-400 font-semibold">
+                                        Registrado el {new Date(editForm.gdprConsent.consentedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </span>
+                                )}
+                            </span>
+                        </label>
                     </div>
 
                     <div className="flex gap-3 p-6 border-t border-border-light dark:border-border-dark">

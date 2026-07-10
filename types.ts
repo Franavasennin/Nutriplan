@@ -192,6 +192,12 @@ export interface PatientData {
   // docs/supabase/add_client_id_migration.sql (no aplicado, pendiente de
   // aprobación — mismo criterio que la migración de RLS).
   clientId?: string;
+  // Consentimiento RGPD (iteración 003 — hallazgo "sin registro de
+  // consentimiento para tratar datos de salud"). Vive en patient_data
+  // (JSONB), igual que clientId, sin migración de esquema. Es una ayuda de
+  // registro, no una certificación legal de cumplimiento RGPD completo
+  // (eso exige revisión legal fuera del alcance de este cambio de código).
+  gdprConsent?: { granted: boolean; consentedAt: number };
   excludedFoods?: string;   // comma-separated list of foods to avoid
   weeks?: number;           // number of weeks to generate (1-4)
   mealCount?: number;       // number of meals per day (2-5)

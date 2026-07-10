@@ -307,6 +307,30 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onSubm
                                 <span className="text-[10px] text-text-sub dark:text-gray-500">Estas notas no se envían a la IA ni aparecen en el informe del paciente.</span>
                             </label>
                         </div>
+                        {/* Consentimiento RGPD — registro, no certificación legal de cumplimiento */}
+                        <div className="mt-4">
+                            <label className={`flex items-start gap-2 p-3 rounded-lg cursor-pointer border transition-colors ${formData.gdprConsent?.granted ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' : 'bg-background-light dark:bg-background-dark border-transparent'}`}>
+                                <input
+                                    type="checkbox"
+                                    className="w-4 h-4 mt-0.5 text-green-600 rounded focus:ring-green-500"
+                                    checked={!!formData.gdprConsent?.granted}
+                                    onChange={(e) => setFormData({
+                                        ...formData,
+                                        gdprConsent: e.target.checked
+                                            ? { granted: true, consentedAt: Date.now() }
+                                            : undefined,
+                                    })}
+                                />
+                                <span className="flex flex-col gap-0.5">
+                                    <span className="text-sm font-medium text-text-main dark:text-gray-200">El paciente ha dado su consentimiento para el tratamiento de sus datos de salud (RGPD)</span>
+                                    {formData.gdprConsent?.granted && (
+                                        <span className="text-[10px] text-green-700 dark:text-green-400 font-semibold">
+                                            Registrado el {new Date(formData.gdprConsent.consentedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </span>
+                                    )}
+                                </span>
+                            </label>
+                        </div>
                     </div>
                     {/* Activity & Goals */}
                     <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-border-light dark:border-border-dark">
