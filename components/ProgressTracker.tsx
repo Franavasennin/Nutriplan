@@ -71,7 +71,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setNewEntry({ ...EMPTY });
+    setNewEntry({ ...EMPTY, weight: latestEntry?.weight ?? 0 });
     setEntryDate(new Date().toISOString().split('T')[0]);
   };
 
@@ -113,6 +113,9 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
     else setGoalWeight('');
     if (clientData?.goalDate) setGoalDate(new Date(clientData.goalDate).toISOString().split('T')[0]);
     else setGoalDate('');
+    // Precarga el peso con el último registrado — permite anotar una visita de
+    // seguimiento (solo notas, sin repesaje) sin obligar a inventar un peso.
+    setNewEntry({ ...EMPTY, weight: latestEntry?.weight ?? 0 });
   }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveGoal = () => {
@@ -336,7 +339,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
       onSaveEntry(selectedClient, entry);
     }
 
-    setNewEntry({ ...EMPTY });
+    setNewEntry({ ...EMPTY, weight: entry.weight });
     setEntryDate(new Date().toISOString().split('T')[0]);
   };
 
@@ -1010,8 +1013,10 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                   <div>
                     <label className={labelCls}>Notas</label>
                     <textarea aria-label="Notas" className={inputCls} rows={2}
+                      placeholder="Ej. Visita de control sin repesaje: refiere buena adherencia..."
                       value={newEntry.notes ?? ''}
                       onChange={e => set('notes', e.target.value)} />
+                    <span className="text-[10px] text-text-sub dark:text-gray-500">El peso se precarga con el último registrado — puedes anotar una visita solo de seguimiento sin cambiarlo.</span>
                   </div>
                   <button type="submit"
                     className={`w-full hover:brightness-95 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all ${editingId ? 'bg-amber-400 shadow-amber-400/20' : 'bg-primary shadow-primary/20'}`}>
@@ -1061,7 +1066,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.muscleMass != null ? `${entry.muscleMass} kg` : '-'}</td>
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.visceralFat ?? '-'}</td>
                             <td className="p-3 text-center text-text-sub dark:text-gray-400">{entry.boneMass != null ? `${entry.boneMass} kg` : '-'}</td>
-                            <td className="p-3 text-text-sub dark:text-gray-500 max-w-[120px] truncate">{entry.notes || '-'}</td>
+                            <td className="p-3 text-text-sub dark:text-gray-500 max-w-[120px] truncate" title={entry.notes || undefined}>{entry.notes || '-'}</td>
                             {(onDeleteEntry || onUpdateEntry) && (
                               <td className="p-3 text-center">
                                 <div className="flex items-center justify-center gap-1">
