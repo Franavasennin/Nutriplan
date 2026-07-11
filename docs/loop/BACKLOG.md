@@ -107,7 +107,7 @@ Nuevos ítems:
 
 | ID | Categoría | Severidad | Descripción | Estado |
 |---|---|---|---|---|
-| O-008 | Escalabilidad | media | Tabla `appointments` (agenda/citas) preparada en `docs/supabase/add_appointments_migration.sql` — **NO aplicada**, pendiente de aprobación explícita de Fran antes de poder construir la funcionalidad de frontend | bloqueado — esperando aprobación |
+| O-008 | Escalabilidad | media | Tabla `appointments` (agenda/citas) — **RESUELTO 2026-07-11**: migración aplicada tras aprobación explícita ("haz la agenda de citas"), CRUD en `useAppData.ts`, vista `AgendaView.tsx` enlazada en Sidebar/App.tsx. Verificado en vivo end-to-end contra producción | **resuelto (iteración 003)** |
 | O-009 | (sin categoría — gap del marco) | media | El marco de 16 categorías no tiene ningún apartado de cumplimiento legal/privacidad (RGPD, retención de datos, etc.). Se implementó un registro de consentimiento (checkbox + fecha) como ayuda de memoria, no como certificación de cumplimiento. Considerar si merece una 17ª categoría o quedarse fuera del scoring | abierto |
 | O-010 | Personalización | baja | Adherencia autopercibida codificada como prefijo de texto en `notes` (columna existente) en vez de columna propia — migración preparada en `docs/supabase/add_adherence_migration.sql`, no aplicada | bloqueado — esperando aprobación |
 
