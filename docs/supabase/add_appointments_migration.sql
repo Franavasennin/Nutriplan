@@ -14,16 +14,13 @@
 -- de dispositivo -- inaceptable para citas reales, a diferencia de una
 -- papelera de deshacer de 6 segundos).
 --
--- ⚠️ NO EJECUTAR SIN APROBACIÓN EXPLÍCITA — toca el esquema de producción
---    (oodbwiknxuldokaajwdc.supabase.co). Tabla nueva, no afecta datos
---    existentes; reversible con DROP TABLE.
---
--- Tras aprobar y aplicar esta migración, quedaría pendiente (no incluido en
--- este script): añadir appointments a useAppData.ts (carga inicial + CRUD,
--- mismo patrón que progress_entries) y un componente de vista nuevo
--- (calendario/lista de próximas citas por cliente) enlazado a la navegación
--- principal en App.tsx -- trabajo de implementación no trivial, a estimar
--- aparte una vez aprobado el esquema.
+-- ✅ APLICADA el 2026-07-11 tras aprobación explícita de Fran ("haz la
+--    agenda de citas"). Frontend completo ya implementado: types.ts
+--    (Appointment, AppointmentStatus), hooks/useAppData.ts (CRUD + carga)
+--    y components/AgendaView.tsx (calendario + lista, ver App.tsx paso
+--    'agenda' y Sidebar.tsx). Verificado en vivo end-to-end contra la
+--    producción real: crear → persistir → marcar realizada → historial →
+--    eliminar, con lectura directa de la tabla en cada paso.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 create table if not exists appointments (

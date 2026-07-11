@@ -8,6 +8,7 @@ const CouplesDietView = lazy(() => import('./components/CouplesDietView'));
 const SavedDietsList  = lazy(() => import('./components/SavedDietsList'));
 const FoodDatabase    = lazy(() => import('./components/FoodDatabase'));
 const ProgressTracker = lazy(() => import('./components/ProgressTracker'));
+const AgendaView      = lazy(() => import('./components/AgendaView'));
 const RecipeSearch    = lazy(() => import('./components/RecipeSearch'));
 const Dashboard       = lazy(() => import('./components/Dashboard'));
 import LoadingOverlay   from './components/LoadingOverlay';
@@ -37,7 +38,7 @@ import { getClinicalTargets } from './utils/clinicalTargets';
 import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
 import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
 
-type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
+type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples' | 'agenda';
 
 // ─── Inner app (needs Toast + Confirm context) ────────────────────────────────
 const AppContent: React.FC = () => {
@@ -48,9 +49,10 @@ const AppContent: React.FC = () => {
   // MEJORA-020: las escrituras fallidas ahora avisan con un toast real en
   // vez de perderse en la consola del navegador.
   const {
-    savedDiets, customFoods, progressData, couplesDiets, dbRecipes, uniqueClients, dbOnline,
+    savedDiets, customFoods, progressData, couplesDiets, appointments, dbRecipes, uniqueClients, dbOnline,
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
     saveCouplesDiet, deleteCouplesDiet, updateCouplesDiet,
+    saveAppointment, updateAppointment, deleteAppointment,
     addCustomFood, editCustomFood, deleteCustomFood,
     saveProgressEntry, deleteProgressEntry, updateProgressEntry, updateClientGoal, importAll, appendDiets,
   } = useAppData(msg => toast(msg, 'error'));
@@ -535,6 +537,16 @@ const AppContent: React.FC = () => {
             onDeleteEntry={deleteProgressEntry}
             onUpdateEntry={updateProgressEntry}
             onUpdateGoal={updateClientGoal}
+          />
+        )}
+
+        {currentStep === 'agenda' && (
+          <AgendaView
+            clients={uniqueClients}
+            appointments={appointments}
+            onSave={saveAppointment}
+            onUpdate={updateAppointment}
+            onDelete={deleteAppointment}
           />
         )}
 

@@ -3,7 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import {
   SavedDiet, CustomFood, ClientProgress, Recipe,
   PatientData, CalculatedMetrics, DietResponse, ProgressEntry, PlanVersion,
-  CouplesDiet
+  CouplesDiet, Appointment, AppointmentStatus
 } from '../types';
 
 // ── Row → app type converters ────────────────────────────────────────────────
@@ -15,6 +15,16 @@ const rowToDiet = (r: any): SavedDiet => ({
   metrics:      r.metrics,
   plan:         r.plan,
   planVersions: r.plan_versions ?? [],
+});
+
+const rowToAppointment = (r: any): Appointment => ({
+  id:              r.id,
+  clientName:      r.client_name,
+  scheduledAt:     new Date(r.scheduled_at).getTime(),
+  durationMinutes: r.duration_minutes,
+  status:          r.status as AppointmentStatus,
+  notes:           r.notes ?? undefined,
+  createdAt:       new Date(r.created_at).getTime(),
 });
 
 const rowToCouples = (r: any): CouplesDiet => ({
@@ -72,6 +82,7 @@ export function useAppData(onWriteError?: (message: string) => void) {
   const [customFoods,  setCustomFoods]  = useState<CustomFood[]>([]);
   const [progressData, setProgressData] = useState<ClientProgress[]>([]);
   const [couplesDiets, setCouplesDiets] = useState<CouplesDiet[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [dbOnline,     setDbOnline]     = useState(true);
   const [isDbLoading,  setIsDbLoading]  = useState(true);
 
@@ -157,6 +168,29 @@ export function useAppData(onWriteError?: (message: string) => void) {
       }
     }
     loadCouples();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Carga de citas (separada: si la tabla no existe, no rompe el resto) ────
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAppointments() {
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .order('scheduled_at', { ascending: true });
+        if (cancelled) return;
+        if (error) {
+          console.warn('[appointments] no disponible:', error.message);
+          return;
+        }
+        setAppointments((data ?? []).map(rowToAppointment));
+      } catch (err: any) {
+        if (!cancelled) console.warn('[appointments] error:', err?.message);
+      }
+    }
+    loadAppointments();
     return () => { cancelled = true; };
   }, []);
 
@@ -388,6 +422,37 @@ export function useAppData(onWriteError?: (message: string) => void) {
     ).then(reportError('updateClientGoal'));
   }, []);
 
+  // ── Agenda / citas ────────────────────────────────────────────────────────
+
+  const saveAppointment = useCallback((appt: Appointment) => {
+    setAppointments(prev => [...prev, appt].sort((a, b) => a.scheduledAt - b.scheduledAt));
+    supabase.from('appointments').insert({
+      id: appt.id, client_name: appt.clientName,
+      scheduled_at: new Date(appt.scheduledAt).toISOString(),
+      duration_minutes: appt.durationMinutes, status: appt.status,
+      notes: appt.notes ?? null,
+    }).then(reportError('saveAppointment'));
+  }, []);
+
+  const updateAppointment = useCallback((appt: Appointment) => {
+    setAppointments(prev =>
+      prev.map(a => a.id === appt.id ? appt : a).sort((a, b) => a.scheduledAt - b.scheduledAt)
+    );
+    supabase.from('appointments').update({
+      client_name: appt.clientName,
+      scheduled_at: new Date(appt.scheduledAt).toISOString(),
+      duration_minutes: appt.durationMinutes, status: appt.status,
+      notes: appt.notes ?? null,
+    }).eq('id', appt.id)
+      .then(reportError('updateAppointment'));
+  }, []);
+
+  const deleteAppointment = useCallback((id: string) => {
+    setAppointments(prev => prev.filter(a => a.id !== id));
+    supabase.from('appointments').delete().eq('id', id)
+      .then(reportError('deleteAppointment'));
+  }, []);
+
   // ── Import (bulk replace) ─────────────────────────────────────────────────
 
   const importAll = useCallback(async (payload: {
@@ -473,6 +538,7 @@ export function useAppData(onWriteError?: (message: string) => void) {
     customFoods,
     progressData,
     couplesDiets,
+    appointments,
     dbRecipes,
     uniqueClients,
     dbOnline,
@@ -487,6 +553,9 @@ export function useAppData(onWriteError?: (message: string) => void) {
     saveCouplesDiet,
     deleteCouplesDiet,
     updateCouplesDiet,
+    saveAppointment,
+    updateAppointment,
+    deleteAppointment,
     addCustomFood,
     editCustomFood,
     deleteCustomFood,

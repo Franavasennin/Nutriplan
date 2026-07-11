@@ -2,7 +2,7 @@ import React from 'react';
 import { CLINIC } from '../config/clinic';
 import { downloadCSVTemplate } from '../services/exportService';
 
-export type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples';
+export type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples' | 'agenda';
 
 interface NavItem {
   step: Step;
@@ -11,9 +11,10 @@ interface NavItem {
 }
 
 const NAV_PRIMARY: NavItem[] = [
-  { step: 'dashboard', icon: 'dashboard',   label: 'Dashboard'     },
-  { step: 'form',      icon: 'person_add',  label: 'Nuevo Cliente' },
-  { step: 'progress',  icon: 'monitoring',  label: 'Seguimiento'   },
+  { step: 'dashboard', icon: 'dashboard',      label: 'Dashboard'     },
+  { step: 'form',      icon: 'person_add',     label: 'Nuevo Cliente' },
+  { step: 'agenda',    icon: 'calendar_month', label: 'Agenda'        },
+  { step: 'progress',  icon: 'monitoring',     label: 'Seguimiento'   },
 ];
 
 const NAV_SECONDARY: NavItem[] = [

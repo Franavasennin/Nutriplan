@@ -289,6 +289,34 @@ export interface CouplesDiet {
   personB: SavedDiet;
 }
 
+// ─── Agenda / citas (iteración 003, hallazgo "sin sistema de citas") ─────────
+// Tabla propia `appointments` en Supabase (docs/supabase/add_appointments_migration.sql,
+// aplicada tras aprobación explícita) — a diferencia de adherencia/clientId, una
+// cita es una entidad nueva sin campo JSONB existente donde encajarla.
+export enum AppointmentStatus {
+  Scheduled = 'scheduled',
+  Done      = 'done',
+  Cancelled = 'cancelled',
+  NoShow    = 'no_show',
+}
+
+export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
+  [AppointmentStatus.Scheduled]: 'Programada',
+  [AppointmentStatus.Done]:      'Realizada',
+  [AppointmentStatus.Cancelled]: 'Cancelada',
+  [AppointmentStatus.NoShow]:    'No asistió',
+};
+
+export interface Appointment {
+  id: string;
+  clientName: string;
+  scheduledAt: number;      // timestamp (ms)
+  durationMinutes: number;  // por defecto 30
+  status: AppointmentStatus;
+  notes?: string;
+  createdAt: number;        // timestamp (ms)
+}
+
 // ─── Diet type display labels ─────────────────────────────────────────────────
 
 export const DIET_TYPE_LABELS: Record<DietType, string> = {
