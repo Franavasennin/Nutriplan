@@ -3,7 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import {
   SavedDiet, CustomFood, ClientProgress, Recipe,
   PatientData, CalculatedMetrics, DietResponse, ProgressEntry, PlanVersion,
-  CouplesDiet, Appointment, AppointmentStatus
+  Appointment, AppointmentStatus
 } from '../types';
 
 // ── Row → app type converters ────────────────────────────────────────────────
@@ -30,13 +30,6 @@ const rowToAppointment = (r: any): Appointment => ({
   status:          r.status as AppointmentStatus,
   notes:           r.notes ?? undefined,
   createdAt:       new Date(r.created_at).getTime(),
-});
-
-const rowToCouples = (r: any): CouplesDiet => ({
-  id:        r.id,
-  timestamp: r.timestamp,
-  personA:   r.person_a,
-  personB:   r.person_b,
 });
 
 const rowToFood = (r: any): CustomFood => ({
@@ -86,7 +79,6 @@ export function useAppData(onWriteError?: (message: string) => void) {
   const [savedDiets,   setSavedDiets]   = useState<SavedDiet[]>([]);
   const [customFoods,  setCustomFoods]  = useState<CustomFood[]>([]);
   const [progressData, setProgressData] = useState<ClientProgress[]>([]);
-  const [couplesDiets, setCouplesDiets] = useState<CouplesDiet[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [dbOnline,     setDbOnline]     = useState(true);
   const [isDbLoading,  setIsDbLoading]  = useState(true);
@@ -150,29 +142,6 @@ export function useAppData(onWriteError?: (message: string) => void) {
       }
     }
     load();
-    return () => { cancelled = true; };
-  }, []);
-
-  // ── Carga de dietas de pareja (separada: si la tabla no existe, no rompe el resto) ──
-  useEffect(() => {
-    let cancelled = false;
-    async function loadCouples() {
-      try {
-        const { data, error } = await supabase
-          .from('couples_diets')
-          .select('*')
-          .order('timestamp', { ascending: false });
-        if (cancelled) return;
-        if (error) {
-          console.warn('[couples_diets] no disponible:', error.message);
-          return;
-        }
-        setCouplesDiets((data ?? []).map(rowToCouples));
-      } catch (err: any) {
-        if (!cancelled) console.warn('[couples_diets] error:', err?.message);
-      }
-    }
-    loadCouples();
     return () => { cancelled = true; };
   }, []);
 
@@ -359,32 +328,6 @@ export function useAppData(onWriteError?: (message: string) => void) {
       .then(reportError('unlinkDiet'));
   }, []);
 
-  // ── Couples diets (legacy — se retira tras migrar la UI a linkedToId) ───────
-
-  /** Guarda dos SavedDiet vinculadas como una dieta de pareja. Devuelve el id. */
-  const saveCouplesDiet = useCallback((personA: SavedDiet, personB: SavedDiet): string => {
-    const id = crypto.randomUUID();
-    const ts = Date.now();
-    const couples: CouplesDiet = { id, timestamp: ts, personA, personB };
-    setCouplesDiets(prev => [couples, ...prev]);
-    supabase.from('couples_diets').insert({
-      id, timestamp: ts, person_a: personA, person_b: personB,
-    }).then(reportError('saveCouplesDiet'));
-    return id;
-  }, []);
-
-  const deleteCouplesDiet = useCallback((id: string) => {
-    setCouplesDiets(prev => prev.filter(c => c.id !== id));
-    supabase.from('couples_diets').delete().eq('id', id)
-      .then(reportError('deleteCouplesDiet'));
-  }, []);
-
-  const updateCouplesDiet = useCallback((id: string, personA: SavedDiet, personB: SavedDiet) => {
-    setCouplesDiets(prev => prev.map(c => c.id === id ? { ...c, personA, personB } : c));
-    supabase.from('couples_diets').update({ person_a: personA, person_b: personB }).eq('id', id)
-      .then(reportError('updateCouplesDiet'));
-  }, []);
-
   // ── Foods ─────────────────────────────────────────────────────────────────
 
   const addCustomFood = useCallback((food: CustomFood) => {
@@ -525,23 +468,10 @@ export function useAppData(onWriteError?: (message: string) => void) {
     diets?: SavedDiet[];
     foods?: CustomFood[];
     progress?: ClientProgress[];
-    couples?: CouplesDiet[];
   }) => {
     if (payload.diets)    setSavedDiets(payload.diets);
     if (payload.foods)    setCustomFoods(payload.foods);
     if (payload.progress) setProgressData(payload.progress);
-    if (payload.couples)  setCouplesDiets(payload.couples);
-
-    if (payload.couples) {
-      await supabase.from('couples_diets').delete().neq('id', '__none__');
-      if (payload.couples.length) {
-        await supabase.from('couples_diets').insert(
-          payload.couples.map(c => ({
-            id: c.id, timestamp: c.timestamp, person_a: c.personA, person_b: c.personB,
-          }))
-        );
-      }
-    }
 
     if (payload.diets) {
       await supabase.from('saved_diets').delete().neq('id', '__none__');
@@ -612,7 +542,6 @@ export function useAppData(onWriteError?: (message: string) => void) {
     savedDiets,
     customFoods,
     progressData,
-    couplesDiets,
     appointments,
     dbRecipes,
     uniqueClients,
@@ -628,9 +557,6 @@ export function useAppData(onWriteError?: (message: string) => void) {
     saveLinkedDiet,
     updateLinkedDiet,
     unlinkDiet,
-    saveCouplesDiet,
-    deleteCouplesDiet,
-    updateCouplesDiet,
     saveAppointment,
     updateAppointment,
     deleteAppointment,

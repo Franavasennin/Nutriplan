@@ -4,7 +4,6 @@ import React, { useState, useMemo, useRef, lazy, Suspense } from 'react';
 // se descarga solo cuando el usuario navega a ella.
 const PatientForm     = lazy(() => import('./components/PatientForm'));
 const DietPlanDisplay = lazy(() => import('./components/DietPlanDisplay'));
-const CouplesDietView = lazy(() => import('./components/CouplesDietView'));
 const SavedDietsList  = lazy(() => import('./components/SavedDietsList'));
 const FoodDatabase    = lazy(() => import('./components/FoodDatabase'));
 const ProgressTracker = lazy(() => import('./components/ProgressTracker'));
@@ -33,16 +32,16 @@ import { parseDietFromPDF, regenerateSingleDay, getMealSwap } from './services/g
 import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
-import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, CouplesDiet } from './types';
+import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion } from './types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat, computeMetrics } from './utils/calculations';
 import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { getClinicalTargets } from './utils/clinicalTargets';
 import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
-import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
+import { generateDietPlan } from './services/geminiService';
 import { scalePlanToTarget } from './utils/planScaling';
 import { applyAllergenSubstitutions } from './utils/allergenSubstitution';
 
-type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples' | 'agenda';
+type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'agenda';
 
 // ─── Inner app (needs Toast + Confirm context) ────────────────────────────────
 const AppContent: React.FC = () => {
@@ -53,10 +52,9 @@ const AppContent: React.FC = () => {
   // MEJORA-020: las escrituras fallidas ahora avisan con un toast real en
   // vez de perderse en la consola del navegador.
   const {
-    savedDiets, customFoods, progressData, couplesDiets, appointments, dbRecipes, uniqueClients, dbOnline,
+    savedDiets, customFoods, progressData, appointments, dbRecipes, uniqueClients, dbOnline,
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
     saveLinkedDiet, updateLinkedDiet, unlinkDiet,
-    saveCouplesDiet, deleteCouplesDiet, updateCouplesDiet,
     saveAppointment, updateAppointment, deleteAppointment,
     addCustomFood, editCustomFood, deleteCustomFood,
     saveProgressEntry, deleteProgressEntry, updateProgressEntry, updateClientGoal, importAll, appendDiets,
@@ -87,7 +85,6 @@ const AppContent: React.FC = () => {
   const [plan,           setPlan]           = useState<DietResponse | null>(null);
   const [patientData,    setPatientData]    = useState<PatientData | null>(null);
   const [currentDietId,  setCurrentDietId]  = useState<string | null>(null);
-  const [currentCouples, setCurrentCouples] = useState<CouplesDiet | null>(null);
   // Pareja Inteligente: modal de alta/edición de pareja vinculada. `existingPartner`
   // presente = modo edición de datos personales; ausente = crear pareja nueva.
   const [partnerModal, setPartnerModal] = useState<{ principal: SavedDiet; existingPartner?: SavedDiet } | null>(null);
@@ -186,7 +183,6 @@ const AppContent: React.FC = () => {
     setMetrics(null);
     setPatientData(null);
     setCurrentDietId(null);
-    setCurrentCouples(null);
   };
 
   // ── Diet generation ─────────────────────────────────────────────────────────
@@ -252,43 +248,6 @@ const AppContent: React.FC = () => {
 
   // computeMetrics (IMC→peso de referencia→BMR→TEE→macros→targets) ahora vive
   // en utils/calculations.ts, reutilizada también por AddPartnerModal.tsx.
-
-  // ── Generación de dieta para pareja (legacy) ──────────────────────────────────
-  const handleCoupleSubmit = async (rawA: PatientData, rawB: PatientData) => {
-    setIsLoading(true);
-    try {
-      // MEJORA-018: ID estable por persona (ver handleFormSubmit).
-      const withIdA: PatientData = rawA.clientId ? rawA : { ...rawA, clientId: crypto.randomUUID() };
-      const withIdB: PatientData = rawB.clientId ? rawB : { ...rawB, clientId: crypto.randomUUID() };
-      // Seguridad clínica (auditoría): aplica el cribado a cada persona antes de calcular
-      const a = enforceClinicalSafety(withIdA);
-      const b = enforceClinicalSafety(withIdB);
-      const metricsA = computeMetrics(a);
-      const metricsB = computeMetrics(b);
-      // 1) Genera el menú base completo con la persona A (todos los días según semanas).
-      const planA = await generateDietPlan(a, metricsA, customFoods);
-      // 2) La persona B come LO MISMO: se adapta el menú de A a sus macros (mismos platos,
-      //    porciones distintas). Así B sale siempre con TODOS los días que tiene A.
-      const planB = await adaptPlanToPartner(planA, b, metricsB);
-      // MEJORA-011 (iteración 003): verificación de alérgenos también en
-      // planes de pareja — cada plan contra los alérgenos de su persona.
-      const violationsA = verifyPlanAgainstAllergens(planA, a);
-      const violationsB = verifyPlanAgainstAllergens(planB, b);
-      if (violationsA.length > 0) toast(`[${a.name || 'Persona A'}] ${formatAllergenViolationsMessage(violationsA)}`, 'error');
-      if (violationsB.length > 0) toast(`[${b.name || 'Persona B'}] ${formatAllergenViolationsMessage(violationsB)}`, 'error');
-      const now = Date.now();
-      const savedA: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: a, metrics: metricsA, plan: planA, planVersions: [] };
-      const savedB: SavedDiet = { id: crypto.randomUUID(), timestamp: now, patientData: b, metrics: metricsB, plan: planB, planVersions: [] };
-      const couplesId = saveCouplesDiet(savedA, savedB);
-      setCurrentCouples({ id: couplesId, timestamp: now, personA: savedA, personB: savedB });
-      setCurrentStep('couples');
-      toast('Planes de pareja generados con éxito.', 'success');
-    } catch (err: any) {
-      toast(err.message || 'Error al generar los planes de pareja.', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // ── Diet management ─────────────────────────────────────────────────────────
   const UNDO_WINDOW_MS = 6000;
@@ -422,7 +381,7 @@ const AppContent: React.FC = () => {
     : 'Aún sin backups';
 
   const handleExportJSON = () => {
-    exportJSON(savedDiets, customFoods, progressData, couplesDiets);
+    exportJSON(savedDiets, customFoods, progressData);
     const now = Date.now();
     localStorage.setItem(LAST_BACKUP_KEY, String(now));
     setLastBackupAt(now);
@@ -550,18 +509,7 @@ const AppContent: React.FC = () => {
         )}
 
         {currentStep === 'form' && (
-          <PatientForm onSubmit={handleFormSubmit} onSubmitCouple={handleCoupleSubmit} isLoading={isLoading} initialData={patientData ?? undefined} />
-        )}
-
-        {currentStep === 'couples' && currentCouples && (
-          <CouplesDietView
-            couplesDiet={currentCouples}
-            customFoods={customFoods}
-            onUpdateCouplesDiet={(personA, personB) => {
-              updateCouplesDiet(currentCouples.id, personA, personB);
-              setCurrentCouples(prev => prev ? { ...prev, personA, personB } : prev);
-            }}
-          />
+          <PatientForm onSubmit={handleFormSubmit} isLoading={isLoading} initialData={patientData ?? undefined} />
         )}
 
         {currentStep === 'result' && metrics && plan && (
@@ -646,40 +594,6 @@ const AppContent: React.FC = () => {
 
         {currentStep === 'history' && (
           <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
-            {/* Sección de planes de pareja */}
-            {couplesDiets.length > 0 && (
-              <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-primary/30 p-5">
-                <h3 className="flex items-center gap-2 font-bold text-text-main dark:text-white mb-4">
-                  <span className="material-symbols-outlined text-primary">group</span>
-                  Planes de Pareja ({couplesDiets.length})
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {couplesDiets.map(cd => (
-                    <div key={cd.id} className="flex items-center justify-between p-3 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark">
-                      <button
-                        onClick={() => { setCurrentCouples(cd); setCurrentStep('couples'); }}
-                        className="flex-1 text-left">
-                        <p className="text-sm font-bold text-text-main dark:text-white">
-                          {cd.personA.patientData.name || 'Persona A'} &amp; {cd.personB.patientData.name || 'Persona B'}
-                        </p>
-                        <p className="text-xs text-text-sub dark:text-gray-400">
-                          {new Date(cd.timestamp).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </p>
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const ok = await confirm({ title: 'Eliminar plan de pareja', message: '¿Seguro? Esta acción no se puede deshacer.', confirmLabel: 'Eliminar', danger: true });
-                          if (ok) { deleteCouplesDiet(cd.id); toast('Plan de pareja eliminado.', 'success'); }
-                        }}
-                        className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all"
-                        title="Eliminar">
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             <SavedDietsList
             diets={visibleSavedDiets}
             onLoad={handleLoadDiet}

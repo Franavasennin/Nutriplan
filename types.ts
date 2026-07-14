@@ -301,15 +301,6 @@ export interface SavedDiet {
   substitutions?: AppliedSubstitution[]; // sustituciones por alergia del último escalado
 }
 
-// ─── Dieta para parejas ───────────────────────────────────────────────────────
-// Dos planes vinculados, cada uno con sus propios parámetros y macros.
-export interface CouplesDiet {
-  id: string;
-  timestamp: number;
-  personA: SavedDiet;
-  personB: SavedDiet;
-}
-
 // ─── Agenda / citas (iteración 003, hallazgo "sin sistema de citas") ─────────
 // Tabla propia `appointments` en Supabase (docs/supabase/add_appointments_migration.sql,
 // aplicada tras aprobación explícita) — a diferencia de adherencia/clientId, una
