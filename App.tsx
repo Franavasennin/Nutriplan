@@ -9,6 +9,8 @@ const SavedDietsList  = lazy(() => import('./components/SavedDietsList'));
 const FoodDatabase    = lazy(() => import('./components/FoodDatabase'));
 const ProgressTracker = lazy(() => import('./components/ProgressTracker'));
 const AgendaView      = lazy(() => import('./components/AgendaView'));
+const AddPartnerModal    = lazy(() => import('./components/AddPartnerModal'));
+const LinkedPartnerPanel = lazy(() => import('./components/LinkedPartnerPanel'));
 const RecipeSearch    = lazy(() => import('./components/RecipeSearch'));
 const Dashboard       = lazy(() => import('./components/Dashboard'));
 import LoadingOverlay   from './components/LoadingOverlay';
@@ -32,7 +34,7 @@ import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
 import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, CouplesDiet } from './types';
-import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat } from './utils/calculations';
+import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat, computeMetrics } from './utils/calculations';
 import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { getClinicalTargets } from './utils/clinicalTargets';
 import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
@@ -51,6 +53,7 @@ const AppContent: React.FC = () => {
   const {
     savedDiets, customFoods, progressData, couplesDiets, appointments, dbRecipes, uniqueClients, dbOnline,
     saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
+    saveLinkedDiet, updateLinkedDiet, unlinkDiet,
     saveCouplesDiet, deleteCouplesDiet, updateCouplesDiet,
     saveAppointment, updateAppointment, deleteAppointment,
     addCustomFood, editCustomFood, deleteCustomFood,
@@ -83,6 +86,16 @@ const AppContent: React.FC = () => {
   const [patientData,    setPatientData]    = useState<PatientData | null>(null);
   const [currentDietId,  setCurrentDietId]  = useState<string | null>(null);
   const [currentCouples, setCurrentCouples] = useState<CouplesDiet | null>(null);
+  // Pareja Inteligente: modal de alta/edición de pareja vinculada. `existingPartner`
+  // presente = modo edición de datos personales; ausente = crear pareja nueva.
+  const [partnerModal, setPartnerModal] = useState<{ principal: SavedDiet; existingPartner?: SavedDiet } | null>(null);
+
+  // Pareja Inteligente: si el plan que se está viendo pertenece a un
+  // principal con pareja vinculada, se muestra el panel de resumen.
+  const linkedPartner = useMemo(
+    () => currentDietId ? savedDiets.find(d => d.linkedToId === currentDietId) : undefined,
+    [savedDiets, currentDietId]
+  );
   // MEJORA-019 (iteración 003, "papelera / deshacer borrado"): las dietas
   // marcadas para borrar se ocultan al instante pero el DELETE real a
   // Supabase se retrasa unos segundos, con un botón "Deshacer" en el toast.
@@ -168,29 +181,10 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // ── Cálculo de métricas reutilizable ──────────────────────────────────────────
-  // Nota: se asume que `data` ya ha pasado por enforceClinicalSafety en el
-  // llamador (handleFormSubmit / handleCoupleSubmit). Aun así, se pasan las
-  // flags de seguridad a calculateMacros como defensa adicional.
-  const computeMetrics = (data: PatientData): CalculatedMetrics => {
-    const imc         = calculateIMC(data.weight, data.height);
-    const bmr         = calculateBMR(data);
-    const tee         = calculateTEE(bmr, data.activity);
-    const idealWeight = calculateIdealWeight(data.height, data.gender);
-    const refWeight   = data.bodyFatPercent != null
-      ? calculateAdjustedWeightFromBodyFat(data.weight, data.bodyFatPercent)
-      : (imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight);
-    const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
-      isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
-    });
-    const clinicalTargets = getClinicalTargets(data, macros.calories);
-    return {
-      imc, bmr, tee, macros,
-      targets: { fiberG: clinicalTargets.fiberGMin, addedSugarG: clinicalTargets.addedSugarGMax, sodiumMg: clinicalTargets.sodiumMgMax },
-    };
-  };
+  // computeMetrics (IMC→peso de referencia→BMR→TEE→macros→targets) ahora vive
+  // en utils/calculations.ts, reutilizada también por AddPartnerModal.tsx.
 
-  // ── Generación de dieta para pareja ───────────────────────────────────────────
+  // ── Generación de dieta para pareja (legacy) ──────────────────────────────────
   const handleCoupleSubmit = async (rawA: PatientData, rawB: PatientData) => {
     setIsLoading(true);
     try {
@@ -478,6 +472,7 @@ const AppContent: React.FC = () => {
               installEvent={deferredPrompt}
               onInstall={install}
               onExportCSV={handleExportCSV}
+              onAddPartner={(diet) => setPartnerModal({ principal: diet })}
             />
             <div className="px-6 pb-8 max-w-xl">
               <NotificationSettings />
@@ -501,6 +496,22 @@ const AppContent: React.FC = () => {
         )}
 
         {currentStep === 'result' && metrics && plan && (
+          <>
+            {linkedPartner && (
+              <div className="px-4 md:px-8 pt-4">
+                <LinkedPartnerPanel
+                  partner={linkedPartner}
+                  onEdit={() => {
+                    const principal = savedDiets.find(d => d.id === currentDietId);
+                    if (principal) setPartnerModal({ principal, existingPartner: linkedPartner });
+                  }}
+                  onRegenerate={() => toast('Actualizar dieta de la pareja: disponible en la próxima fase.', 'info')}
+                  onUnlink={() => { unlinkDiet(linkedPartner.id); toast('Pareja convertida en cliente independiente.', 'success'); }}
+                  onDeletePartner={() => { deleteDiet(linkedPartner.id); toast('Pareja eliminada.', 'success'); }}
+                  onViewPartner={() => handleLoadDiet(linkedPartner)}
+                />
+              </div>
+            )}
           <DietPlanDisplay
             metrics={metrics}
             plan={plan}
@@ -524,6 +535,7 @@ const AppContent: React.FC = () => {
             onSwapMeal={handleSwapMeal}
             onRestoreVersion={handleRestoreVersion}
           />
+          </>
         )}
 
         {currentStep === 'recipes' && <RecipeSearch recipes={dbRecipes} />}
@@ -604,6 +616,16 @@ const AppContent: React.FC = () => {
             onImportPDF={handleImportPDF}
           />
           </div>
+        )}
+
+        {partnerModal && (
+          <AddPartnerModal
+            principalDiet={partnerModal.principal}
+            existingPartner={partnerModal.existingPartner}
+            onClose={() => setPartnerModal(null)}
+            onCreate={(diet) => { saveLinkedDiet(diet); setPartnerModal(null); }}
+            onUpdatePersonalData={(id, data) => updatePatientData(id, data)}
+          />
         )}
 
        </Suspense>

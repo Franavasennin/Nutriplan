@@ -16,6 +16,7 @@ interface Props {
     installEvent: any;
     onInstall: () => void;
     onExportCSV: () => void;
+    onAddPartner: (diet: SavedDiet) => void;
 }
 
 type Filter = 'all' | 'active' | 'inactive';
@@ -23,7 +24,7 @@ type Filter = 'all' | 'active' | 'inactive';
 const Dashboard: React.FC<Props> = ({
     stats, allDiets, onNewClient, onLoadDiet,
     onDeleteDiet, onEditClient, onUpdatePatientData,
-    installEvent, onInstall, onExportCSV
+    installEvent, onInstall, onExportCSV, onAddPartner
 }) => {
     const [search, setSearch]   = useState('');
     const [filter, setFilter]   = useState<Filter>('all');
@@ -237,6 +238,9 @@ const Dashboard: React.FC<Props> = ({
 
                     {filtered.map((diet) => {
                         const isRecent = Date.now() - diet.timestamp < 30 * 24 * 60 * 60 * 1000;
+                        const principal = diet.linkedToId ? allDiets.find(d => d.id === diet.linkedToId) : undefined;
+                        const hasPartner = allDiets.some(d => d.linkedToId === diet.id);
+                        const canAddPartner = !diet.linkedToId && !hasPartner && (diet.plan?.weeklyPlan?.length ?? 0) > 0;
                         return (
                             <div
                                 key={diet.id}
@@ -273,6 +277,15 @@ const Dashboard: React.FC<Props> = ({
                                                 <span className="material-symbols-outlined text-base text-amber-500">history</span>
                                                 Historial de dietas
                                             </button>
+                                            {canAddPartner && (
+                                                <button
+                                                    onClick={() => { onAddPartner(diet); closeMenu(); }}
+                                                    className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold text-text-main dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-base text-pink-500">add_circle</span>
+                                                    Añadir Pareja
+                                                </button>
+                                            )}
                                             <div className="border-t border-border-light dark:border-border-dark" />
                                             <button
                                                 onClick={() => { onDeleteDiet(diet.id); closeMenu(); }}
@@ -294,6 +307,12 @@ const Dashboard: React.FC<Props> = ({
                                             <div className="overflow-hidden">
                                                 <h3 className="text-base font-bold text-text-main dark:text-white truncate pr-8">{diet.patientData.name || 'Paciente'}</h3>
                                                 <p className="text-xs text-text-sub dark:text-gray-400">{diet.patientData.age} años • {diet.patientData.weight}kg</p>
+                                                {principal && (
+                                                    <p className="flex items-center gap-1 text-[10px] text-primary-accessible dark:text-primary font-semibold mt-0.5">
+                                                        <span className="material-symbols-outlined text-[12px]">group</span>
+                                                        Pareja de {principal.patientData.name || 'paciente'}
+                                                    </p>
+                                                )}
                                                 {!diet.patientData.gdprConsent?.granted && (
                                                     <p className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5" title="Registra el consentimiento en 'Editar datos'">
                                                         <span className="material-symbols-outlined text-[12px]">warning</span>

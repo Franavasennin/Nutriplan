@@ -1,5 +1,6 @@
-import { PatientData, Gender, ActivityLevel, DietType, AthleteGoal, Condition, CalorieGoal, CALORIE_GOAL_ADJUST } from '../types';
+import { PatientData, Gender, ActivityLevel, DietType, AthleteGoal, Condition, CalorieGoal, CALORIE_GOAL_ADJUST, CalculatedMetrics } from '../types';
 import { RENAL_PROTEIN_CAP_G_PER_KG } from './clinicalSafety';
+import { getClinicalTargets } from './clinicalTargets';
 
 // ─── IMC ──────────────────────────────────────────────────────────────────────
 
@@ -328,4 +329,28 @@ export const calculateAllMetrics = (data: PatientData): ExtendedMetrics => {
   const dailyWater     = calculateDailyWater(data.weight, data.activity);
 
   return { imc, imcCategory, bmr, tee, idealWeight, adjustedWeight, dailyWater, macros };
+};
+
+// ─── Métricas completas para generación de plan (Pareja Inteligente) ─────────
+// Extraída de App.tsx (donde vivía como función local `computeMetrics`) para
+// que components/AddPartnerModal.tsx la reutilice sin depender de App.tsx ni
+// duplicar la composición IMC→peso de referencia→BMR→TEE→macros→targets.
+// App.tsx sigue siendo el único punto que la invoca para el paciente
+// principal; esta es la MISMA función, solo movida de sitio.
+export const computeMetrics = (data: PatientData): CalculatedMetrics => {
+  const imc         = calculateIMC(data.weight, data.height);
+  const bmr         = calculateBMR(data);
+  const tee         = calculateTEE(bmr, data.activity);
+  const idealWeight = calculateIdealWeight(data.height, data.gender);
+  const refWeight   = data.bodyFatPercent != null
+    ? calculateAdjustedWeightFromBodyFat(data.weight, data.bodyFatPercent)
+    : (imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight);
+  const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
+    isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
+  });
+  const clinicalTargets = getClinicalTargets(data, macros.calories);
+  return {
+    imc, bmr, tee, macros,
+    targets: { fiberG: clinicalTargets.fiberGMin, addedSugarG: clinicalTargets.addedSugarGMax, sodiumMg: clinicalTargets.sodiumMgMax },
+  };
 };
