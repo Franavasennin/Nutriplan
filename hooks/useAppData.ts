@@ -9,12 +9,17 @@ import {
 // ── Row → app type converters ────────────────────────────────────────────────
 
 const rowToDiet = (r: any): SavedDiet => ({
-  id:           r.id,
-  timestamp:    r.timestamp,
-  patientData:  r.patient_data,
-  metrics:      r.metrics,
-  plan:         r.plan,
-  planVersions: r.plan_versions ?? [],
+  id:             r.id,
+  timestamp:      r.timestamp,
+  patientData:    r.patient_data,
+  metrics:        r.metrics,
+  plan:           r.plan,
+  planVersions:   r.plan_versions ?? [],
+  linkedToId:     r.linked_to_id     ?? undefined,
+  linkedRole:     r.linked_role      ?? undefined,
+  linkedSyncedAt: r.linked_synced_at ?? undefined,
+  lockedMeals:    r.locked_meals     ?? [],
+  substitutions:  r.substitutions    ?? [],
 });
 
 const rowToAppointment = (r: any): Appointment => ({
@@ -283,6 +288,11 @@ export function useAppData(onWriteError?: (message: string) => void) {
         id: d.id, timestamp: d.timestamp,
         patient_data: d.patientData, metrics: d.metrics, plan: d.plan,
         plan_versions: d.planVersions ?? [],
+        linked_to_id: d.linkedToId ?? null,
+        linked_role: d.linkedRole ?? null,
+        linked_synced_at: d.linkedSyncedAt ?? null,
+        locked_meals: d.lockedMeals ?? [],
+        substitutions: d.substitutions ?? [],
       }))
     ).then(reportError('appendDiets'));
   }, []);
@@ -293,7 +303,63 @@ export function useAppData(onWriteError?: (message: string) => void) {
       .then(reportError('restorePlanVersion'));
   }, []);
 
-  // ── Couples diets ───────────────────────────────────────────────────────────
+  // ── Vínculo Pareja Inteligente ───────────────────────────────────────────────
+  // Una pareja/familiar es una fila normal de saved_diets con linkedToId
+  // apuntando al principal — no hay tabla aparte (ver docs/supabase/
+  // link_saved_diets_migration.sql).
+
+  /** Guarda una nueva SavedDiet vinculada a un principal (pareja recién generada). */
+  const saveLinkedDiet = useCallback((diet: SavedDiet): string => {
+    setSavedDiets(prev => [diet, ...prev]);
+    if (diet.patientData.name) {
+      setProgressData(prev =>
+        prev.find(p => p.clientName === diet.patientData.name)
+          ? prev
+          : [...prev, { clientName: diet.patientData.name!, entries: [] }]
+      );
+    }
+    supabase.from('saved_diets').insert({
+      id: diet.id, timestamp: diet.timestamp,
+      patient_data: diet.patientData, metrics: diet.metrics, plan: diet.plan,
+      plan_versions: diet.planVersions ?? [],
+      linked_to_id: diet.linkedToId ?? null,
+      linked_role: diet.linkedRole ?? null,
+      linked_synced_at: diet.linkedSyncedAt ?? null,
+      locked_meals: diet.lockedMeals ?? [],
+      substitutions: diet.substitutions ?? [],
+    }).then(reportError('saveLinkedDiet'));
+    return diet.id;
+  }, []);
+
+  /** Resincroniza (o guarda una edición manual de) la dieta de una pareja ya vinculada. */
+  const updateLinkedDiet = useCallback((
+    id: string,
+    plan: DietResponse,
+    lockedMeals: string[],
+    substitutions: SavedDiet['substitutions'],
+    linkedSyncedAt: number
+  ) => {
+    setSavedDiets(prev => prev.map(d =>
+      d.id === id ? { ...d, plan, lockedMeals, substitutions, linkedSyncedAt } : d
+    ));
+    supabase.from('saved_diets').update({
+      plan, locked_meals: lockedMeals, substitutions: substitutions ?? [], linked_synced_at: linkedSyncedAt,
+    }).eq('id', id)
+      .then(reportError('updateLinkedDiet'));
+  }, []);
+
+  /** "Convertir en cliente independiente": limpia el vínculo sin borrar la dieta. */
+  const unlinkDiet = useCallback((id: string) => {
+    setSavedDiets(prev => prev.map(d =>
+      d.id === id ? { ...d, linkedToId: undefined, linkedRole: undefined, linkedSyncedAt: undefined, lockedMeals: [] } : d
+    ));
+    supabase.from('saved_diets').update({
+      linked_to_id: null, linked_role: null, linked_synced_at: null, locked_meals: [],
+    }).eq('id', id)
+      .then(reportError('unlinkDiet'));
+  }, []);
+
+  // ── Couples diets (legacy — se retira tras migrar la UI a linkedToId) ───────
 
   /** Guarda dos SavedDiet vinculadas como una dieta de pareja. Devuelve el id. */
   const saveCouplesDiet = useCallback((personA: SavedDiet, personB: SavedDiet): string => {
@@ -480,11 +546,20 @@ export function useAppData(onWriteError?: (message: string) => void) {
     if (payload.diets) {
       await supabase.from('saved_diets').delete().neq('id', '__none__');
       if (payload.diets.length) {
+        // Principales (sin linkedToId) primero: linked_to_id tiene una FK a
+        // saved_diets(id) — insertar una pareja antes que su principal
+        // violaría la restricción.
+        const ordered = [...payload.diets].sort((a, b) => (a.linkedToId ? 1 : 0) - (b.linkedToId ? 1 : 0));
         await supabase.from('saved_diets').insert(
-          payload.diets.map(d => ({
+          ordered.map(d => ({
             id: d.id, timestamp: d.timestamp,
             patient_data: d.patientData, metrics: d.metrics, plan: d.plan,
             plan_versions: d.planVersions ?? [],
+            linked_to_id: d.linkedToId ?? null,
+            linked_role: d.linkedRole ?? null,
+            linked_synced_at: d.linkedSyncedAt ?? null,
+            locked_meals: d.lockedMeals ?? [],
+            substitutions: d.substitutions ?? [],
           }))
         );
       }
@@ -550,6 +625,9 @@ export function useAppData(onWriteError?: (message: string) => void) {
     deleteDiet,
     appendDiets,
     restorePlanVersion,
+    saveLinkedDiet,
+    updateLinkedDiet,
+    unlinkDiet,
     saveCouplesDiet,
     deleteCouplesDiet,
     updateCouplesDiet,
