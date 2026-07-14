@@ -3,6 +3,7 @@ import { Recipe, RecipeFilters, MealType, DietType, ALLERGEN_LABELS } from '../t
 import { findRecipes } from '../services/geminiService';
 import { RECIPES } from '../data/recipes';
 import { getRecipeAllergens } from '../utils/allergenVerification';
+import { FoodAutocompleteInput } from './FoodAutocomplete';
 
 interface RecipeSearchProps {
   /** External recipe catalogue (e.g. synced from DB). Falls back to static RECIPES. */
@@ -223,12 +224,13 @@ const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes })
           {/* Excluir alimentos */}
           <div>
             <h4 className="text-xs font-bold text-text-sub dark:text-gray-400 uppercase tracking-wider mb-3">Excluir Alimentos</h4>
-            <input
+            <FoodAutocompleteInput
               type="text"
+              separator=","
               placeholder="Ej: nueces, marisco..."
               className="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm outline-none dark:text-white"
               value={filters.excludeIngredients ?? ''}
-              onChange={e => handleFilterChange({ excludeIngredients: e.target.value })}
+              onChange={v => handleFilterChange({ excludeIngredients: v })}
             />
           </div>
 
@@ -264,12 +266,13 @@ const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes })
           </div>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
-            <input
+            <FoodAutocompleteInput
+              wrapperClassName="w-full"
               className="block w-full pl-10 pr-3 py-3 border-none rounded-xl bg-gray-100 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-sm"
               placeholder="Buscar por nombre, ingrediente o etiqueta..."
               type="text"
               value={filters.query}
-              onChange={e => handleFilterChange({ query: e.target.value })}
+              onChange={v => handleFilterChange({ query: v })}
               onKeyDown={handleKeyDown}
             />
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CustomFood } from '../types';
 import { useConfirm } from './ConfirmDialog';
+import { FoodAutocompleteInput } from './FoodAutocomplete';
 
 interface Props {
   foods: CustomFood[];
@@ -130,7 +131,7 @@ const FoodDatabase: React.FC<Props> = ({ foods, onAdd, onDelete, onEdit }) => {
               {/* Fila 1 */}
               <div className="md:col-span-2">
                 <label className={LABEL}>Nombre *</label>
-                <input type="text" className={FIELD_INPUT} value={form.name} onChange={setField('name')} placeholder="Ej: Pan integral Hacendado" />
+                <FoodAutocompleteInput type="text" className={FIELD_INPUT} value={form.name} onChange={v => setForm(prev => ({ ...prev, name: v }))} placeholder="Ej: Pan integral Hacendado" />
               </div>
               <div>
                 <label className={LABEL}>Marca</label>

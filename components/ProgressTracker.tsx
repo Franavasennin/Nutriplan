@@ -1070,7 +1070,7 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
                   </div>
                   <div>
                     <label className={labelCls}>Notas</label>
-                    <textarea aria-label="Notas" className={inputCls} rows={2}
+                    <textarea aria-label="Notas" className={inputCls} rows={2} spellCheck lang="es"
                       placeholder="Ej. Visita de control sin repesaje: refiere buena adherencia..."
                       value={newEntry.notes ?? ''}
                       onChange={e => set('notes', e.target.value)} />

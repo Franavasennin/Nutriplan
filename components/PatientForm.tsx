@@ -18,6 +18,7 @@ import {
   ALLERGEN_LABELS,
 } from '../types';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
+import { FoodAutocompleteInput } from './FoodAutocomplete';
 
 // ─── Recomendación de nº de comidas ──────────────────────────────────────────
 
@@ -251,6 +252,8 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                                 <textarea
                                     className="w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white placeholder:text-text-sub/60 outline-none resize-none text-sm"
                                     rows={3}
+                                    spellCheck
+                                    lang="es"
                                     placeholder="Ej. Paciente con ansiedad por la comida, requiere seguimiento semanal. Intolerancia leve a los lácteos no diagnosticada..."
                                     value={formData.clinicalNotes ?? ''}
                                     onChange={(e) => setFormData({...formData, clinicalNotes: e.target.value})}
@@ -500,12 +503,13 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                             </label>
                             <label className="flex flex-col gap-2">
                                 <span className="text-sm font-semibold text-text-main dark:text-slate-200">Otros alimentos a excluir</span>
-                                <input
+                                <FoodAutocompleteInput
                                     className="h-12 w-full rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark px-4 focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white placeholder:text-text-sub/60 outline-none"
                                     type="text"
+                                    separator=","
                                     placeholder="Ej: mariscos, nueces, lácteos..."
                                     value={formData.excludedFoods ?? ''}
-                                    onChange={(e) => setFormData({...formData, excludedFoods: e.target.value})}
+                                    onChange={(v) => setFormData({...formData, excludedFoods: v})}
                                 />
                                 <span className="text-xs text-text-sub dark:text-gray-500">Separa con comas otros alimentos que no quieres en el plan (preferencias, no solo alergias).</span>
                             </label>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { PatientData, Gender, ActivityLevel, CalorieGoal, Allergen, ALLERGEN_LABELS } from '../types';
+import { FoodAutocompleteInput } from './FoodAutocomplete';
 
 interface Props {
   value: PatientData;
@@ -112,7 +113,7 @@ const PartnerForm: React.FC<Props> = ({ value, onChange }) => {
 
       <label className="flex flex-col gap-1.5">
         <span className={labelCls}>Intolerancias / preferencias alimentarias</span>
-        <input className={inputCls} type="text" value={value.excludedFoods ?? ''} onChange={e => set('excludedFoods', e.target.value)} placeholder="Ej: intolerante a la lactosa, no le gusta el pescado..." />
+        <FoodAutocompleteInput className={inputCls} type="text" separator="," value={value.excludedFoods ?? ''} onChange={v => set('excludedFoods', v)} placeholder="Ej: intolerante a la lactosa, no le gusta el pescado..." />
       </label>
     </div>
   );

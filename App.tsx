@@ -19,6 +19,7 @@ import { Sidebar }         from './components/Sidebar';
 import { MobileNav }       from './components/MobileNav';
 import { ToastProvider, useToast }       from './components/Toast';
 import { ConfirmProvider, useConfirm }   from './components/ConfirmDialog';
+import { FoodVocabularyProvider }        from './components/FoodVocabularyContext';
 import NotificationSettings              from './components/NotificationSettings';
 
 // Hooks
@@ -476,6 +477,7 @@ const AppContent: React.FC = () => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+    <FoodVocabularyProvider customFoods={customFoods}>
     <div className="flex h-screen w-full overflow-auto bg-background-light dark:bg-background-dark text-text-main dark:text-white font-display">
       {isLoading && <LoadingOverlay />}
 
@@ -633,6 +635,7 @@ const AppContent: React.FC = () => {
         <MobileNav currentStep={currentStep} onNavigate={navigate} hasPlan={!!plan} />
       </main>
     </div>
+    </FoodVocabularyProvider>
   );
 };
 

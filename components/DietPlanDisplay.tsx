@@ -11,6 +11,7 @@ import { generateShoppingList, ShoppingList, findMatchingAllergens } from '../ut
 import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { MEAL_PRINT_ORDER, alignCoupleDays, pairIngredients, extractQuantityLabel, AlignedMealSlot } from '../utils/couplePrint';
+import { FoodAutocompleteInput, IngredientTextarea } from './FoodAutocomplete';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
 
@@ -140,8 +141,9 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
         <>
           <div>
             <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Nombre</label>
-            <input title="Nombre de la comida" value={name} onChange={e => setName(e.target.value)}
-              className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-main dark:text-white outline-none focus:border-primary transition-colors" />
+            <FoodAutocompleteInput title="Nombre de la comida" value={name} onChange={setName}
+              wrapperClassName="mt-1"
+              className="w-full px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-bold text-text-main dark:text-white outline-none focus:border-primary transition-colors" />
           </div>
           <div>
             <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Descripción</label>
@@ -150,8 +152,9 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
           </div>
           <div>
             <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Ingredientes (uno por línea)</label>
-            <textarea title="Ingredientes de la comida" value={ingredients} onChange={e => setIngredients(e.target.value)} rows={4}
-              className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm text-text-main dark:text-white outline-none focus:border-primary transition-colors resize-none" />
+            <IngredientTextarea title="Ingredientes de la comida" value={ingredients} onChange={setIngredients} rows={4}
+              wrapperClassName="mt-1"
+              className="w-full px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm text-text-main dark:text-white outline-none focus:border-primary transition-colors resize-none" />
           </div>
         </>
       )}
