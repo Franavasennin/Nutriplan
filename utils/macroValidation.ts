@@ -1,6 +1,24 @@
 import { Meal, DayPlan, DietResponse } from '../types';
 
 /**
+ * Suma los macros declarados de todas las comidas de un día. Extraída de
+ * DietPlanDisplay.tsx (donde vivía como función local) para que el motor de
+ * escalado de Pareja Inteligente (utils/planScaling.ts) la reutilice sin
+ * duplicar la lógica de sumatorio.
+ */
+export function sumDayMacros(meals: DayPlan['meals']) {
+  let calories = 0, protein = 0, carbs = 0, fats = 0, hasData = false;
+  for (const meal of Object.values(meals)) {
+    if (!meal) continue;
+    if (meal.calories != null) { calories += meal.calories; hasData = true; }
+    if (meal.protein  != null)   protein += meal.protein;
+    if (meal.carbs    != null)   carbs   += meal.carbs;
+    if (meal.fats     != null)   fats    += meal.fats;
+  }
+  return hasData ? { calories: Math.round(calories), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) } : null;
+}
+
+/**
  * Validación determinista de los macros que devuelve la IA (auditoría —
  * mejora crítica #2).
  *

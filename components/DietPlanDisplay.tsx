@@ -8,7 +8,7 @@ import {
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
 import { generateShoppingList, ShoppingList, findMatchingAllergens } from '../utils/shoppingList';
-import { normalizeIngredient } from '../utils/macroValidation';
+import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
@@ -338,18 +338,6 @@ function getRecommendedDiet(metrics: CalculatedMetrics, patient: PatientData): {
 }
 
 // ─── Totales reales de un día ─────────────────────────────────────────────────
-
-function sumDayMacros(meals: DayPlan['meals']) {
-  let calories = 0, protein = 0, carbs = 0, fats = 0, hasData = false;
-  for (const meal of Object.values(meals)) {
-    if (!meal) continue;
-    if (meal.calories != null) { calories += meal.calories; hasData = true; }
-    if (meal.protein  != null)   protein += meal.protein;
-    if (meal.carbs    != null)   carbs   += meal.carbs;
-    if (meal.fats     != null)   fats    += meal.fats;
-  }
-  return hasData ? { calories: Math.round(calories), protein: Math.round(protein), carbs: Math.round(carbs), fats: Math.round(fats) } : null;
-}
 
 // ─── Datos del paciente (pestaña) ─────────────────────────────────────────────
 

@@ -271,6 +271,21 @@ export interface PlanVersion {
   plan: DietResponse;
 }
 
+// ─── Vínculo familiar/pareja (Pareja Inteligente) ────────────────────────────
+// Un SavedDiet con linkedToId apunta a OTRO SavedDiet.id que actúa como
+// "principal" (dueño de la estructura de comidas). Diseñado para N personas:
+// cada pareja/familiar vinculado es una fila propia de saved_diets con
+// linkedToId → mismo principal, sin límite a 2 ni tabla de relación aparte.
+export type LinkedPersonRole = 'partner'; // futuro: 'child', 'family' — sin migración de esquema
+
+export interface AppliedSubstitution {
+  day: number;
+  mealKey: string;
+  original: string;  // ingrediente original, p.ej. "80g avena"
+  replaced: string;   // ingrediente sustituido, p.ej. "80g quinoa"
+  allergen: Allergen; // motivo de la sustitución
+}
+
 export interface SavedDiet {
   id: string;
   timestamp: number;
@@ -278,6 +293,12 @@ export interface SavedDiet {
   metrics: CalculatedMetrics;
   plan: DietResponse;
   planVersions?: PlanVersion[]; // historial de versiones anteriores del plan
+  // ─── Campos de vínculo (solo presentes si esta fila ES una pareja/familiar) ──
+  linkedToId?: string;          // id del SavedDiet principal
+  linkedRole?: LinkedPersonRole;
+  linkedSyncedAt?: number;      // última resincronización estructural con el principal
+  lockedMeals?: string[];       // claves "<day>-<mealKey>" que NO se tocan al resincronizar
+  substitutions?: AppliedSubstitution[]; // sustituciones por alergia del último escalado
 }
 
 // ─── Dieta para parejas ───────────────────────────────────────────────────────
