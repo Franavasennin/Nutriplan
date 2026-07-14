@@ -101,6 +101,18 @@ const AppContent: React.FC = () => {
     () => currentDietId ? savedDiets.find(d => d.id === currentDietId) : undefined,
     [savedDiets, currentDietId]
   );
+  // Impresión "Dieta de Pareja": resolución simétrica de "la otra persona" —
+  // a diferencia de linkedPartner (que solo resuelve viendo al principal),
+  // funciona tanto si se está viendo al principal como a la pareja. Alcance
+  // explícito: solo se contempla un vínculo por principal (el esquema N-a-1
+  // soportaría varios; esta función de impresión toma el primero que haya).
+  const otherPersonDiet = useMemo(() => {
+    if (!viewingDiet) return undefined;
+    if (viewingDiet.linkedToId) {
+      return savedDiets.find(d => d.id === viewingDiet.linkedToId);
+    }
+    return savedDiets.find(d => d.linkedToId === viewingDiet.id);
+  }, [savedDiets, viewingDiet]);
 
   // Pareja Inteligente: marca una comida como editada manualmente (bloqueada
   // frente a futuras resincronizaciones) — solo aplica si lo que se está
@@ -555,6 +567,7 @@ const AppContent: React.FC = () => {
             substitutions={viewingDiet?.substitutions}
             onMealManuallyEdited={handleMealManuallyEdited}
             onUnlockMeal={handleUnlockMeal}
+            otherPersonDiet={otherPersonDiet}
           />
           </>
         )}

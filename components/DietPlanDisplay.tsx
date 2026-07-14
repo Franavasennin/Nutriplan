@@ -3,13 +3,14 @@ import {
   CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietType, DIET_TYPE_LABELS,
   PatientData, ActivityLevel, Condition, PlanVersion, Recipe, Gender, FASTING_LABELS,
   CALORIE_GOAL_LABELS, ATHLETE_GOAL_LABELS, BUDGET_LEVEL_LABELS, BudgetLevel,
-  ALLERGEN_LABELS, AppliedSubstitution,
+  ALLERGEN_LABELS, AppliedSubstitution, SavedDiet,
 } from '../types';
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
 import { generateShoppingList, ShoppingList, findMatchingAllergens } from '../utils/shoppingList';
 import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
+import { MEAL_PRINT_ORDER, alignCoupleDays, pairIngredients, extractQuantityLabel, AlignedMealSlot } from '../utils/couplePrint';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
 
@@ -40,6 +41,11 @@ interface Props {
   onMealManuallyEdited?: (day: number, mealKey: string, updatedPlan: DietResponse) => void;
   /** "Volver a sincronizar con la dieta principal" — quita el bloqueo de una comida. */
   onUnlockMeal?: (day: number, mealKey: string) => void;
+  // ─── Impresión "Dieta de Pareja" ────────────────────────────────────────────
+  /** La otra persona vinculada (principal si se ve la pareja, o viceversa).
+   *  Presente independientemente de qué lado se esté viendo — App.tsx resuelve
+   *  la relación simétricamente. Habilita el selector de formato de impresión. */
+  otherPersonDiet?: SavedDiet;
 }
 
 // ─── Editor de comida ─────────────────────────────────────────────────────────
@@ -462,12 +468,113 @@ const PatientDataPanel: React.FC<{ patientData: PatientData }> = ({ patientData:
   );
 };
 
+// ─── Impresión "Dieta de Pareja" — subcomponentes ──────────────────────────────
+
+/** Cabecera dual (paciente + pareja) reutilizada por los formatos "paralelo" y
+ *  "consolidada" — clona el bloque CLINIC de la vista individual, añadiendo
+ *  una segunda columna con nombre/calorías/macros/objetivo de la pareja. */
+const CouplePrintHeader: React.FC<{
+  metrics: CalculatedMetrics;
+  patientName?: string;
+  patientData?: PatientData;
+  otherPersonDiet: SavedDiet;
+}> = ({ metrics, patientName, patientData, otherPersonDiet }) => {
+  const myGoal = patientData?.calorieGoal ? CALORIE_GOAL_LABELS[patientData.calorieGoal]?.title : undefined;
+  const theirGoal = otherPersonDiet.patientData.calorieGoal ? CALORIE_GOAL_LABELS[otherPersonDiet.patientData.calorieGoal]?.title : undefined;
+  return (
+    <div className="flex justify-between items-start border-b-4 border-green-500 pb-3 mb-4">
+      <div>
+        <h1 className="text-2xl font-black uppercase tracking-tighter text-green-600">{CLINIC.appName}</h1>
+        <p className="text-sm font-bold text-gray-700">{CLINIC.subtitle}</p>
+        <p className="text-xs font-medium text-gray-500 mt-1">Fecha: {new Date().toLocaleDateString('es-ES')}</p>
+      </div>
+      <div className="flex gap-4">
+        <div className="text-right border-l-2 border-gray-200 pl-4">
+          <h2 className="text-base font-black">{patientName || 'Paciente'}</h2>
+          {myGoal && <p className="text-[10px] text-gray-500">{myGoal}</p>}
+          <p className="text-[10px] font-bold">{metrics.macros.calories} kcal</p>
+          <p className="text-[9px] text-gray-500">P:{metrics.macros.protein}g · C:{metrics.macros.carbs}g · G:{metrics.macros.fats}g</p>
+        </div>
+        <div className="text-right border-l-2 border-gray-200 pl-4">
+          <h2 className="text-base font-black">{otherPersonDiet.patientData.name || 'Pareja'}</h2>
+          {theirGoal && <p className="text-[10px] text-gray-500">{theirGoal}</p>}
+          <p className="text-[10px] font-bold">{otherPersonDiet.metrics.macros.calories} kcal</p>
+          <p className="text-[9px] text-gray-500">P:{otherPersonDiet.metrics.macros.protein}g · C:{otherPersonDiet.metrics.macros.carbs}g · G:{otherPersonDiet.metrics.macros.fats}g</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/** Una fila (o bloque) con la comida completa de ambos lados — usada por el
+ *  formato "paralelo" (siempre) y por "consolidada" cuando el nombre de la
+ *  receta difiere entre ambos y no se puede fusionar sin fabricar datos. */
+const ParallelMealRow: React.FC<{ slot: AlignedMealSlot; asBlock?: boolean }> = ({ slot, asBlock }) => {
+  const side = (meal: typeof slot.principal) => meal ? (
+    <>
+      <div className="font-bold">{meal.name}</div>
+      <div className="flex flex-wrap gap-1 mt-0.5">
+        {meal.ingredients?.map((ing, i) => (
+          <span key={i} className="text-[8px] bg-gray-100 px-1 py-0.5 rounded border border-gray-200">{normalizeIngredient(ing)}</span>
+        ))}
+      </div>
+    </>
+  ) : <span className="text-gray-300">—</span>;
+
+  if (asBlock) {
+    return (
+      <div className="break-inside-avoid mb-3">
+        <div className="w-28 font-bold uppercase text-[9px] text-gray-400 pt-1">{slot.title}</div>
+        <div className="grid grid-cols-2 gap-3 mt-1 text-[10px]">
+          <div>{side(slot.principal)}</div>
+          <div>{side(slot.partner)}</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <tr className="break-inside-avoid border-b border-gray-100">
+      <td className="font-bold uppercase text-[9px] text-gray-400 align-top pt-1">{slot.title}</td>
+      <td className="align-top py-1 text-[10px]">{side(slot.principal)}</td>
+      <td className="align-top py-1 text-[10px]">{side(slot.partner)}</td>
+    </tr>
+  );
+};
+
+/** Lista de la compra combinada (cantidades sumadas de ambos planes) — mismo
+ *  bloque JSX que la vista individual, reutilizado sin cambios de estilo. */
+const CoupleShoppingList: React.FC<{ list: ShoppingList; days: number }> = ({ list, days }) => (
+  <div className="mt-10 print-page-break">
+    <h5 className="font-black text-lg mb-4 uppercase text-green-700 border-b-2 border-green-500 pb-2 flex items-center gap-2">
+      🛒 Lista de la Compra combinada ({days} días)
+    </h5>
+    <div className="grid grid-cols-3 gap-3">
+      {list.map(cat => (
+        <div key={cat.category} className="break-inside-avoid">
+          <p className="text-[9px] font-black uppercase text-gray-500 mb-1 tracking-wider border-b border-gray-200 pb-0.5">{cat.category}</p>
+          <ul className="space-y-0.5">
+            {cat.items.map(item => (
+              <li key={item.name} className="flex items-start gap-1 text-[10px]">
+                <span className="text-green-600 shrink-0 mt-0.5">□</span>
+                <span className="flex-1 text-gray-800">{item.name}</span>
+                {item.amounts.length > 0 && (
+                  <span className="text-[8px] text-gray-400 shrink-0">{item.amounts.slice(0, 2).join('/')}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 const DietPlanDisplay: React.FC<Props> = ({
   metrics, plan, patientName, mealCount, fastingProtocol, patientData,
   isLoading, planVersions, dietId, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
-  lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal,
+  lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal, otherPersonDiet,
 }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
@@ -485,8 +592,36 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [listHasChanges, setListHasChanges] = useState(false);   // feature 4: lista compra
   const [addingMeal,     setAddingMeal]     = useState(false);   // feature 1: spinner añadir toma
   const [showMealPicker, setShowMealPicker] = useState(false);   // feature 1: selector de toma
+  // ── Impresión "Dieta de Pareja" ──────────────────────────────────────────────
+  const [printMode, setPrintMode] = useState<'individual' | 'parallel' | 'consolidated' | null>(null);
+  const [showPrintFormatPicker, setShowPrintFormatPicker] = useState(false);
 
   const shoppingList: ShoppingList = useMemo(() => generateShoppingList(localPlan), [localPlan]);
+
+  // Impresión de pareja: solo se calculan estas derivadas cuando hay alguien
+  // vinculado con un plan generado — imprimir un lado en blanco es mala UX.
+  const hasPrintablePartner = !!otherPersonDiet && otherPersonDiet.plan.weeklyPlan.length > 0;
+  const alignedCoupleDays = useMemo(
+    () => hasPrintablePartner ? alignCoupleDays(localPlan, otherPersonDiet!.plan) : [],
+    [localPlan, otherPersonDiet, hasPrintablePartner]
+  );
+  const coupleShoppingList: ShoppingList = useMemo(
+    () => hasPrintablePartner ? generateShoppingList(localPlan, otherPersonDiet!.plan) : [],
+    [localPlan, otherPersonDiet, hasPrintablePartner]
+  );
+
+  const requestPrint = (mode: 'individual' | 'parallel' | 'consolidated') => {
+    setShowPrintFormatPicker(false);
+    setPrintMode(mode);
+  };
+
+  useEffect(() => {
+    if (printMode === null) return;
+    window.print();
+    const reset = () => setPrintMode(null);
+    window.addEventListener('afterprint', reset, { once: true });
+    return () => window.removeEventListener('afterprint', reset);
+  }, [printMode]);
 
   // ── Editable shopping list ──────────────────────────────────────────────────
   interface EditItem { name: string; amounts: string[]; checked: boolean; }
@@ -887,11 +1022,34 @@ const DietPlanDisplay: React.FC<Props> = ({
                 <span className="material-symbols-outlined text-[20px] text-sky-500">mail</span>
                 <span className="hidden sm:inline">Email</span>
               </button>
-              <button onClick={() => window.print()}
-                className="flex items-center gap-2 h-11 px-6 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm">
-                <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
-                PDF / Imprimir
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => hasPrintablePartner ? setShowPrintFormatPicker(v => !v) : requestPrint('individual')}
+                  className="flex items-center gap-2 h-11 px-6 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-all shadow-sm">
+                  <span className="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+                  PDF / Imprimir
+                </button>
+                {showPrintFormatPicker && hasPrintablePartner && (
+                  <div className="absolute z-20 right-0 mt-2 w-72 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-xl p-2">
+                    <p className="text-[10px] font-black uppercase text-text-sub px-2 py-1.5">Elige el formato de impresión</p>
+                    <button onClick={() => requestPrint('individual')}
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-semibold text-text-main dark:text-white hover:bg-primary/10 hover:text-primary transition-colors">
+                      <span className="material-symbols-outlined text-[18px] text-primary">restaurant_menu</span>
+                      Individual
+                    </button>
+                    <button onClick={() => requestPrint('parallel')}
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-semibold text-text-main dark:text-white hover:bg-primary/10 hover:text-primary transition-colors">
+                      <span className="material-symbols-outlined text-[18px] text-primary">table_view</span>
+                      Pareja en paralelo
+                    </button>
+                    <button onClick={() => requestPrint('consolidated')}
+                      className="w-full flex items-center gap-3 px-2 py-2 rounded-lg text-sm font-semibold text-text-main dark:text-white hover:bg-primary/10 hover:text-primary transition-colors">
+                      <span className="material-symbols-outlined text-[18px] text-primary">groups</span>
+                      Pareja consolidada
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1317,7 +1475,8 @@ const DietPlanDisplay: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ── Vista impresión ── */}
+      {/* ── Vista impresión individual ── */}
+      {printMode === 'individual' && (
       <div className="hidden only-print bg-white text-black p-4 w-full">
         {/* Cabecera */}
         <div className="flex justify-between items-center border-b-4 border-green-500 pb-3 mb-4">
@@ -1356,13 +1515,6 @@ const DietPlanDisplay: React.FC<Props> = ({
             para evitar que comidas generadas no aparezcan si mealCount no coincide exactamente */}
         <div>
           {localPlan.weeklyPlan?.map((day, dayIdx) => {
-            const MEAL_PRINT_ORDER: { key: MealKey; title: string }[] = [
-              { key: 'breakfast',      title: 'Desayuno'     },
-              { key: 'morningSnack',   title: 'Media Mañana' },
-              { key: 'lunch',          title: 'Almuerzo'     },
-              { key: 'afternoonSnack', title: 'Merienda'     },
-              { key: 'dinner',         title: 'Cena'         },
-            ];
             const presentMeals = MEAL_PRINT_ORDER.filter(({ key }) => !!day.meals[key]);
 
             return (
@@ -1443,6 +1595,89 @@ const DietPlanDisplay: React.FC<Props> = ({
           Documento generado por {CLINIC.appName} AI para {CLINIC.name}.
         </div>
       </div>
+      )}
+
+      {/* ── Vista impresión "Pareja en paralelo" ── */}
+      {printMode === 'parallel' && hasPrintablePartner && (
+      <div className="hidden only-print bg-white text-black p-4 w-full">
+        <CouplePrintHeader
+          metrics={metrics} patientName={patientName} patientData={patientData}
+          otherPersonDiet={otherPersonDiet!}
+        />
+        {alignedCoupleDays.map((day, dayIdx) => (
+          <div key={day.day} className={`mb-4${dayIdx > 0 ? ' print-page-break' : ''}`}>
+            <h4 className="font-black text-xl mb-3 text-white bg-black inline-block px-4 py-1 rounded-md">DÍA {day.day}</h4>
+            <table className="w-full text-[10px] border-collapse table-fixed">
+              <colgroup>
+                <col className="w-24" />
+                <col className="w-[38%]" />
+                <col className="w-[38%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b-2 border-gray-300">
+                  <th className="text-left pb-1">Toma</th>
+                  <th className="text-left pb-1">{patientName || 'Paciente'}</th>
+                  <th className="text-left pb-1">{otherPersonDiet!.patientData.name || 'Pareja'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {day.meals.map(slot => (
+                  <ParallelMealRow key={slot.key} slot={slot} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        <CoupleShoppingList list={coupleShoppingList} days={alignedCoupleDays.length} />
+        <div className="mt-6 pt-3 border-t border-gray-200 text-center text-[9px] text-gray-500">{CLINIC.disclaimer}</div>
+      </div>
+      )}
+
+      {/* ── Vista impresión "Pareja consolidada" ── */}
+      {printMode === 'consolidated' && hasPrintablePartner && (
+      <div className="hidden only-print bg-white text-black p-4 w-full">
+        <CouplePrintHeader
+          metrics={metrics} patientName={patientName} patientData={patientData}
+          otherPersonDiet={otherPersonDiet!}
+        />
+        {alignedCoupleDays.map((day, dayIdx) => (
+          <div key={day.day} className={dayIdx > 0 ? 'print-page-break' : ''}>
+            <h4 className="font-black text-xl mb-3 text-white bg-black inline-block px-4 py-1 rounded-md">DÍA {day.day}</h4>
+            <div className="flex flex-col gap-2">
+              {day.meals.map(slot => {
+                const sameRecipe = !!slot.principal && !!slot.partner &&
+                  slot.principal.name.trim().toLowerCase() === slot.partner.name.trim().toLowerCase();
+                if (!sameRecipe) {
+                  // Nombres distintos (edición manual, o receta completa distinta
+                  // por alergia) — no se puede consolidar sin fabricar datos:
+                  // se muestran ambas recetas completas, igual que en paralelo.
+                  return <ParallelMealRow key={slot.key} slot={slot} asBlock />;
+                }
+                const paired = pairIngredients(slot.principal!.ingredients, slot.partner!.ingredients);
+                return (
+                  <div key={slot.key} className="break-inside-avoid">
+                    <div className="w-28 font-bold uppercase text-[9px] text-gray-400 pt-1">{slot.title}</div>
+                    <div className="text-sm font-bold">
+                      {slot.principal!.name}
+                      <span className="block text-[11px] font-normal text-gray-600 italic">{slot.principal!.description}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {paired.map((row, i) => (
+                        <span key={i} className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                          {row.food} — {patientName || 'Paciente'}: {row.mine ? extractQuantityLabel(row.mine) : '—'} · {otherPersonDiet!.patientData.name || 'Pareja'}: {row.theirs ? extractQuantityLabel(row.theirs) : '—'}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <CoupleShoppingList list={coupleShoppingList} days={alignedCoupleDays.length} />
+        <div className="mt-6 pt-3 border-t border-gray-200 text-center text-[9px] text-gray-500">{CLINIC.disclaimer}</div>
+      </div>
+      )}
     </div>
   );
 };

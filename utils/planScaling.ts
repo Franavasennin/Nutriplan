@@ -28,7 +28,9 @@ const MAX_FACTOR = 3.0;
 // Reconoce "<número><unidad opcional> <resto>" al inicio del ingrediente,
 // p.ej. "80g avena", "250 ml leche", "2 unidades de huevo". Si no hay match,
 // el ingrediente se deja intacto — nunca se rompe ni se inventa texto.
-const QUANTITY_RE = /^(\d+(?:[.,]\d+)?)\s*(g|gr|gramos|ml|kg|l|litro[s]?|unidad(?:es)?|cucharada[s]?|taza[s]?)\b(.*)$/i;
+// Exportado: utils/couplePrint.ts la reutiliza para emparejar ingredientes
+// por nombre de alimento en el formato de impresión "Pareja consolidada".
+export const QUANTITY_RE = /^(\d+(?:[.,]\d+)?)\s*(g|gr|gramos|ml|kg|l|litro[s]?|unidad(?:es)?|cucharada[s]?|taza[s]?)\b(.*)$/i;
 
 export interface ScaleWarning {
   code: 'clamped' | 'no_macros';
