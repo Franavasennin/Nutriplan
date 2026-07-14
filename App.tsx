@@ -39,6 +39,8 @@ import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { getClinicalTargets } from './utils/clinicalTargets';
 import { verifyPlanAgainstAllergens, verifyDayAgainstAllergens, verifyMealAgainstAllergens, formatAllergenViolationsMessage } from './utils/allergenVerification';
 import { generateDietPlan, adaptPlanToPartner } from './services/geminiService';
+import { scalePlanToTarget } from './utils/planScaling';
+import { applyAllergenSubstitutions } from './utils/allergenSubstitution';
 
 type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples' | 'agenda';
 
@@ -96,6 +98,73 @@ const AppContent: React.FC = () => {
     () => currentDietId ? savedDiets.find(d => d.linkedToId === currentDietId) : undefined,
     [savedDiets, currentDietId]
   );
+  // Si el plan que se está viendo ES el de una pareja (no el del principal),
+  // se activa el bloqueo de comidas editadas manualmente.
+  const viewingDiet = useMemo(
+    () => currentDietId ? savedDiets.find(d => d.id === currentDietId) : undefined,
+    [savedDiets, currentDietId]
+  );
+
+  // Pareja Inteligente: marca una comida como editada manualmente (bloqueada
+  // frente a futuras resincronizaciones) — solo aplica si lo que se está
+  // viendo es la dieta de una pareja, no la del principal.
+  const handleMealManuallyEdited = (day: number, mealKey: string, updatedPlan: DietResponse) => {
+    if (!viewingDiet?.linkedToId) return;
+    const key = `${day}-${mealKey}`;
+    const next = [...new Set([...(viewingDiet.lockedMeals ?? []), key])];
+    // updatedPlan viene de DietPlanDisplay YA con el cambio aplicado —
+    // viewingDiet.plan (derivado de savedDiets) todavía está desactualizado
+    // en este mismo tick, así que no sirve como fuente del plan a guardar.
+    updateLinkedDiet(viewingDiet.id, updatedPlan, next, viewingDiet.substitutions ?? [], viewingDiet.linkedSyncedAt ?? Date.now());
+    setPlan(updatedPlan);
+  };
+
+  // "Volver a sincronizar con la dieta principal" — recalcula SOLO esa
+  // comida con el factor de escala vigente, sin tocar el resto del plan.
+  const handleUnlockMeal = (day: number, mealKey: string) => {
+    if (!viewingDiet?.linkedToId) return;
+    const principal = savedDiets.find(d => d.id === viewingDiet.linkedToId);
+    if (!principal) return;
+    const key = `${day}-${mealKey}`;
+    const nextLocked = (viewingDiet.lockedMeals ?? []).filter(k => k !== key);
+    const { plan: rescaled } = scalePlanToTarget(principal.plan, viewingDiet.metrics, {
+      lockedMeals: nextLocked, currentPartnerPlan: viewingDiet.plan,
+    });
+    const rescaledDay = rescaled.weeklyPlan.find(d => d.day === day);
+    const rescaledMeal = rescaledDay?.meals[mealKey as keyof typeof rescaledDay.meals];
+    if (!rescaledMeal) return;
+    const updatedPlan: DietResponse = {
+      ...viewingDiet.plan,
+      weeklyPlan: viewingDiet.plan.weeklyPlan.map(d =>
+        d.day === day ? { ...d, meals: { ...d.meals, [mealKey]: rescaledMeal } } : d
+      ),
+    };
+    updateLinkedDiet(viewingDiet.id, updatedPlan, nextLocked, viewingDiet.substitutions ?? [], viewingDiet.linkedSyncedAt ?? Date.now());
+    if (currentDietId === viewingDiet.id) setPlan(updatedPlan);
+    toast('Comida resincronizada con la dieta principal.', 'success');
+  };
+
+  // "Actualizar dieta de la pareja" — vuelve a copiar la estructura del
+  // principal y recalcula cantidades, respetando las comidas bloqueadas.
+  const handleRegeneratePartner = (partner: SavedDiet) => {
+    const principal = savedDiets.find(d => d.id === partner.linkedToId);
+    if (!principal) return;
+    const freshMetrics = computeMetrics(partner.patientData);
+    const { plan: scaledPlan, warnings: scaleWarnings } = scalePlanToTarget(principal.plan, freshMetrics, {
+      lockedMeals: partner.lockedMeals ?? [], currentPartnerPlan: partner.plan,
+    });
+    const { plan: finalPlan, substitutions, warnings: subWarnings } = applyAllergenSubstitutions(scaledPlan, partner.patientData.allergens ?? []);
+    const now = Date.now();
+    updateLinkedDiet(partner.id, finalPlan, partner.lockedMeals ?? [], substitutions, now);
+    if (currentDietId === partner.id) { setPlan(finalPlan); setMetrics(freshMetrics); }
+    const allWarnings = [...scaleWarnings.map(w => w.message), ...subWarnings];
+    toast(
+      allWarnings.length > 0
+        ? `Dieta de la pareja actualizada con ${allWarnings.length} aviso(s) — revisa el plan.`
+        : 'Dieta de la pareja actualizada — comidas bloqueadas conservadas.',
+      allWarnings.length > 0 ? 'info' : 'success'
+    );
+  };
   // MEJORA-019 (iteración 003, "papelera / deshacer borrado"): las dietas
   // marcadas para borrar se ocultan al instante pero el DELETE real a
   // Supabase se retrasa unos segundos, con un botón "Deshacer" en el toast.
@@ -505,7 +574,7 @@ const AppContent: React.FC = () => {
                     const principal = savedDiets.find(d => d.id === currentDietId);
                     if (principal) setPartnerModal({ principal, existingPartner: linkedPartner });
                   }}
-                  onRegenerate={() => toast('Actualizar dieta de la pareja: disponible en la próxima fase.', 'info')}
+                  onRegenerate={() => handleRegeneratePartner(linkedPartner)}
                   onUnlink={() => { unlinkDiet(linkedPartner.id); toast('Pareja convertida en cliente independiente.', 'success'); }}
                   onDeletePartner={() => { deleteDiet(linkedPartner.id); toast('Pareja eliminada.', 'success'); }}
                   onViewPartner={() => handleLoadDiet(linkedPartner)}
@@ -534,6 +603,10 @@ const AppContent: React.FC = () => {
             onRegenerateDay={handleRegenerateDay}
             onSwapMeal={handleSwapMeal}
             onRestoreVersion={handleRestoreVersion}
+            lockedMeals={viewingDiet?.lockedMeals}
+            substitutions={viewingDiet?.substitutions}
+            onMealManuallyEdited={handleMealManuallyEdited}
+            onUnlockMeal={handleUnlockMeal}
           />
           </>
         )}

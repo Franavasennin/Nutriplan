@@ -3,7 +3,7 @@ import {
   CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietType, DIET_TYPE_LABELS,
   PatientData, ActivityLevel, Condition, PlanVersion, Recipe, Gender, FASTING_LABELS,
   CALORIE_GOAL_LABELS, ATHLETE_GOAL_LABELS, BUDGET_LEVEL_LABELS, BudgetLevel,
-  ALLERGEN_LABELS,
+  ALLERGEN_LABELS, AppliedSubstitution,
 } from '../types';
 import { CLINIC } from '../config/clinic';
 import { RECIPES } from '../data/recipes';
@@ -28,6 +28,18 @@ interface Props {
   onRegenerateDay?: (dayNumber: number) => void;
   onSwapMeal?: (dayNumber: number, mealKey: string, currentMeal: Meal) => Promise<Meal>;
   onRestoreVersion?: (version: PlanVersion) => void;
+  // ─── Pareja Inteligente: bloqueo de comidas editadas manualmente ───────────
+  /** Claves "<day>-<mealKey>" bloqueadas — no se tocan al resincronizar con el principal. */
+  lockedMeals?: string[];
+  /** Sustituciones por alergia aplicadas al generar/resincronizar (aviso visual). */
+  substitutions?: AppliedSubstitution[];
+  /** Se invoca cuando el usuario edita o intercambia una comida manualmente.
+   *  Recibe el plan YA actualizado con ese cambio (localPlan aún no ha
+   *  re-renderizado en el momento de la llamada, así que no sirve leerlo
+   *  desde fuera — hay que pasarlo explícitamente). */
+  onMealManuallyEdited?: (day: number, mealKey: string, updatedPlan: DietResponse) => void;
+  /** "Volver a sincronizar con la dieta principal" — quita el bloqueo de una comida. */
+  onUnlockMeal?: (day: number, mealKey: string) => void;
 }
 
 // ─── Editor de comida ─────────────────────────────────────────────────────────
@@ -212,10 +224,14 @@ interface MealSectionProps {
   onSwapRequest?: () => void;
   isSwapping?: boolean;
   onRemove?: () => void;
+  isLocked?: boolean;
+  onUnlock?: () => void;
+  mealSubstitutions?: AppliedSubstitution[];
 }
 
 const MealSection: React.FC<MealSectionProps> = ({
   title, time, meal, icon, mealKey, editingKey, activeEditKey, onEditRequest, onSave, onCancel, onSwapRequest, isSwapping, onRemove,
+  isLocked, onUnlock, mealSubstitutions,
 }) => {
   if (!meal) return null;
   const isEditing = activeEditKey === editingKey;
@@ -226,7 +242,20 @@ const MealSection: React.FC<MealSectionProps> = ({
           <span className="material-symbols-outlined text-[20px]">{icon}</span>
         </div>
         <div>
-          <h4 className="text-base font-bold text-[#111813] dark:text-white">{title}</h4>
+          <h4 className="text-base font-bold text-[#111813] dark:text-white flex items-center gap-1.5">
+            {title}
+            {isLocked && (
+              <span title="Editada manualmente — no se toca al actualizar la dieta de la pareja" className="material-symbols-outlined text-[14px] text-amber-500">lock</span>
+            )}
+            {mealSubstitutions && mealSubstitutions.length > 0 && (
+              <span
+                title={`Alimento(s) sustituido(s) por alergia: ${mealSubstitutions.map(s => `"${s.original}" → "${s.replaced}"`).join(', ')}`}
+                className="material-symbols-outlined text-[14px] text-orange-500"
+              >
+                warning
+              </span>
+            )}
+          </h4>
           <p className="text-xs text-gray-500 dark:text-gray-400">{time}</p>
         </div>
         {meal.calories != null && (
@@ -236,6 +265,13 @@ const MealSection: React.FC<MealSectionProps> = ({
             {meal.carbs   != null && <span>HC {meal.carbs}g</span>}
             {meal.fats    != null && <span>G {meal.fats}g</span>}
           </div>
+        )}
+        {isLocked && onUnlock && (
+          <button onClick={onUnlock} title="Volver a sincronizar con la dieta principal"
+            className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] font-bold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all no-print">
+            <span className="material-symbols-outlined text-[16px]">sync_alt</span>
+            Resincronizar
+          </button>
         )}
         {onRemove && (
           <button onClick={onRemove} title={`Eliminar ${title}`}
@@ -431,6 +467,7 @@ const PatientDataPanel: React.FC<{ patientData: PatientData }> = ({ patientData:
 const DietPlanDisplay: React.FC<Props> = ({
   metrics, plan, patientName, mealCount, fastingProtocol, patientData,
   isLoading, planVersions, dietId, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
+  lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal,
 }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
@@ -545,14 +582,20 @@ const DietPlanDisplay: React.FC<Props> = ({
   const recommendation = patientData ? getRecommendedDiet(metrics, patientData) : null;
 
   const handleSaveMeal = (mealKey: MealKey, updated: Meal) => {
-    setLocalPlan(prev => ({
-      ...prev,
-      weeklyPlan: prev.weeklyPlan.map(d =>
+    const updatedPlan: DietResponse = {
+      ...localPlan,
+      weeklyPlan: localPlan.weeklyPlan.map(d =>
         d.day === activeDay ? { ...d, meals: { ...d.meals, [mealKey]: updated } } : d
       ),
-    }));
+    };
+    setLocalPlan(updatedPlan);
     setActiveEdit(null);
     setHasChanges(true);
+    // Pareja Inteligente: una edición manual bloquea esta comida frente a
+    // futuras resincronizaciones con el principal. Se pasa el plan ya
+    // actualizado porque localPlan (estado de React) todavía no refleja
+    // este cambio en este mismo tick.
+    onMealManuallyEdited?.(activeDay, mealKey, updatedPlan);
   };
 
   const handleSaveAll = () => {
@@ -755,17 +798,19 @@ const DietPlanDisplay: React.FC<Props> = ({
     setSwappingKey(swapId);
     try {
       const swapped = await onSwapMeal(dayNumber, mealKey, currentMeal);
-      setLocalPlan(prev => ({
-        ...prev,
-        weeklyPlan: prev.weeklyPlan.map(d =>
+      const updatedPlan: DietResponse = {
+        ...localPlan,
+        weeklyPlan: localPlan.weeklyPlan.map(d =>
           d.day === dayNumber ? { ...d, meals: { ...d.meals, [mealKey]: swapped } } : d
         ),
-      }));
+      };
+      setLocalPlan(updatedPlan);
       setHasChanges(true);
+      onMealManuallyEdited?.(dayNumber, mealKey, updatedPlan);
     } finally {
       setSwappingKey(null);
     }
-  }, [localPlan, onSwapMeal]);
+  }, [localPlan, onSwapMeal, onMealManuallyEdited]);
 
   return (
     <div className="flex-1 flex flex-col print:block print:overflow-visible print:h-auto">
@@ -1215,6 +1260,9 @@ const DietPlanDisplay: React.FC<Props> = ({
                     onSwapRequest={onSwapMeal ? () => handleSwap(activeDay, key) : undefined}
                     isSwapping={swappingKey === `${activeDay}-${key}`}
                     onRemove={presentSections.length > 1 ? () => handleRemoveMeal(key, activeDayPlan.meals[key]!.name) : undefined}
+                    isLocked={lockedMeals?.includes(`${activeDay}-${key}`)}
+                    onUnlock={onUnlockMeal ? () => onUnlockMeal(activeDay, key) : undefined}
+                    mealSubstitutions={substitutions?.filter(s => s.day === activeDay && s.mealKey === key)}
                   />
                 ))}
 
