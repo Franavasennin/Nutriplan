@@ -78,6 +78,15 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'dorada', group: 'pescado_blanco', per100: { kcal: 100, protein: 19, carbs: 0, fats: 2.7 }, priority: 4 },
   { name: 'lenguado', group: 'pescado_blanco', per100: { kcal: 86, protein: 17, carbs: 0, fats: 1.5 }, priority: 5 },
   { name: 'rape', group: 'pescado_blanco', per100: { kcal: 76, protein: 17, carbs: 0, fats: 0.7 }, priority: 6 },
+  // Añadidos desde la tabla Novartis (tabla de composición que usaba la
+  // nutricionista antes de este programa) — mismo criterio de peso en fresco.
+  { name: 'gallo', group: 'pescado_blanco', per100: { kcal: 73, protein: 16, carbs: 0, fats: 1 }, priority: 7 },
+  { name: 'congrio', group: 'pescado_blanco', per100: { kcal: 112, protein: 20, carbs: 0, fats: 3 }, priority: 8 },
+  { name: 'mero', group: 'pescado_blanco', per100: { kcal: 118, protein: 16, carbs: 0, fats: 6 }, priority: 9 },
+  { name: 'rodaballo', group: 'pescado_blanco', per100: { kcal: 102, protein: 16.1, carbs: 0, fats: 3.6 }, priority: 10 },
+  { name: 'pescadilla', group: 'pescado_blanco', per100: { kcal: 72, protein: 16, carbs: 0, fats: 0.6 }, priority: 11 },
+  { name: 'abadejo', aliases: ['bacaladilla'], group: 'pescado_blanco', per100: { kcal: 76, protein: 17.4, carbs: 0, fats: 0.7 }, priority: 12 },
+  { name: 'raya', group: 'pescado_blanco', per100: { kcal: 79, protein: 17.1, carbs: 0, fats: 0.9 }, priority: 13 },
 
   // ── Pescado azul ──
   { name: 'salmón', aliases: ['salmón fresco', 'lomo de salmón'], group: 'pescado_azul', per100: { kcal: 208, protein: 20, carbs: 0, fats: 13 }, priority: 1 },
@@ -87,12 +96,20 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'caballa', group: 'pescado_azul', per100: { kcal: 205, protein: 19, carbs: 0, fats: 14 }, priority: 5 },
   { name: 'trucha', group: 'pescado_azul', per100: { kcal: 148, protein: 21, carbs: 0, fats: 6.6 }, priority: 6 },
   { name: 'boquerones', aliases: ['boquerón', 'anchoas'], group: 'pescado_azul', per100: { kcal: 131, protein: 20, carbs: 0, fats: 5 }, priority: 7 },
+  { name: 'jurel', aliases: ['chicharro'], group: 'pescado_azul', per100: { kcal: 127, protein: 15.7, carbs: 0, fats: 6.8 }, priority: 8 },
+  { name: 'palometa', group: 'pescado_azul', per100: { kcal: 125, protein: 20, carbs: 0, fats: 5 }, priority: 9 },
 
   // ── Marisco ──
   { name: 'gambas', aliases: ['langostinos'], group: 'marisco', per100: { kcal: 85, protein: 18, carbs: 0.9, fats: 1 }, priority: 1 },
   { name: 'calamar', aliases: ['sepia'], group: 'marisco', per100: { kcal: 92, protein: 15, carbs: 3, fats: 1.4 }, priority: 2 },
   { name: 'mejillones', group: 'marisco', per100: { kcal: 86, protein: 12, carbs: 3.7, fats: 2.2 }, priority: 3 },
   { name: 'pulpo', group: 'marisco', per100: { kcal: 82, protein: 15, carbs: 2.2, fats: 1 }, priority: 4 },
+  { name: 'vieira', group: 'marisco', per100: { kcal: 84, protein: 19, carbs: 0, fats: 0.9 }, priority: 5 },
+  { name: 'almejas', aliases: ['chirlas'], group: 'marisco', per100: { kcal: 50, protein: 11, carbs: 0, fats: 0.9 }, priority: 6 },
+  { name: 'cigala', group: 'marisco', per100: { kcal: 67, protein: 15, carbs: 0, fats: 0.8 }, priority: 7 },
+  { name: 'langosta', group: 'marisco', per100: { kcal: 67, protein: 15, carbs: 0, fats: 0.8 }, priority: 8 },
+  { name: 'centollo', group: 'marisco', per100: { kcal: 127, protein: 20.1, carbs: 0, fats: 5.2 }, priority: 9 },
+  { name: 'ostras', group: 'marisco', per100: { kcal: 80, protein: 10, carbs: 6, fats: 1.8 }, priority: 10 },
 
   // ── Huevo ──
   { name: 'huevo', aliases: ['huevos', 'huevo entero'], group: 'huevo', per100: { kcal: 155, protein: 13, carbs: 1.1, fats: 11 }, unit: 'unidad', gramsPerUnit: 55, priority: 1 },
@@ -140,6 +157,21 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'fresas', group: 'fruta', per100: { kcal: 32, protein: 0.7, carbs: 7.7, fats: 0.3 }, priority: 5 },
   { name: 'frutos rojos', group: 'fruta', per100: { kcal: 45, protein: 0.8, carbs: 10, fats: 0.4 }, priority: 6 },
   { name: 'kiwi', group: 'fruta', per100: { kcal: 61, protein: 1.1, carbs: 15, fats: 0.5 }, priority: 7 },
+  { name: 'albaricoque', group: 'fruta', per100: { kcal: 44, protein: 0.8, carbs: 10, fats: 0.1 }, priority: 8 },
+  { name: 'cerezas', group: 'fruta', per100: { kcal: 77, protein: 1.2, carbs: 17, fats: 0.5 }, priority: 9 },
+  { name: 'ciruela', group: 'fruta', per100: { kcal: 44, protein: 0.8, carbs: 10, fats: 0.1 }, priority: 10 },
+  { name: 'granada', group: 'fruta', per100: { kcal: 65, protein: 0.73, carbs: 14.8, fats: 0.33 }, priority: 11 },
+  { name: 'higo', aliases: ['higos'], group: 'fruta', per100: { kcal: 80, protein: 1, carbs: 18, fats: 0.1 }, priority: 12 },
+  { name: 'mandarina', group: 'fruta', per100: { kcal: 40, protein: 0.8, carbs: 9, fats: 0.1 }, priority: 13 },
+  { name: 'mango', group: 'fruta', per100: { kcal: 64, protein: 0.5, carbs: 15.3, fats: 0.1 }, priority: 14 },
+  { name: 'melocotón', group: 'fruta', per100: { kcal: 52, protein: 0.5, carbs: 12, fats: 0.1 }, priority: 15 },
+  { name: 'melón', group: 'fruta', per100: { kcal: 31, protein: 0.8, carbs: 6.5, fats: 0.2 }, priority: 16 },
+  { name: 'nectarina', group: 'fruta', per100: { kcal: 64, protein: 0.6, carbs: 17.1, fats: 0.1 }, priority: 17 },
+  { name: 'papaya', group: 'fruta', per100: { kcal: 45, protein: 0.6, carbs: 10.3, fats: 0.2 }, priority: 18 },
+  { name: 'piña', group: 'fruta', per100: { kcal: 51, protein: 0.5, carbs: 12, fats: 0.2 }, priority: 19 },
+  { name: 'pomelo', group: 'fruta', per100: { kcal: 30, protein: 0.6, carbs: 6, fats: 0.3 }, priority: 20 },
+  { name: 'sandía', group: 'fruta', per100: { kcal: 30, protein: 0.4, carbs: 6.7, fats: 0.2 }, priority: 21 },
+  { name: 'uva', aliases: ['uvas'], group: 'fruta', per100: { kcal: 81, protein: 1, carbs: 17, fats: 1 }, priority: 22 },
 
   // ── Verdura ──
   { name: 'brócoli', group: 'verdura', per100: { kcal: 34, protein: 2.8, carbs: 7, fats: 0.4 }, priority: 1 },
@@ -152,6 +184,19 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   // alternativa ambigua ("¿verde o rojo?"). Las variantes de texto de un plan
   // ya escrito ("pimiento", "pimiento verde") se siguen reconociendo vía alias.
   { name: 'pimiento rojo', aliases: ['pimiento', 'pimiento verde'], group: 'verdura', per100: { kcal: 31, protein: 1, carbs: 6, fats: 0.3 }, priority: 6 },
+  { name: 'acelgas', group: 'verdura', per100: { kcal: 33, protein: 2, carbs: 5, fats: 0.6 }, priority: 7 },
+  { name: 'alcachofas', group: 'verdura', per100: { kcal: 64, protein: 3.4, carbs: 12, fats: 0.3 }, priority: 8 },
+  { name: 'apio', group: 'verdura', per100: { kcal: 20, protein: 1.3, carbs: 3.7, fats: 0.2 }, priority: 9 },
+  { name: 'cebolla', group: 'verdura', per100: { kcal: 47, protein: 1.4, carbs: 10, fats: 0.2 }, priority: 10 },
+  { name: 'endibias', group: 'verdura', per100: { kcal: 22, protein: 1.5, carbs: 4, fats: 0.1 }, priority: 11 },
+  { name: 'escarola', group: 'verdura', per100: { kcal: 37, protein: 1.5, carbs: 4, fats: 0.3 }, priority: 12 },
+  { name: 'espárragos', aliases: ['espárragos trigueros'], group: 'verdura', per100: { kcal: 26, protein: 2.2, carbs: 3.9, fats: 0.2 }, priority: 13 },
+  { name: 'judías verdes', aliases: ['judía verde', 'habichuelas'], group: 'verdura', per100: { kcal: 39, protein: 2.4, carbs: 7, fats: 0.2 }, priority: 14 },
+  { name: 'lechuga', group: 'verdura', per100: { kcal: 18, protein: 1.2, carbs: 2.9, fats: 0.2 }, priority: 15 },
+  { name: 'puerro', aliases: ['puerros'], group: 'verdura', per100: { kcal: 42, protein: 2, carbs: 7.5, fats: 0.4 }, priority: 16 },
+  { name: 'rábano', group: 'verdura', per100: { kcal: 20, protein: 1.2, carbs: 4.2, fats: 0.1 }, priority: 17 },
+  { name: 'remolacha', group: 'verdura', per100: { kcal: 40, protein: 1.6, carbs: 8, fats: 0.1 }, priority: 18 },
+  { name: 'zanahoria', group: 'verdura', per100: { kcal: 42, protein: 1.2, carbs: 9, fats: 0.3 }, priority: 19 },
 
   // ── Fruto seco ──
   { name: 'almendras', group: 'fruto_seco', per100: { kcal: 579, protein: 21, carbs: 22, fats: 50 }, priority: 1 },
@@ -160,12 +205,14 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'anacardos', group: 'fruto_seco', per100: { kcal: 553, protein: 18, carbs: 30, fats: 44 }, priority: 4 },
   { name: 'avellanas', group: 'fruto_seco', per100: { kcal: 628, protein: 15, carbs: 17, fats: 61 }, priority: 5 },
   { name: 'cacahuetes', group: 'fruto_seco', per100: { kcal: 567, protein: 26, carbs: 16, fats: 49 }, priority: 6 },
+  { name: 'castañas', group: 'fruto_seco', per100: { kcal: 199, protein: 4, carbs: 40, fats: 2.6 }, priority: 7 },
 
   // ── Grasa ──
   { name: 'aceite de oliva virgen extra', aliases: ['aceite de oliva', 'aove'], group: 'grasa', per100: { kcal: 884, protein: 0, carbs: 0, fats: 100 }, unit: 'ml', priority: 1 },
   { name: 'aguacate', group: 'grasa', per100: { kcal: 160, protein: 2, carbs: 8.5, fats: 14.7 }, priority: 2 },
   { name: 'aceite de coco', group: 'grasa', per100: { kcal: 862, protein: 0, carbs: 0, fats: 99 }, unit: 'ml', priority: 3 },
   { name: 'mantequilla', group: 'grasa', per100: { kcal: 717, protein: 0.9, carbs: 0.1, fats: 81 }, priority: 4 },
+  { name: 'aceite de girasol', group: 'grasa', per100: { kcal: 900, protein: 0, carbs: 0, fats: 100 }, unit: 'ml', priority: 5 },
 
   // ── Lácteo (no proteico, para completar) ──
   { name: 'leche desnatada', group: 'lacteo', per100: { kcal: 35, protein: 3.4, carbs: 5, fats: 0.1 }, unit: 'ml', priority: 1 },
