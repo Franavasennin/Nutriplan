@@ -1,7 +1,14 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+
+// Portal del Paciente: /p/TOKEN sirve una vista pública de solo lectura en
+// vez del panel de la nutricionista. Sin router — un branch sobre el
+// pathname basta, y React.lazy asegura que el panel (App) nunca se descarga
+// en el bundle del portal, ni viceversa.
+const PatientPortal = lazy(() => import('./components/portal/PatientPortal'));
+const portalTokenMatch = window.location.pathname.match(/^\/p\/([^/]+)\/?$/);
 
 // ── Error Boundary: evita la "pantalla en blanco" silenciosa ──────────────────
 // Si algo revienta en el árbol de React, muestra el error en pantalla (con la
@@ -61,7 +68,13 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {portalTokenMatch ? (
+        <Suspense fallback={null}>
+          <PatientPortal token={portalTokenMatch[1]} />
+        </Suspense>
+      ) : (
+        <App />
+      )}
     </ErrorBoundary>
   </React.StrictMode>
 );
