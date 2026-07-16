@@ -33,9 +33,9 @@ export interface FoodComposition {
 // candidatos en el propio grupo, y en qué orden. Implementa "pollo → pavo →
 // conejo → ternera antes que pescado/huevos/vegetal".
 export const GROUP_FALLBACKS: Record<SwapGroup, SwapGroup[]> = {
-  ave:                ['cerdo_magro', 'carne_roja_magra', 'pescado_blanco', 'huevo', 'proteina_vegetal'],
-  carne_roja_magra:   ['ave', 'cerdo_magro', 'pescado_azul', 'huevo', 'proteina_vegetal'],
-  cerdo_magro:        ['ave', 'carne_roja_magra', 'pescado_blanco', 'huevo', 'proteina_vegetal'],
+  ave:                ['cerdo_magro', 'carne_roja_magra', 'pescado_blanco', 'marisco', 'huevo', 'proteina_vegetal'],
+  carne_roja_magra:   ['ave', 'cerdo_magro', 'pescado_azul', 'marisco', 'huevo', 'proteina_vegetal'],
+  cerdo_magro:        ['ave', 'carne_roja_magra', 'pescado_blanco', 'marisco', 'huevo', 'proteina_vegetal'],
   pescado_blanco:     ['pescado_azul', 'ave', 'marisco', 'huevo', 'proteina_vegetal'],
   pescado_azul:       ['pescado_blanco', 'ave', 'marisco', 'huevo', 'proteina_vegetal'],
   marisco:            ['pescado_blanco', 'pescado_azul', 'ave', 'huevo'],

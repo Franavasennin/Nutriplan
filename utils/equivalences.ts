@@ -162,17 +162,19 @@ export function findEquivalents(
   const excludedNames = parseExcludedFoods(constraints.excludedFoods);
 
   const groupsToTry: SwapGroup[] = [origin.group, ...GROUP_FALLBACKS[origin.group]];
-  const seen = new Set<string>([normalizeKey(origin.name)]);
-  const results: EquivalentOption[] = [];
+  const originKey = normalizeKey(origin.name);
 
-  for (const group of groupsToTry) {
+  // Candidatos que superan todos los filtros (alérgenos/excluidos/tolerancia),
+  // agrupados por categoría y ya ordenados por prioridad dentro de cada una.
+  const perGroup: EquivalentOption[][] = groupsToTry.map(group => {
+    const passing: EquivalentOption[] = [];
     const candidates = FOOD_COMPOSITION
       .filter(f => f.group === group)
       .sort((a, b) => a.priority - b.priority);
 
     for (const cand of candidates) {
       const key = normalizeKey(cand.name);
-      if (seen.has(key)) continue;
+      if (key === originKey) continue;
       if (cand.per100[macro] <= 0) continue; // no se puede igualar ese macro
 
       const namesToCheck = [cand.name, ...(cand.aliases ?? [])];
@@ -193,14 +195,32 @@ export function findEquivalents(
       const kcalDeltaPct = originKcal > 0 ? (Math.abs(newKcal - originKcal) / originKcal) * 100 : 0;
       if (kcalDeltaPct > tolerancePct) continue;
 
-      seen.add(key);
-      results.push({
+      passing.push({
         name: cand.name,
         label: formatLabel(cand, newGrams),
         kcalDelta: Math.round(newKcal - originKcal),
       });
-      if (results.length >= limit) return results;
     }
+    return passing;
+  });
+
+  // Reparto por categoría (round-robin): como mucho una alternativa de cada
+  // grupo por vuelta, en vez de agotar la categoría más cercana antes de
+  // probar la siguiente. Para un alimento muy magro (p.ej. pechuga de pollo),
+  // "pescado blanco" por sí solo ya tiene suficientes candidatos dentro de la
+  // tolerancia calórica como para llenar el límite entero sin llegar nunca a
+  // mirar "huevo" o "vegetal" — esto reparte entre todas las categorías que
+  // tengan al menos una opción válida, para que la variedad sea real.
+  const results: EquivalentOption[] = [];
+  for (let round = 0; results.length < limit; round++) {
+    let addedThisRound = false;
+    for (const group of perGroup) {
+      if (round >= group.length) continue;
+      results.push(group[round]);
+      addedThisRound = true;
+      if (results.length >= limit) break;
+    }
+    if (!addedThisRound) break;
   }
 
   return results;
