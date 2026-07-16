@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { SavedDiet } from '../types';
 import { PortalToken } from '../hooks/useAppData';
 import { useToast } from './Toast';
+import { PORTAL_BASE_URL } from '../config/clinic';
 
 interface Props {
   diet: SavedDiet;
@@ -40,7 +41,7 @@ const PortalLinkModal: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
-  const link = portalToken ? `${window.location.origin}/p/${portalToken.token}` : null;
+  const link = portalToken ? `${PORTAL_BASE_URL}/p/${portalToken.token}` : null;
 
   useEffect(() => {
     if (!link) { setQrDataUrl(null); return; }

@@ -1,3 +1,9 @@
+// Base del enlace del Portal del Paciente (/p/TOKEN). Configurable vía
+// VITE_PORTAL_BASE_URL (el dominio final de producción, una vez elegido el
+// hosting) sin tocar código; en dev/preview cae a window.location.origin.
+export const PORTAL_BASE_URL: string =
+  (import.meta.env.VITE_PORTAL_BASE_URL as string | undefined) || window.location.origin;
+
 export const CLINIC = {
   name:        'Ester Correa',
   title:       'Especialista Ester Correa',
