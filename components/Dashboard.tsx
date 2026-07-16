@@ -17,6 +17,7 @@ interface Props {
     onInstall: () => void;
     onExportCSV: () => void;
     onAddPartner: (diet: SavedDiet) => void;
+    onOpenPortalLink: (diet: SavedDiet) => void;
 }
 
 type Filter = 'all' | 'active' | 'inactive';
@@ -24,7 +25,7 @@ type Filter = 'all' | 'active' | 'inactive';
 const Dashboard: React.FC<Props> = ({
     stats, allDiets, onNewClient, onLoadDiet,
     onDeleteDiet, onEditClient, onUpdatePatientData,
-    installEvent, onInstall, onExportCSV, onAddPartner
+    installEvent, onInstall, onExportCSV, onAddPartner, onOpenPortalLink
 }) => {
     const [search, setSearch]   = useState('');
     const [filter, setFilter]   = useState<Filter>('all');
@@ -276,6 +277,13 @@ const Dashboard: React.FC<Props> = ({
                                             >
                                                 <span className="material-symbols-outlined text-base text-amber-500">history</span>
                                                 Historial de dietas
+                                            </button>
+                                            <button
+                                                onClick={() => { onOpenPortalLink(diet); closeMenu(); }}
+                                                className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold text-text-main dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                            >
+                                                <span className="material-symbols-outlined text-base text-emerald-500">qr_code_2</span>
+                                                Portal del paciente
                                             </button>
                                             {canAddPartner && (
                                                 <button

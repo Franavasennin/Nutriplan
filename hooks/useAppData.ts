@@ -43,6 +43,35 @@ const rowToFood = (r: any): CustomFood => ({
   portionSize: r.portion_size,
 });
 
+export interface PortalToken {
+  token: string;
+  clientId: string;
+  clientName: string;
+  enabled: boolean;
+  showEquivalences: boolean;
+  createdAt: string;
+  lastAccessAt: string | null;
+}
+
+const rowToPortalToken = (r: any): PortalToken => ({
+  token:            r.token,
+  clientId:         r.client_id,
+  clientName:       r.client_name,
+  enabled:          r.enabled,
+  showEquivalences: r.show_equivalences,
+  createdAt:        r.created_at,
+  lastAccessAt:     r.last_access_at ?? null,
+});
+
+// Alfabeto sin caracteres ambiguos (0/O, 1/I/l) — el enlace se puede leer o
+// dictar por teléfono en consulta sin errores de transcripción.
+const PORTAL_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generatePortalToken(length = 24): string {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => PORTAL_TOKEN_ALPHABET[b % PORTAL_TOKEN_ALPHABET.length]).join('');
+}
+
 const rowToEntry = (r: any): ProgressEntry => ({
   id:              r.id,
   date:            r.date,
@@ -532,6 +561,63 @@ export function useAppData(onWriteError?: (message: string) => void) {
     }
   }, []);
 
+  // ── Portal del paciente (Fase 4) ────────────────────────────────────────────
+  // Consultas puntuales, no estado global: el modal que las usa las pide bajo
+  // demanda al abrirse (patrón acordado en el plan aprobado).
+
+  const getOrCreatePortalToken = useCallback(async (
+    clientId: string, clientName: string
+  ): Promise<PortalToken | null> => {
+    const { data: existing, error: findError } = await supabase
+      .from('portal_tokens').select('*').eq('client_id', clientId).limit(1).maybeSingle();
+    if (findError) { reportError('getOrCreatePortalToken')({ error: findError }); return null; }
+    if (existing) return rowToPortalToken(existing);
+
+    const { data: created, error: insertError } = await supabase
+      .from('portal_tokens')
+      .insert({ token: generatePortalToken(), client_id: clientId, client_name: clientName })
+      .select().single();
+    if (insertError) { reportError('getOrCreatePortalToken')({ error: insertError }); return null; }
+    return rowToPortalToken(created);
+  }, [reportError]);
+
+  const updatePortalToken = useCallback(async (
+    token: string, patch: Partial<{ enabled: boolean; showEquivalences: boolean }>
+  ): Promise<void> => {
+    const dbPatch: Record<string, boolean> = {};
+    if (patch.enabled !== undefined) dbPatch.enabled = patch.enabled;
+    if (patch.showEquivalences !== undefined) dbPatch.show_equivalences = patch.showEquivalences;
+    const { error } = await supabase.from('portal_tokens').update(dbPatch).eq('token', token);
+    reportError('updatePortalToken')({ error });
+  }, [reportError]);
+
+  const regeneratePortalToken = useCallback(async (
+    oldToken: string, clientId: string, clientName: string
+  ): Promise<PortalToken | null> => {
+    // El borrado en cascada (FK portal_meal_completions → portal_tokens)
+    // elimina también el historial de "realizadas" del enlace revocado.
+    const { error: deleteError } = await supabase.from('portal_tokens').delete().eq('token', oldToken);
+    if (deleteError) { reportError('regeneratePortalToken')({ error: deleteError }); return null; }
+
+    const { data: created, error: insertError } = await supabase
+      .from('portal_tokens')
+      .insert({ token: generatePortalToken(), client_id: clientId, client_name: clientName })
+      .select().single();
+    if (insertError) { reportError('regeneratePortalToken')({ error: insertError }); return null; }
+    return rowToPortalToken(created);
+  }, [reportError]);
+
+  const getPortalWeeklyAdherence = useCallback(async (token: string): Promise<number> => {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { count, error } = await supabase
+      .from('portal_meal_completions')
+      .select('*', { count: 'exact', head: true })
+      .eq('token', token)
+      .gte('meal_date', weekAgo);
+    if (error) { reportError('getPortalWeeklyAdherence')({ error }); return 0; }
+    return count ?? 0;
+  }, [reportError]);
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const uniqueClients = Array.from(
@@ -568,5 +654,9 @@ export function useAppData(onWriteError?: (message: string) => void) {
     updateProgressEntry,
     updateClientGoal,
     importAll,
+    getOrCreatePortalToken,
+    updatePortalToken,
+    regeneratePortalToken,
+    getPortalWeeklyAdherence,
   };
 }

@@ -9,6 +9,7 @@ const FoodDatabase    = lazy(() => import('./components/FoodDatabase'));
 const ProgressTracker = lazy(() => import('./components/ProgressTracker'));
 const AgendaView      = lazy(() => import('./components/AgendaView'));
 const AddPartnerModal    = lazy(() => import('./components/AddPartnerModal'));
+const PortalLinkModal    = lazy(() => import('./components/PortalLinkModal'));
 const LinkedPartnerPanel = lazy(() => import('./components/LinkedPartnerPanel'));
 const RecipeSearch    = lazy(() => import('./components/RecipeSearch'));
 const Dashboard       = lazy(() => import('./components/Dashboard'));
@@ -59,6 +60,7 @@ const AppContent: React.FC = () => {
     saveAppointment, updateAppointment, deleteAppointment,
     addCustomFood, editCustomFood, deleteCustomFood,
     saveProgressEntry, deleteProgressEntry, updateProgressEntry, updateClientGoal, importAll, appendDiets,
+    getOrCreatePortalToken, updatePortalToken, regeneratePortalToken, getPortalWeeklyAdherence,
   } = useAppData(msg => toast(msg, 'error'));
 
   // Datos iniciales del paciente (edad, altura, sexo) por cliente — se toman
@@ -89,6 +91,9 @@ const AppContent: React.FC = () => {
   // Pareja Inteligente: modal de alta/edición de pareja vinculada. `existingPartner`
   // presente = modo edición de datos personales; ausente = crear pareja nueva.
   const [partnerModal, setPartnerModal] = useState<{ principal: SavedDiet; existingPartner?: SavedDiet } | null>(null);
+
+  // Portal del Paciente: modal de enlace + QR para el cliente seleccionado.
+  const [portalLinkDiet, setPortalLinkDiet] = useState<SavedDiet | null>(null);
 
   // Pareja Inteligente: si el plan que se está viendo pertenece a un
   // principal con pareja vinculada, se muestra el panel de resumen.
@@ -515,6 +520,7 @@ const AppContent: React.FC = () => {
               onInstall={install}
               onExportCSV={handleExportCSV}
               onAddPartner={(diet) => setPartnerModal({ principal: diet })}
+              onOpenPortalLink={(diet) => setPortalLinkDiet(diet)}
             />
             <div className="px-6 pb-8 max-w-xl">
               <NotificationSettings />
@@ -627,6 +633,17 @@ const AppContent: React.FC = () => {
             onClose={() => setPartnerModal(null)}
             onCreate={(diet) => { saveLinkedDiet(diet); setPartnerModal(null); }}
             onUpdatePersonalData={(id, data) => updatePatientData(id, data)}
+          />
+        )}
+
+        {portalLinkDiet && (
+          <PortalLinkModal
+            diet={portalLinkDiet}
+            onClose={() => setPortalLinkDiet(null)}
+            getOrCreatePortalToken={getOrCreatePortalToken}
+            updatePortalToken={updatePortalToken}
+            regeneratePortalToken={regeneratePortalToken}
+            getPortalWeeklyAdherence={getPortalWeeklyAdherence}
           />
         )}
 
