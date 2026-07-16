@@ -138,12 +138,21 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'seitán', aliases: ['seitan'], group: 'proteina_vegetal', per100: { kcal: 120, protein: 25, carbs: 4, fats: 1.9 }, priority: 3 },
   { name: 'edamame', group: 'proteina_vegetal', per100: { kcal: 122, protein: 11, carbs: 8, fats: 5 }, priority: 4 },
   { name: 'proteína de suero', aliases: ['proteína en polvo'], group: 'proteina_vegetal', per100: { kcal: 380, protein: 80, carbs: 8, fats: 6 }, priority: 5 },
+  // Análogos cárnicos reales de mercado (BasedatosWeb.xlsx, AESAN 2022) --
+  // hueco que no cubría ningún alimento anterior (tofu/tempeh/seitán son
+  // ingredientes sin procesar, no productos ya formados tipo hamburguesa).
+  { name: 'hamburguesa vegetal', aliases: ['burger vegetal', 'hamburguesa de soja'], group: 'proteina_vegetal', per100: { kcal: 191, protein: 12, carbs: 14, fats: 9 }, priority: 6 },
+  { name: 'salchicha vegetal', group: 'proteina_vegetal', per100: { kcal: 250, protein: 17.5, carbs: 6.2, fats: 17 }, priority: 7 },
+  { name: 'albóndigas vegetales', group: 'proteina_vegetal', per100: { kcal: 201, protein: 19.4, carbs: 8.2, fats: 10 }, priority: 8 },
 
   // ── Legumbre ──
   { name: 'lentejas', group: 'legumbre', per100: { kcal: 116, protein: 9, carbs: 20, fats: 0.4 }, priority: 1 },
   { name: 'garbanzos', group: 'legumbre', per100: { kcal: 121, protein: 8, carbs: 20, fats: 2.1 }, priority: 2 },
   { name: 'alubias', aliases: ['judías blancas'], group: 'legumbre', per100: { kcal: 114, protein: 8, carbs: 20, fats: 0.5 }, priority: 3 },
   { name: 'guisantes', group: 'legumbre', per100: { kcal: 81, protein: 5.4, carbs: 14, fats: 0.4 }, priority: 4 },
+  // Habas frescas/congeladas (no secas) -- mismo criterio de peso que el
+  // resto del grupo (BasedatosWeb.xlsx, AESAN 2022).
+  { name: 'habas', group: 'legumbre', per100: { kcal: 70, protein: 5.8, carbs: 7.2, fats: 0.6 }, priority: 5 },
 
   // ── Cereal ──
   { name: 'arroz', aliases: ['arroz blanco'], group: 'cereal', per100: { kcal: 130, protein: 2.7, carbs: 28, fats: 0.3 }, priority: 1 },
@@ -159,6 +168,7 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'patata', aliases: ['patatas'], group: 'tuberculo', per100: { kcal: 77, protein: 2, carbs: 17, fats: 0.1 }, priority: 1 },
   { name: 'boniato', aliases: ['batata'], group: 'tuberculo', per100: { kcal: 86, protein: 1.6, carbs: 20, fats: 0.1 }, priority: 2 },
   { name: 'coliflor', group: 'tuberculo', per100: { kcal: 25, protein: 2, carbs: 5, fats: 0.3 }, priority: 3 },
+  { name: 'yuca', group: 'tuberculo', per100: { kcal: 163, protein: 1, carbs: 39.5, fats: 0.1 }, priority: 4 },
 
   // ── Fruta ──
   { name: 'plátano', group: 'fruta', per100: { kcal: 89, protein: 1.1, carbs: 23, fats: 0.3 }, priority: 1 },
@@ -183,6 +193,7 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'pomelo', group: 'fruta', per100: { kcal: 30, protein: 0.6, carbs: 6, fats: 0.3 }, priority: 20 },
   { name: 'sandía', group: 'fruta', per100: { kcal: 30, protein: 0.4, carbs: 6.7, fats: 0.2 }, priority: 21 },
   { name: 'uva', aliases: ['uvas'], group: 'fruta', per100: { kcal: 81, protein: 1, carbs: 17, fats: 1 }, priority: 22 },
+  { name: 'kaki', aliases: ['caqui'], group: 'fruta', per100: { kcal: 77, protein: 0.7, carbs: 19.7, fats: 0.2 }, priority: 23 },
 
   // ── Verdura ──
   { name: 'brócoli', group: 'verdura', per100: { kcal: 34, protein: 2.8, carbs: 7, fats: 0.4 }, priority: 1 },
@@ -208,6 +219,12 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'rábano', group: 'verdura', per100: { kcal: 20, protein: 1.2, carbs: 4.2, fats: 0.1 }, priority: 17 },
   { name: 'remolacha', group: 'verdura', per100: { kcal: 40, protein: 1.6, carbs: 8, fats: 0.1 }, priority: 18 },
   { name: 'zanahoria', group: 'verdura', per100: { kcal: 42, protein: 1.2, carbs: 9, fats: 0.3 }, priority: 19 },
+  // Añadidos desde BasedatosWeb.xlsx (AESAN 2022) — mediana por alimento
+  // genérico entre variantes de mercado (fresco/congelado/troceado).
+  { name: 'canónigos', aliases: ['canónigo', 'canonges'], group: 'verdura', per100: { kcal: 27, protein: 2.2, carbs: 1.8, fats: 0.5 }, priority: 20 },
+  { name: 'rúcula', group: 'verdura', per100: { kcal: 28, protein: 2.7, carbs: 1.3, fats: 0.6 }, priority: 21 },
+  { name: 'champiñones', aliases: ['champiñón', 'setas', 'setas cultivadas'], group: 'verdura', per100: { kcal: 22, protein: 2.6, carbs: 4, fats: 0.3 }, priority: 22 },
+  { name: 'col de bruselas', aliases: ['coles de bruselas'], group: 'verdura', per100: { kcal: 44, protein: 3.5, carbs: 4.2, fats: 0.5 }, priority: 23 },
 
   // ── Fruto seco ──
   { name: 'almendras', group: 'fruto_seco', per100: { kcal: 579, protein: 21, carbs: 22, fats: 50 }, priority: 1 },
@@ -224,6 +241,9 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'aceite de coco', group: 'grasa', per100: { kcal: 862, protein: 0, carbs: 0, fats: 99 }, unit: 'ml', priority: 3 },
   { name: 'mantequilla', group: 'grasa', per100: { kcal: 717, protein: 0.9, carbs: 0.1, fats: 81 }, priority: 4 },
   { name: 'aceite de girasol', group: 'grasa', per100: { kcal: 900, protein: 0, carbs: 0, fats: 100 }, unit: 'ml', priority: 5 },
+  // Coco (pulpa) va en "grasa", no en "fruta": su macro dominante es la grasa
+  // (misma razón que el aguacate), no el carbohidrato.
+  { name: 'coco', group: 'grasa', per100: { kcal: 357, protein: 3.3, carbs: 15, fats: 32 }, priority: 6 },
 
   // ── Lácteo (no proteico, para completar) ──
   { name: 'leche desnatada', group: 'lacteo', per100: { kcal: 35, protein: 3.4, carbs: 5, fats: 0.1 }, unit: 'ml', priority: 1 },
