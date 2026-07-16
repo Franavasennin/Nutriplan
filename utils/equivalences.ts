@@ -1,5 +1,6 @@
 import { Allergen } from '../types';
 import { FOOD_COMPOSITION, GROUP_FALLBACKS, FoodComposition, SwapGroup } from '../data/foodComposition';
+import { FIXED_SUBSTITUTION_RULES, FIXED_FRUIT_PORTIONS } from '../data/nutritionistRules';
 import { QUANTITY_RE } from './planScaling';
 import { extractFoodName } from './foodVocabulary';
 import { findMatchingAllergens } from './shoppingList';
@@ -174,6 +175,64 @@ export function findEquivalents(
   const groupsToTry: SwapGroup[] = [origin.group, ...GROUP_FALLBACKS[origin.group]];
   const originKey = normalizeKey(origin.name);
 
+  const passesFilters = (food: FoodComposition): boolean => {
+    const namesToCheck = [food.name, ...(food.aliases ?? [])];
+    if (
+      constraints.allergens?.length &&
+      namesToCheck.some(n => findMatchingAllergens(n, constraints.allergens!).length > 0)
+    ) return false;
+    if (
+      excludedNames.length &&
+      namesToCheck.some(n => {
+        const nk = normalizeKey(n);
+        return excludedNames.some(ex => nk.includes(ex) || ex.includes(nk));
+      })
+    ) return false;
+    return true;
+  };
+
+  // Reglas fijas de la nutricionista (recomendacionmes.docx) — se comprueban
+  // ANTES del cálculo genérico por macros. Son decisiones clínicas suyas ya
+  // tomadas (p.ej. "yogur griego -> requesón, misma cantidad"): no pasan por
+  // la tolerancia calórica ni el filtro de ración, solo por alérgenos/
+  // excluidos (nunca ofrecer un alimento prohibido, venga de donde venga).
+  const fixedResults: EquivalentOption[] = [];
+  const fixedNamesUsed = new Set<string>();
+
+  const fixedFruit = FIXED_FRUIT_PORTIONS.find(f => normalizeKey(f.name) === originKey);
+  if (fixedFruit) {
+    // Solo se aplica si la cantidad real ronda "1 ración" de su lista (±30%)
+    // -- si el plan pone 500g de naranja, no tiene sentido tratarlo como
+    // "1 ración" y ofrecer la lista de intercambio tal cual.
+    const ratio = originGrams / fixedFruit.grams;
+    if (ratio >= 0.7 && ratio <= 1.4) {
+      for (const alt of FIXED_FRUIT_PORTIONS) {
+        if (normalizeKey(alt.name) === originKey) continue;
+        const altFood = findFoodEntry(alt.name);
+        if (!altFood || !passesFilters(altFood)) continue;
+        const newKcal = (altFood.per100.kcal * alt.grams) / 100;
+        fixedResults.push({ name: altFood.name, label: alt.label, kcalDelta: Math.round(newKcal - originKcal) });
+        fixedNamesUsed.add(normalizeKey(altFood.name));
+        if (fixedResults.length >= limit) break;
+      }
+    }
+  }
+
+  if (fixedResults.length < limit) {
+    for (const rule of FIXED_SUBSTITUTION_RULES) {
+      if (normalizeKey(rule.from) !== originKey) continue;
+      const substFood = findFoodEntry(rule.to);
+      if (!substFood) continue;
+      const substKey = normalizeKey(substFood.name);
+      if (fixedNamesUsed.has(substKey) || !passesFilters(substFood)) continue;
+      const newGrams = Math.max(originGrams + rule.gramsAdjustment, 10);
+      const newKcal = (substFood.per100.kcal * newGrams) / 100;
+      fixedResults.push({ name: substFood.name, label: formatLabel(substFood, newGrams), kcalDelta: Math.round(newKcal - originKcal) });
+      fixedNamesUsed.add(substKey);
+      if (fixedResults.length >= limit) break;
+    }
+  }
+
   // Candidatos que superan todos los filtros (alérgenos/excluidos/tolerancia),
   // agrupados por categoría y ya ordenados por prioridad dentro de cada una.
   const perGroup: EquivalentOption[][] = groupsToTry.map(group => {
@@ -185,20 +244,9 @@ export function findEquivalents(
     for (const cand of candidates) {
       const key = normalizeKey(cand.name);
       if (key === originKey) continue;
+      if (fixedNamesUsed.has(key)) continue; // ya devuelto por una regla fija
       if (cand.per100[macro] <= 0) continue; // no se puede igualar ese macro
-
-      const namesToCheck = [cand.name, ...(cand.aliases ?? [])];
-      if (
-        constraints.allergens?.length &&
-        namesToCheck.some(n => findMatchingAllergens(n, constraints.allergens!).length > 0)
-      ) continue;
-      if (
-        excludedNames.length &&
-        namesToCheck.some(n => {
-          const nk = normalizeKey(n);
-          return excludedNames.some(ex => nk.includes(ex) || ex.includes(nk));
-        })
-      ) continue;
+      if (!passesFilters(cand)) continue;
 
       const newGrams = (originGrams * origin.per100[macro]) / cand.per100[macro];
       const newKcal = (cand.per100.kcal * newGrams) / 100;
@@ -224,7 +272,7 @@ export function findEquivalents(
   // tolerancia calórica como para llenar el límite entero sin llegar nunca a
   // mirar "huevo" o "vegetal" — esto reparte entre todas las categorías que
   // tengan al menos una opción válida, para que la variedad sea real.
-  const results: EquivalentOption[] = [];
+  const results: EquivalentOption[] = [...fixedResults];
   for (let round = 0; results.length < limit; round++) {
     let addedThisRound = false;
     for (const group of perGroup) {

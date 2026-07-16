@@ -130,7 +130,11 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'yogur griego', aliases: ['yogur griego 0%', 'yogur griego natural'], group: 'lacteo_proteico', per100: { kcal: 59, protein: 10, carbs: 3.6, fats: 0.4 }, priority: 1 },
   { name: 'requesón', group: 'lacteo_proteico', per100: { kcal: 98, protein: 11, carbs: 3.4, fats: 4.3 }, priority: 2 },
   { name: 'queso cottage', group: 'lacteo_proteico', per100: { kcal: 98, protein: 11, carbs: 3.4, fats: 4.3 }, priority: 3 },
-  { name: 'queso fresco', group: 'lacteo_proteico', per100: { kcal: 174, protein: 13, carbs: 3.5, fats: 12 }, priority: 4 },
+  { name: 'queso fresco', aliases: ['queso burgos', 'queso de burgos'], group: 'lacteo_proteico', per100: { kcal: 174, protein: 13, carbs: 3.5, fats: 12 }, priority: 4 },
+  // Añadido para la regla fija de la nutricionista "yogur griego 0% -> queso
+  // batido, misma cantidad" (recomendacionmes.docx) -- ella lo trata como
+  // intercambiable con el yogur, no es un cálculo del motor.
+  { name: 'queso batido', group: 'lacteo_proteico', per100: { kcal: 47, protein: 8, carbs: 4, fats: 0 }, priority: 5 },
 
   // ── Proteína vegetal ──
   { name: 'tofu', group: 'proteina_vegetal', per100: { kcal: 76, protein: 8, carbs: 1.9, fats: 4.8 }, priority: 1 },
@@ -159,9 +163,13 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'arroz integral', group: 'cereal', per100: { kcal: 123, protein: 2.6, carbs: 26, fats: 1 }, priority: 2 },
   { name: 'pasta', aliases: ['pasta cocida'], group: 'cereal', per100: { kcal: 131, protein: 5, carbs: 25, fats: 1.1 }, priority: 3 },
   { name: 'pasta integral', group: 'cereal', per100: { kcal: 124, protein: 5.3, carbs: 25, fats: 1.1 }, priority: 4 },
-  { name: 'quinoa', group: 'cereal', per100: { kcal: 120, protein: 4.4, carbs: 21, fats: 1.9 }, priority: 5 },
+  { name: 'quinoa', aliases: ['quinua'], group: 'cereal', per100: { kcal: 120, protein: 4.4, carbs: 21, fats: 1.9 }, priority: 5 },
   { name: 'avena', aliases: ['copos de avena'], group: 'cereal', per100: { kcal: 389, protein: 17, carbs: 66, fats: 7 }, priority: 6 },
   { name: 'pan integral', group: 'cereal', per100: { kcal: 247, protein: 10, carbs: 41, fats: 3.4 }, priority: 7 },
+  // Añadidos para las reglas fijas "avena/granola -> muesli, misma cantidad"
+  // (recomendacionmes.docx).
+  { name: 'muesli', group: 'cereal', per100: { kcal: 366, protein: 10.5, carbs: 67, fats: 7.8 }, priority: 9 },
+  { name: 'granola', group: 'cereal', per100: { kcal: 471, protein: 9, carbs: 64, fats: 19 }, priority: 10 },
   { name: 'cuscús', group: 'cereal', per100: { kcal: 112, protein: 3.8, carbs: 23, fats: 0.2 }, priority: 8 },
 
   // ── Tubérculo ──

@@ -73,4 +73,55 @@ describe('findEquivalents', () => {
     expect(res.length).toBeGreaterThan(0);
     expect(res.every(r => /^\d+(,\d)?(g|ml) .+$/.test(r.label))).toBe(true);
   });
+
+  describe('reglas fijas de la nutricionista (recomendacionmes.docx)', () => {
+    it('patata -> boniato restando 20g, antes que el cálculo genérico', () => {
+      const res = findEquivalents('200g patata', {}, { limit: 3 });
+      expect(res[0].name).toBe('boniato');
+      expect(res[0].label).toBe('180g boniato');
+    });
+
+    it('yogur griego -> requesón/queso batido/queso fresco, misma cantidad', () => {
+      const res = findEquivalents('150g yogur griego', {}, { limit: 3 });
+      const names = res.map(r => r.name);
+      expect(names).toEqual(['requesón', 'queso batido', 'queso fresco']);
+      expect(res.every(r => r.label === '150g ' + r.name)).toBe(true);
+    });
+
+    it('quinoa -> arroz restando 20g', () => {
+      const res = findEquivalents('100g quinoa', {}, { limit: 3 });
+      expect(res[0].name).toBe('arroz');
+      expect(res[0].label).toBe('80g arroz');
+    });
+
+    it('avena/granola -> muesli, misma cantidad', () => {
+      const avena = findEquivalents('40g avena', {}, { limit: 3 });
+      expect(avena[0]).toEqual({ name: 'muesli', label: '40g muesli', kcalDelta: -9 });
+    });
+
+    it('una regla fija nunca ofrece un alimento excluido/alergénico', () => {
+      const res = findEquivalents('150g yogur griego', { excludedFoods: 'requesón' }, { limit: 3 });
+      expect(res.some(r => r.name === 'requesón')).toBe(false);
+    });
+  });
+
+  describe('lista de intercambio de fruta de la nutricionista', () => {
+    it('se aplica cuando la cantidad ronda "1 ración" de su lista', () => {
+      const res = findEquivalents('150g naranja', {}, { limit: 5 });
+      const names = res.map(r => r.name);
+      expect(names).toContain('melocotón');
+      expect(names).toContain('manzana');
+      const melocoton = res.find(r => r.name === 'melocotón')!;
+      expect(melocoton.label).toBe('1 melocotón');
+    });
+
+    it('no se aplica si la cantidad real está muy lejos de "1 ración" -> cae al cálculo genérico', () => {
+      const res = findEquivalents('500g naranja', {}, { limit: 5 });
+      // Con 500g (>1.4x de la ración de referencia, 150g) el resultado debe
+      // venir del motor genérico: etiquetas con gramos recalculados, no las
+      // raciones fijas de la lista ("1 melocotón", "2 kiwis"...).
+      expect(res.length).toBeGreaterThan(0);
+      expect(res.every(r => /^\d+g /.test(r.label))).toBe(true);
+    });
+  });
 });
