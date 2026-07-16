@@ -6,6 +6,7 @@ import { generateShoppingList } from '../../utils/shoppingList';
 import { normalizeIngredient } from '../../utils/macroValidation';
 import { getMealSections, MealSectionConfig } from '../../utils/mealSchedule';
 import { findEquivalents } from '../../utils/equivalences';
+import { VEGETABLE_PORTION_GUIDANCE, VEGETABLE_MODERATE_MAX_GRAMS } from '../../data/nutritionistRules';
 
 /**
  * Portal del Paciente — vista pública de solo lectura, servida en /p/TOKEN
@@ -285,6 +286,27 @@ const PatientPortal: React.FC<Props> = ({ token }) => {
             </ul>
           </div>
         )}
+
+        {/* Guía de verduras de la nutricionista */}
+        <div className="bg-white rounded-xl border border-gray-100 p-4">
+          <p className="text-sm font-black mb-2">🥦 Guía de verduras</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Sin límite</p>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                {VEGETABLE_PORTION_GUIDANCE.filter(v => v.criterion === 'sin_limite').map(v => v.name).join(', ')}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-gray-400 mb-1">
+                Con moderación (máx. {VEGETABLE_MODERATE_MAX_GRAMS}g/día)
+              </p>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                {VEGETABLE_PORTION_GUIDANCE.filter(v => v.criterion === 'con_moderacion').map(v => v.name).join(', ')}
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Lista de la compra */}
         <div className="bg-white rounded-xl border border-gray-100 p-4">

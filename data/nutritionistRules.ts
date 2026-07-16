@@ -63,3 +63,65 @@ export const FIXED_FRUIT_PORTIONS: FixedFruitPortion[] = [
   { name: 'cerezas', grams: 100, label: '100g cerezas' },
   { name: 'uva', grams: 100, label: '100g uvas' },
 ];
+
+/**
+ * Criterio de verduras de la nutricionista: cuáles considera "sin límite"
+ * (se pueden comer con total libertad) y cuáles "con moderación" (máximo
+ * VEGETABLE_MODERATE_MAX_GRAMS al día). Puramente informativo -- no altera
+ * ningún cálculo del motor de equivalencias, solo se muestra como guía en el
+ * portal del paciente.
+ */
+export type VegetablePortionCriterion = 'sin_limite' | 'con_moderacion';
+
+export interface VegetablePortionGuidance {
+  name: string;
+  criterion: VegetablePortionCriterion;
+}
+
+export const VEGETABLE_MODERATE_MAX_GRAMS = 200;
+
+export const VEGETABLE_PORTION_GUIDANCE: VegetablePortionGuidance[] = [
+  // Sin límite
+  { name: 'acedera', criterion: 'sin_limite' },
+  { name: 'acelga', criterion: 'sin_limite' },
+  { name: 'apio', criterion: 'sin_limite' },
+  { name: 'apio nabo', criterion: 'sin_limite' },
+  { name: 'berros', criterion: 'sin_limite' },
+  { name: 'brécol', criterion: 'sin_limite' },
+  { name: 'brócoli', criterion: 'sin_limite' },
+  { name: 'brotes de soja', criterion: 'sin_limite' },
+  { name: 'calabacín', criterion: 'sin_limite' },
+  { name: 'cardo', criterion: 'sin_limite' },
+  { name: 'cebollino', criterion: 'sin_limite' },
+  { name: 'champiñones', criterion: 'sin_limite' },
+  { name: 'setas', criterion: 'sin_limite' },
+  { name: 'coliflor', criterion: 'sin_limite' },
+  { name: 'endivias', criterion: 'sin_limite' },
+  { name: 'escarola', criterion: 'sin_limite' },
+  { name: 'hinojo', criterion: 'sin_limite' },
+  { name: 'lechuga', criterion: 'sin_limite' },
+  { name: 'níscalo', criterion: 'sin_limite' },
+  { name: 'pepinillo', criterion: 'sin_limite' },
+  { name: 'pepino', criterion: 'sin_limite' },
+  { name: 'pimiento verde', criterion: 'sin_limite' },
+  { name: 'rábano', criterion: 'sin_limite' },
+  // Con moderación (máximo 200g/día)
+  { name: 'berenjena', criterion: 'con_moderacion' },
+  { name: 'boletus', criterion: 'con_moderacion' },
+  { name: 'borraja', criterion: 'con_moderacion' },
+  { name: 'calabaza', criterion: 'con_moderacion' },
+  { name: 'col blanca', criterion: 'con_moderacion' },
+  { name: 'col de bruselas', criterion: 'con_moderacion' },
+  { name: 'col lombarda', criterion: 'con_moderacion' },
+  { name: 'col repollo', criterion: 'con_moderacion' },
+  { name: 'col rizada', criterion: 'con_moderacion' },
+  { name: 'colinabo', criterion: 'con_moderacion' },
+  { name: 'espárragos', criterion: 'con_moderacion' },
+  { name: 'judías verdes', criterion: 'con_moderacion' },
+  { name: 'nabo', criterion: 'con_moderacion' },
+  { name: 'pimiento rojo', criterion: 'con_moderacion' },
+  { name: 'puerro', criterion: 'con_moderacion' },
+  { name: 'remolacha', criterion: 'con_moderacion' },
+  { name: 'rúcula', criterion: 'con_moderacion' },
+  { name: 'tomate', criterion: 'con_moderacion' },
+];

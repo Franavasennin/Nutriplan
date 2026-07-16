@@ -2101,6 +2101,60 @@ export const RECIPES: Recipe[] = [
     tags: ['cetogénica', 'paleo', 'proteica', 'almuerzo', 'cena', 'sin gluten'],
   },
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // RECETAS DE LA NUTRICIONISTA (recomendacionmes.docx)
+  // Preparaciones que Ester Correa ya explicaba paso a paso a sus pacientes
+  // antes de este programa.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'nut-001',
+    title: 'Avena cremosa con leche',
+    description: 'Avena cocida a fuego lento con leche hasta conseguir una textura cremosa, con fruta fresca y un toque de canela.',
+    prepTime: 10,
+    calories: 290,
+    protein: 14,
+    carbs: 48,
+    fats: 6,
+    ingredients: [
+      '40g copos de avena',
+      '200ml leche semidesnatada',
+      '50g fruta fresca troceada (fresas, plátano o arándanos)',
+      'Canela al gusto',
+    ],
+    instructions: [
+      'Cocción lenta: calentar la avena con la leche a fuego medio-bajo, removiendo constantemente para que se cocine de manera uniforme sin que la leche llegue a hervir.',
+      'Reposo y espesado: cuando la avena haya absorbido parte de la leche y tenga una consistencia cremosa, apagar el fuego y dejarla reposar en la olla — terminará de espesarse y ganará una textura más suave.',
+      'Ajuste de textura (opcional): si tras el reposo se prefiere menos densa, añadir un chorrito más de leche fría para aligerarla.',
+      'Servir en un bol con la fruta fresca troceada por encima y un toque de canela espolvoreada.',
+    ],
+    tags: ['equilibrada', 'desayuno', 'fibra', 'receta de la nutricionista'],
+  },
+
+  {
+    id: 'nut-002',
+    title: 'Tortitas de avena con claras de huevo',
+    description: 'Tortitas sin leche: la avena triturada en harina y las claras de huevo aportan la proteína y la humedad necesarias.',
+    prepTime: 15,
+    calories: 185,
+    protein: 13,
+    carbs: 27,
+    fats: 3,
+    ingredients: [
+      '40g copos de avena (triturados hasta obtener textura de harina)',
+      '60g claras de huevo',
+      'Una pizca de levadura en polvo (opcional, para más esponjosidad)',
+      'Canela al gusto',
+    ],
+    instructions: [
+      'Preparación de la "harina" y las claras: triturar los copos de avena en un procesador o batidora hasta obtener una harina fina; pesar las claras de huevo (sustituyen a la leche, aportando proteína y humedad).',
+      'Mezclado: combinar la harina de avena con las claras en un bol, batiendo bien hasta deshacer cualquier grumo. Si se desea, añadir la pizca de levadura en este punto.',
+      'Cocción: calentar una sartén antiadherente a fuego medio (con una gota de aceite de oliva extendida con papel de cocina). Verter porciones de la mezcla (~1/4 de taza por tortita).',
+      'Dar la vuelta y servir: cuando salgan burbujas en la superficie y los bordes se vean secos, dar la vuelta con una espátula fina y cocinar 1-2 minutos más por el otro lado hasta que doren. Servir solas o con fruta fresca y canela.',
+    ],
+    tags: ['equilibrada', 'desayuno', 'proteína', 'receta de la nutricionista'],
+  },
+
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
