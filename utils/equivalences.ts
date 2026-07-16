@@ -120,6 +120,15 @@ export interface EquivalenceOptions {
    * se acota la desviación calórica total con esta tolerancia. Default 10%.
    */
   tolerancePct?: number;
+  /**
+   * Cuánto puede variar la RACIÓN (en gramos/ml) frente al alimento original,
+   * como múltiplo. Dos alimentos pueden acabar dentro de la tolerancia
+   * calórica y aun así no ser un intercambio realista en el plato — p.ej.
+   * "200g brócoli" igualado en carbohidratos frente a tomate (mucho menos
+   * denso en HC) da ~360g, casi el doble de volumen. Default 1.75 (como
+   * mucho un 75% más o hasta un 57% menos de cantidad).
+   */
+  maxPortionRatio?: number;
 }
 
 /**
@@ -134,6 +143,7 @@ export function findEquivalents(
 ): EquivalentOption[] {
   const limit = opts.limit ?? 3;
   const tolerancePct = opts.tolerancePct ?? 10;
+  const maxPortionRatio = opts.maxPortionRatio ?? 1.75;
 
   const foodName = extractFoodName(ingredientLine);
   if (!foodName) return [];
@@ -194,6 +204,9 @@ export function findEquivalents(
       const newKcal = (cand.per100.kcal * newGrams) / 100;
       const kcalDeltaPct = originKcal > 0 ? (Math.abs(newKcal - originKcal) / originKcal) * 100 : 0;
       if (kcalDeltaPct > tolerancePct) continue;
+
+      const portionRatio = newGrams / originGrams;
+      if (portionRatio > maxPortionRatio || portionRatio < 1 / maxPortionRatio) continue;
 
       passing.push({
         name: cand.name,

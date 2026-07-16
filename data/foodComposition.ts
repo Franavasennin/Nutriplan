@@ -147,7 +147,11 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'calabacín', group: 'verdura', per100: { kcal: 17, protein: 1.2, carbs: 3.1, fats: 0.3 }, priority: 3 },
   { name: 'berenjena', group: 'verdura', per100: { kcal: 25, protein: 1, carbs: 6, fats: 0.2 }, priority: 4 },
   { name: 'tomate', group: 'verdura', per100: { kcal: 18, protein: 0.9, carbs: 3.9, fats: 0.2 }, priority: 5 },
-  { name: 'pimiento', aliases: ['pimiento rojo', 'pimiento verde'], group: 'verdura', per100: { kcal: 31, protein: 1, carbs: 6, fats: 0.3 }, priority: 6 },
+  // Los valores por 100g son los del pimiento rojo (bastante más calórico que
+  // el verde, ~20kcal) — nombre canónico específico para no ofrecer una
+  // alternativa ambigua ("¿verde o rojo?"). Las variantes de texto de un plan
+  // ya escrito ("pimiento", "pimiento verde") se siguen reconociendo vía alias.
+  { name: 'pimiento rojo', aliases: ['pimiento', 'pimiento verde'], group: 'verdura', per100: { kcal: 31, protein: 1, carbs: 6, fats: 0.3 }, priority: 6 },
 
   // ── Fruto seco ──
   { name: 'almendras', group: 'fruto_seco', per100: { kcal: 579, protein: 21, carbs: 22, fats: 50 }, priority: 1 },
