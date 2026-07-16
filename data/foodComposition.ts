@@ -54,11 +54,16 @@ export const GROUP_FALLBACKS: Record<SwapGroup, SwapGroup[]> = {
 
 export const FOOD_COMPOSITION: FoodComposition[] = [
   // ── Aves ──
-  { name: 'pechuga de pollo', aliases: ['pollo', 'filete de pollo', 'pechuga de pollo a la plancha'], group: 'ave', per100: { kcal: 110, protein: 23, carbs: 0, fats: 1.5 }, priority: 1 },
-  { name: 'muslo de pollo', aliases: ['contramuslo de pollo'], group: 'ave', per100: { kcal: 175, protein: 20, carbs: 0, fats: 10 }, priority: 2 },
+  { name: 'pechuga de pollo', aliases: ['pollo', 'filete de pollo', 'pechuga de pollo a la plancha', 'pechuga fileteada'], group: 'ave', per100: { kcal: 110, protein: 23, carbs: 0, fats: 1.5 }, priority: 1 },
+  { name: 'muslo de pollo', aliases: ['contramuslo de pollo', 'cuartos traseros de pollo'], group: 'ave', per100: { kcal: 175, protein: 20, carbs: 0, fats: 10 }, priority: 2 },
   { name: 'pechuga de pavo', aliases: ['pavo', 'filete de pavo'], group: 'ave', per100: { kcal: 105, protein: 24, carbs: 0, fats: 1 }, priority: 1 },
   { name: 'conejo', group: 'ave', per100: { kcal: 130, protein: 21, carbs: 0, fats: 5 }, priority: 3 },
   { name: 'codorniz', group: 'ave', per100: { kcal: 134, protein: 22, carbs: 0, fats: 5 }, priority: 4 },
+  // Añadidos desde BasedatosWeb.xlsx (AESAN 2022, productos reales del
+  // mercado español) — medianas por denominación legal, no un producto único.
+  { name: 'jamoncitos de pollo', group: 'ave', per100: { kcal: 122, protein: 18.9, carbs: 0.2, fats: 5.2 }, priority: 5 },
+  { name: 'alas de pollo', group: 'ave', per100: { kcal: 186, protein: 18, carbs: 0, fats: 12.2 }, priority: 6 },
+  { name: 'hígado de pollo', group: 'ave', per100: { kcal: 132, protein: 16, carbs: 1, fats: 7.1 }, priority: 7 },
 
   // ── Carne roja magra ──
   { name: 'ternera', aliases: ['filete de ternera', 'solomillo de ternera'], group: 'carne_roja_magra', per100: { kcal: 145, protein: 21, carbs: 0, fats: 6.5 }, priority: 1 },
@@ -76,7 +81,7 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'bacalao', group: 'pescado_blanco', per100: { kcal: 82, protein: 18, carbs: 0, fats: 0.7 }, priority: 2 },
   { name: 'lubina', group: 'pescado_blanco', per100: { kcal: 97, protein: 18, carbs: 0, fats: 2.5 }, priority: 3 },
   { name: 'dorada', group: 'pescado_blanco', per100: { kcal: 100, protein: 19, carbs: 0, fats: 2.7 }, priority: 4 },
-  { name: 'lenguado', group: 'pescado_blanco', per100: { kcal: 86, protein: 17, carbs: 0, fats: 1.5 }, priority: 5 },
+  { name: 'lenguado', aliases: ['limanda'], group: 'pescado_blanco', per100: { kcal: 86, protein: 17, carbs: 0, fats: 1.5 }, priority: 5 },
   { name: 'rape', group: 'pescado_blanco', per100: { kcal: 76, protein: 17, carbs: 0, fats: 0.7 }, priority: 6 },
   // Añadidos desde la tabla Novartis (tabla de composición que usaba la
   // nutricionista antes de este programa) — mismo criterio de peso en fresco.
@@ -87,6 +92,8 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'pescadilla', group: 'pescado_blanco', per100: { kcal: 72, protein: 16, carbs: 0, fats: 0.6 }, priority: 11 },
   { name: 'abadejo', aliases: ['bacaladilla'], group: 'pescado_blanco', per100: { kcal: 76, protein: 17.4, carbs: 0, fats: 0.7 }, priority: 12 },
   { name: 'raya', group: 'pescado_blanco', per100: { kcal: 79, protein: 17.1, carbs: 0, fats: 0.9 }, priority: 13 },
+  { name: 'panga', group: 'pescado_blanco', per100: { kcal: 64, protein: 12.4, carbs: 0, fats: 1.2 }, priority: 14 },
+  { name: 'tilapia', group: 'pescado_blanco', per100: { kcal: 69, protein: 15, carbs: 1, fats: 1 }, priority: 15 },
 
   // ── Pescado azul ──
   { name: 'salmón', aliases: ['salmón fresco', 'lomo de salmón'], group: 'pescado_azul', per100: { kcal: 208, protein: 20, carbs: 0, fats: 13 }, priority: 1 },
@@ -98,6 +105,8 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'boquerones', aliases: ['boquerón', 'anchoas'], group: 'pescado_azul', per100: { kcal: 131, protein: 20, carbs: 0, fats: 5 }, priority: 7 },
   { name: 'jurel', aliases: ['chicharro'], group: 'pescado_azul', per100: { kcal: 127, protein: 15.7, carbs: 0, fats: 6.8 }, priority: 8 },
   { name: 'palometa', group: 'pescado_azul', per100: { kcal: 125, protein: 20, carbs: 0, fats: 5 }, priority: 9 },
+  { name: 'bonito', aliases: ['bonito del norte'], group: 'pescado_azul', per100: { kcal: 140, protein: 26, carbs: 0.7, fats: 4 }, priority: 10 },
+  { name: 'pez espada', aliases: ['emperador'], group: 'pescado_azul', per100: { kcal: 116, protein: 18, carbs: 0.6, fats: 4.7 }, priority: 11 },
 
   // ── Marisco ──
   { name: 'gambas', aliases: ['langostinos'], group: 'marisco', per100: { kcal: 85, protein: 18, carbs: 0.9, fats: 1 }, priority: 1 },
@@ -105,15 +114,17 @@ export const FOOD_COMPOSITION: FoodComposition[] = [
   { name: 'mejillones', group: 'marisco', per100: { kcal: 86, protein: 12, carbs: 3.7, fats: 2.2 }, priority: 3 },
   { name: 'pulpo', group: 'marisco', per100: { kcal: 82, protein: 15, carbs: 2.2, fats: 1 }, priority: 4 },
   { name: 'vieira', group: 'marisco', per100: { kcal: 84, protein: 19, carbs: 0, fats: 0.9 }, priority: 5 },
-  { name: 'almejas', aliases: ['chirlas'], group: 'marisco', per100: { kcal: 50, protein: 11, carbs: 0, fats: 0.9 }, priority: 6 },
+  { name: 'almejas', aliases: ['chirlas', 'coquinas'], group: 'marisco', per100: { kcal: 50, protein: 11, carbs: 0, fats: 0.9 }, priority: 6 },
   { name: 'cigala', group: 'marisco', per100: { kcal: 67, protein: 15, carbs: 0, fats: 0.8 }, priority: 7 },
-  { name: 'langosta', group: 'marisco', per100: { kcal: 67, protein: 15, carbs: 0, fats: 0.8 }, priority: 8 },
+  { name: 'langosta', aliases: ['bogavante'], group: 'marisco', per100: { kcal: 67, protein: 15, carbs: 0, fats: 0.8 }, priority: 8 },
   { name: 'centollo', group: 'marisco', per100: { kcal: 127, protein: 20.1, carbs: 0, fats: 5.2 }, priority: 9 },
   { name: 'ostras', group: 'marisco', per100: { kcal: 80, protein: 10, carbs: 6, fats: 1.8 }, priority: 10 },
+  { name: 'pota', aliases: ['potón'], group: 'marisco', per100: { kcal: 50, protein: 10, carbs: 0.6, fats: 0.6 }, priority: 11 },
 
   // ── Huevo ──
   { name: 'huevo', aliases: ['huevos', 'huevo entero'], group: 'huevo', per100: { kcal: 155, protein: 13, carbs: 1.1, fats: 11 }, unit: 'unidad', gramsPerUnit: 55, priority: 1 },
   { name: 'clara de huevo', group: 'huevo', per100: { kcal: 52, protein: 11, carbs: 0.7, fats: 0.2 }, priority: 2 },
+  { name: 'huevo de codorniz', aliases: ['huevos de codorniz'], group: 'huevo', per100: { kcal: 163, protein: 11.2, carbs: 0.4, fats: 13 }, priority: 3 },
 
   // ── Lácteo proteico ──
   { name: 'yogur griego', aliases: ['yogur griego 0%', 'yogur griego natural'], group: 'lacteo_proteico', per100: { kcal: 59, protein: 10, carbs: 3.6, fats: 0.4 }, priority: 1 },
