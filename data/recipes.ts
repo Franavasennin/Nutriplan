@@ -1661,6 +1661,39 @@ export const RECIPES: Recipe[] = [
     tags: ['proteica', 'cena', 'almuerzo', 'pescado azul', 'omega-3', 'sin gluten', 'bajo en carbohidratos'],
   },
 
+  {
+    id: 'pro-009',
+    title: 'Tartar de salmón con aguacate',
+    description: 'Salmón fresco marinado en cítricos y soja con aguacate, alcaparras y un toque picante. Se sirve frío.',
+    prepTime: 75,
+    calories: 395,
+    protein: 24,
+    carbs: 6,
+    fats: 30,
+    ingredients: [
+      '450g salmón fresco, limpio y sin espinas (congelado 48h a -20°C antes de usar, por el anisakis)',
+      '1-2 aguacates maduros',
+      'Hinojo, cebollino o apio picado al gusto',
+      '2-3 cucharadas de alcaparras picadas',
+      '1-2 cucharadas de pepinillos picados (opcional)',
+      '2 cucharadas de aceite de oliva virgen extra',
+      '2 cucharadas de zumo de limón o lima',
+      '1 cucharada de salsa de soja',
+      '1 cucharada de mostaza natural (opcional)',
+      'Unas gotas de tabasco (opcional)',
+      'Cebollino o eneldo fresco y semillas de sésamo para decorar',
+    ],
+    instructions: [
+      'Preparar el salmón: cortarlo en cubos pequeños de ~1cm. Debe haberse congelado al menos 48h a -20°C para eliminar el riesgo de anisakis, y descongelarse antes de usar.',
+      'En un bol, mezclar el salmón con el hinojo/cebollino/apio, las alcaparras, los pepinillos, el aceite de oliva, el zumo de limón, la salsa de soja, la mostaza y el tabasco. Mezclar con suavidad.',
+      'Dejar marinar en la nevera 30 minutos para que se integren los sabores.',
+      'Pelar y cortar el aguacate en cubos; incorporarlo con cuidado para no deshacerlo.',
+      'Dejar reposar otros 30 minutos en la nevera antes de servir.',
+      'Servir frío, usando un molde cilíndrico para darle forma. Decorar con cebollino, eneldo y sésamo.',
+    ],
+    tags: ['proteica', 'cetogénica', 'baja en carbohidratos', 'mediterránea', 'almuerzo', 'cena', 'pescado azul', 'omega-3', 'sin cocción'],
+  },
+
   // ══════════════════════════════════════════════════════════════════════════
   // 9. ATLETA  (8 recetas)
   // Alta energía, macros periodizados según carga de entrenamiento
