@@ -4,10 +4,15 @@ import { findRecipes } from '../services/geminiService';
 import { RECIPES } from '../data/recipes';
 import { getRecipeAllergens } from '../utils/allergenVerification';
 import { FoodAutocompleteInput } from './FoodAutocomplete';
+import RecipeFormModal from './RecipeFormModal';
+import { useConfirm } from './ConfirmDialog';
 
 interface RecipeSearchProps {
   /** External recipe catalogue (e.g. synced from DB). Falls back to static RECIPES. */
   recipes?: Recipe[];
+  onAdd: (recipe: Recipe) => void;
+  onEdit: (recipe: Recipe) => void;
+  onDelete: (id: string) => void;
 }
 
 // ─── Mapeo DietType enum → tag en la base de datos ───────────────────────────
@@ -78,7 +83,9 @@ const MEAL_LABELS: Record<MealType, string> = {
   [MealType.Any]:       'Cualquiera',
 };
 
-const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes }) => {
+const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes, onAdd, onEdit, onDelete }) => {
+  const { confirm } = useConfirm();
+  const [formModal, setFormModal] = useState<{ recipe: Recipe | null } | null>(null);
   // Bug preexistente corregido (iteración 003, descubierto verificando
   // MEJORA-013): useAppData siempre pasa dbRecipes=[] (no hay tabla de
   // recetas), y `[] ?? RECIPES` devuelve [] — el corpus estático de 68
@@ -258,11 +265,21 @@ const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes })
       {/* ── Contenido principal ── */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <div className="px-8 py-6 bg-white dark:bg-[#15281d]/50 shrink-0 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-3 mb-4">
-            <h1 className="text-2xl font-bold text-[#111813] dark:text-white">Buscador de Recetas</h1>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isAiResults ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}>
-              {isAiResults ? '✦ IA' : `${recipes.length} recetas`}
-            </span>
+          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-[#111813] dark:text-white">Buscador de Recetas</h1>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isAiResults ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'}`}>
+                {isAiResults ? '✦ IA' : `${recipes.length} recetas`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormModal({ recipe: null })}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-black px-4 py-2 rounded-lg font-bold shadow-lg shadow-primary/20 text-sm"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Nueva receta
+            </button>
           </div>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
@@ -380,9 +397,36 @@ const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes })
             <div className="p-6 md:p-8">
               <div className="flex justify-between items-start mb-2">
                 <h2 className="text-2xl font-bold text-text-main dark:text-white pr-4">{selectedRecipe.title}</h2>
-                <button type="button" onClick={() => setSelectedRecipe(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors shrink-0">
-                  <span className="material-symbols-outlined dark:text-white">close</span>
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => { const r = selectedRecipe; setSelectedRecipe(null); setFormModal({ recipe: r }); }}
+                    className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
+                    title="Editar receta"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const r = selectedRecipe;
+                      const ok = await confirm({
+                        title: 'Eliminar receta',
+                        message: `¿Eliminar "${r.title}" de la base de datos?`,
+                        confirmLabel: 'Eliminar',
+                        danger: true,
+                      });
+                      if (ok) { onDelete(r.id); setSelectedRecipe(null); }
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                    title="Eliminar receta"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                  </button>
+                  <button type="button" onClick={() => setSelectedRecipe(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                    <span className="material-symbols-outlined dark:text-white">close</span>
+                  </button>
+                </div>
               </div>
               <p className="text-sm text-text-sub dark:text-gray-400 mb-4">{selectedRecipe.description}</p>
 
@@ -460,6 +504,17 @@ const RecipeSearch: React.FC<RecipeSearchProps> = ({ recipes: externalRecipes })
             </div>
           </div>
         </div>
+      )}
+
+      {formModal && (
+        <RecipeFormModal
+          recipe={formModal.recipe}
+          onClose={() => setFormModal(null)}
+          onSave={(r) => {
+            formModal.recipe ? onEdit(r) : onAdd(r);
+            setFormModal(null);
+          }}
+        />
       )}
     </div>
   );

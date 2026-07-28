@@ -59,6 +59,7 @@ const AppContent: React.FC = () => {
     saveLinkedDiet, updateLinkedDiet, unlinkDiet,
     saveAppointment, updateAppointment, deleteAppointment,
     addCustomFood, editCustomFood, deleteCustomFood,
+    addRecipe, editRecipe, deleteRecipe,
     saveProgressEntry, deleteProgressEntry, updateProgressEntry, updateClientGoal, importAll, appendDiets,
     getOrCreatePortalToken, updatePortalToken, regeneratePortalToken, getPortalWeeklyAdherence,
   } = useAppData(msg => toast(msg, 'error'));
@@ -580,7 +581,9 @@ const AppContent: React.FC = () => {
           </>
         )}
 
-        {currentStep === 'recipes' && <RecipeSearch recipes={dbRecipes} />}
+        {currentStep === 'recipes' && (
+          <RecipeSearch recipes={dbRecipes} onAdd={addRecipe} onEdit={editRecipe} onDelete={deleteRecipe} />
+        )}
 
         {currentStep === 'progress' && (
           <ProgressTracker

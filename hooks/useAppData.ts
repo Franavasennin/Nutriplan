@@ -43,6 +43,21 @@ const rowToFood = (r: any): CustomFood => ({
   portionSize: r.portion_size,
 });
 
+const rowToRecipe = (r: any): Recipe => ({
+  id:           r.id,
+  title:        r.title,
+  description:  r.description,
+  prepTime:     r.prep_time,
+  calories:     r.calories,
+  protein:      r.protein,
+  carbs:        r.carbs,
+  fats:         r.fats,
+  ingredients:  r.ingredients  ?? [],
+  instructions: r.instructions ?? [],
+  tags:         r.tags         ?? [],
+  allergens:    r.allergens?.length ? r.allergens : undefined,
+});
+
 export interface PortalToken {
   token: string;
   clientId: string;
@@ -111,9 +126,7 @@ export function useAppData(onWriteError?: (message: string) => void) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [dbOnline,     setDbOnline]     = useState(true);
   const [isDbLoading,  setIsDbLoading]  = useState(true);
-
-  // dbRecipes: empty — no recipes table yet
-  const dbRecipes: Recipe[] = [];
+  const [dbRecipes,    setDbRecipes]    = useState<Recipe[]>([]);
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -194,6 +207,29 @@ export function useAppData(onWriteError?: (message: string) => void) {
       }
     }
     loadAppointments();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Carga de recetas (separada: tabla nueva, si falla no rompe el resto) ───
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRecipes() {
+      try {
+        const { data, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .order('title', { ascending: true });
+        if (cancelled) return;
+        if (error) {
+          console.warn('[recipes] no disponible:', error.message);
+          return;
+        }
+        setDbRecipes((data ?? []).map(rowToRecipe));
+      } catch (err: any) {
+        if (!cancelled) console.warn('[recipes] error:', err?.message);
+      }
+    }
+    loadRecipes();
     return () => { cancelled = true; };
   }, []);
 
@@ -382,6 +418,37 @@ export function useAppData(onWriteError?: (message: string) => void) {
     setCustomFoods(prev => prev.filter(f => f.id !== id));
     supabase.from('custom_foods').delete().eq('id', id)
       .then(reportError('deleteCustomFood'));
+  }, []);
+
+  // ── Recipes ───────────────────────────────────────────────────────────────
+
+  const addRecipe = useCallback((recipe: Recipe) => {
+    setDbRecipes(prev => [...prev, recipe]);
+    supabase.from('recipes').insert({
+      id: recipe.id, title: recipe.title, description: recipe.description,
+      prep_time: recipe.prepTime, calories: recipe.calories, protein: recipe.protein,
+      carbs: recipe.carbs, fats: recipe.fats, ingredients: recipe.ingredients,
+      instructions: recipe.instructions, tags: recipe.tags,
+      allergens: recipe.allergens ?? [],
+    }).then(reportError('addRecipe'));
+  }, []);
+
+  const editRecipe = useCallback((recipe: Recipe) => {
+    setDbRecipes(prev => prev.map(r => r.id === recipe.id ? recipe : r));
+    supabase.from('recipes').update({
+      title: recipe.title, description: recipe.description,
+      prep_time: recipe.prepTime, calories: recipe.calories, protein: recipe.protein,
+      carbs: recipe.carbs, fats: recipe.fats, ingredients: recipe.ingredients,
+      instructions: recipe.instructions, tags: recipe.tags,
+      allergens: recipe.allergens ?? [],
+    }).eq('id', recipe.id)
+      .then(reportError('editRecipe'));
+  }, []);
+
+  const deleteRecipe = useCallback((id: string) => {
+    setDbRecipes(prev => prev.filter(r => r.id !== id));
+    supabase.from('recipes').delete().eq('id', id)
+      .then(reportError('deleteRecipe'));
   }, []);
 
   // ── Progress ──────────────────────────────────────────────────────────────
@@ -649,6 +716,9 @@ export function useAppData(onWriteError?: (message: string) => void) {
     addCustomFood,
     editCustomFood,
     deleteCustomFood,
+    addRecipe,
+    editRecipe,
+    deleteRecipe,
     saveProgressEntry,
     deleteProgressEntry,
     updateProgressEntry,
