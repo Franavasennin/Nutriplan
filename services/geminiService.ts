@@ -549,8 +549,15 @@ export const buildUserPrompt = (
   metrics: CalculatedMetrics,
   customFoods: CustomFood[],
   startDay: number,
-  daysToGenerate: number
+  daysToGenerate: number,
+  planInstructions?: string
 ): string => {
+  // Pautas persistidas de la nutricionista (ej: "todos los desayunos con
+  // pan integral"): se aplican a TODA generación futura, pero explícitamente
+  // por debajo de exclusiones/alérgenos (Regla 0 del system prompt).
+  const planInstructionsText = planInstructions?.trim()
+    ? `\nPAUTA DE LA NUTRICIONISTA (prioridad MENOR que las exclusiones/alérgenos anteriores; si entran en conflicto, gana la exclusión): ${sanitizeForPrompt(planInstructions, 300)}`
+    : '';
   const conditionsText = patient.conditions?.length
     ? patient.conditions.map(c => sanitizeForPrompt(c, 50)).join(', ')
     : 'Ninguna';
@@ -607,7 +614,7 @@ export const buildUserPrompt = (
 Genera un plan de ${daysToGenerate} días (días ${startDay} al ${startDay + daysToGenerate - 1}) para:
 - Paciente: ${patient.age} años, ${patient.gender}, ${patient.weight}kg, ${patient.height}cm
 - Protocolo: ${patient.dietType === DietType.ProteinDAP4 ? 'Protéifine DAP 4' : 'Protéifine DAP 5'}
-${excludedText}${customFoodsText}
+${excludedText}${customFoodsText}${planInstructionsText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
 `.trim();
@@ -716,7 +723,7 @@ ${weightGoalText}
   → Si usas solo 100g de un cereal o 100g de aceite en cada toma, el plan NO alcanza el objetivo.${carbsPerMeal > 80 ? `
   ⚠ ALERTA HC ELEVADO (${carbsPerMeal}g por toma): Una sola fuente de cereal NO alcanza este objetivo. DEBES combinar 2-3 fuentes de HC en cada toma principal. Ejemplo para ${carbsPerMeal}g HC: ${Math.round(carbsPerMeal * 0.5 / 0.28)}g arroz integral cocido (${Math.round(carbsPerMeal * 0.5)}g HC) + ${Math.round(carbsPerMeal * 0.3 / 0.20)}g legumbres (${Math.round(carbsPerMeal * 0.3)}g HC) + 1 fruta mediana (${Math.round(carbsPerMeal * 0.2)}g HC). Ajusta según el plato.` : ''}
 ${clinicalTargetsNote}${conditionDirectivesText}${budgetNote}
-${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}
+${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}${planInstructionsText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
 `.trim();
@@ -748,7 +755,7 @@ export const generateDietPlan = async (
     const daysLeft = totalDays - batch * DAYS_PER_BATCH;
     const daysThisBatch = Math.min(DAYS_PER_BATCH, daysLeft);
 
-    const userPrompt = buildUserPrompt(patient, metrics, customFoods, startDay, daysThisBatch);
+    const userPrompt = buildUserPrompt(patient, metrics, customFoods, startDay, daysThisBatch, patient.planInstructions);
 
     try {
       const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
@@ -943,7 +950,7 @@ export const regenerateSingleDay = async (
   if (!apiKey) throw new Error('API Key no encontrada. Revisa .env.local');
 
   const systemPrompt = getSystemPrompt(patient);
-  const userPrompt   = buildUserPrompt(patient, metrics, customFoods, dayNumber, 1);
+  const userPrompt   = buildUserPrompt(patient, metrics, customFoods, dayNumber, 1, patient.planInstructions);
 
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA');
@@ -1158,6 +1165,125 @@ Devuelve SOLO el JSON con los mismos alimentos y las cantidades recalculadas.
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
   }
+};
+
+// ─── Aplicar pautas de la nutricionista sobre un plan ya generado ─────────────
+/**
+ * A diferencia de `regenerateSingleDay` (rehace el día entero al azar), esta
+ * función pide a la IA SOLO las comidas que hay que cambiar para cumplir una
+ * pauta en lenguaje natural (ej: "todos los desayunos con pan integral").
+ * El resto del plan se conserva byte a byte — la fusión determinista la hace
+ * `mergeInstructionChanges` (utils/planInstructions.ts), nunca la IA.
+ *
+ * Clave de diseño: el objetivo de macros de cada comida sustituida es el de
+ * LA COMIDA CONCRETA que reemplaza (leído del plan actual), no
+ * `metrics.macros / mealCount`. Esto evita heredar el fallo ya detectado en
+ * `getSystemPrompt`/`buildUserPrompt`/`getMealSwap`/`generateSingleMeal`
+ * (`patient.mealCount ?? 5`), que da un objetivo por toma incorrecto en las
+ * dietas antiguas que no guardaron `mealCount`.
+ */
+export interface InstructionChange {
+  day: number;
+  mealKey: string;
+  meal: Meal;
+}
+
+const APPLY_INSTRUCTIONS_DAYS_PER_BATCH = 7;
+
+export const applyPlanInstructions = async (
+  plan: DietResponse,
+  instructions: string,
+  patient: PatientData,
+  metrics: CalculatedMetrics
+): Promise<{ changes: InstructionChange[] }> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error('API Key no encontrada. Revisa .env.local');
+
+  const cleanInstructions = sanitizeForPrompt(instructions, 600);
+  if (!cleanInstructions) return { changes: [] };
+
+  // Mismas exclusiones/alérgenos que en buildUserPrompt, con la misma
+  // prioridad absoluta (Regla 0) — la pauta nunca puede colar un alérgeno.
+  const clinicalTargets = getClinicalTargets(patient, metrics.macros.calories);
+  const allergenNames = (patient.allergens ?? []).map(a => ALLERGEN_LABELS[a]);
+  const allExclusions = [
+    ...(patient.excludedFoods?.trim() ? [sanitizeForPrompt(patient.excludedFoods, 200)] : []),
+    ...clinicalTargets.mandatoryExclusions,
+    ...allergenNames,
+  ].join(', ');
+  const excludedText = allExclusions
+    ? `EXCLUIR COMPLETAMENTE (prioridad absoluta, por encima de la pauta si entran en conflicto): ${allExclusions}`
+    : 'Ninguna';
+
+  const systemPrompt = `
+Eres un nutricionista clínico. Estás AJUSTANDO un plan nutricional YA EXISTENTE según una pauta que ha añadido la nutricionista — NO estás generando un plan nuevo.
+
+Devuelve ÚNICAMENTE un JSON con las comidas que HAY QUE CAMBIAR para cumplir la pauta. Si ninguna comida de los días recibidos necesita cambiar, devuelve un array vacío.
+
+Formato de respuesta (obligatorio, sin texto adicional):
+{"changes":[{"day":número,"mealKey":"breakfast|morningSnack|lunch|afternoonSnack|dinner","meal":{"name":"string","description":"string","ingredients":["string con gramos/medida"],"calories":número,"protein":número,"carbs":número,"fats":número}}]}
+
+REGLAS:
+1. PRIORIDAD ABSOLUTA — EXCLUSIONES: ${excludedText}. Si la pauta pide un alimento excluido, IGNORA la pauta para esa comida (no la incluyas en "changes").
+2. OBJETIVO DE MACROS — el más importante: cada comida que cambies debe cuadrar (±8%) con los macros de LA COMIDA ORIGINAL que sustituye (te los doy en el prompt de usuario, comida por comida). El objetivo NO es el macro medio del día — es el de esa comida concreta. Recalcula las cantidades de los ingredientes para lograrlo.
+3. Solo modifica las comidas que la pauta obliga a cambiar. NO toques comidas que ya cumplen la pauta o que no están relacionadas con ella.
+4. No cambies el número de días ni añadas comidas nuevas — "mealKey" debe ser una de las claves que ya existen en ese día del plan recibido.
+${MEAL_TIME_CONSTRAINTS}
+`.trim();
+
+  const totalDays = plan.weeklyPlan.length;
+  const batches = Math.ceil(totalDays / APPLY_INSTRUCTIONS_DAYS_PER_BATCH);
+  const allChanges: InstructionChange[] = [];
+
+  for (let b = 0; b < batches; b++) {
+    const batchDays = plan.weeklyPlan.slice(
+      b * APPLY_INSTRUCTIONS_DAYS_PER_BATCH,
+      (b + 1) * APPLY_INSTRUCTIONS_DAYS_PER_BATCH
+    );
+
+    const daysCompact = batchDays.map(day => ({
+      day: day.day,
+      meals: Object.entries(day.meals)
+        .filter(([, meal]) => !!meal)
+        .map(([mealKey, meal]) => ({
+          mealKey,
+          name: meal!.name,
+          ingredients: meal!.ingredients,
+          calories: meal!.calories, protein: meal!.protein, carbs: meal!.carbs, fats: meal!.fats,
+        })),
+    }));
+
+    const userPrompt = `
+PAUTA DE LA NUTRICIONISTA: ${cleanInstructions}
+
+PLAN ACTUAL (usa los macros de cada comida como objetivo si la cambias):
+${JSON.stringify(daysCompact)}
+
+Devuelve SOLO el JSON de cambios, sin explicaciones.
+`.trim();
+
+    const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
+    if (!text) continue;
+
+    let parsed: { changes?: any[] };
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      continue; // lote inválido: no aplicar cambios de este lote, no abortar los demás
+    }
+
+    for (const c of parsed.changes ?? []) {
+      if (typeof c?.day !== 'number' || typeof c?.mealKey !== 'string') continue;
+      try {
+        const meal = reconcileMealMacros(extractMeal(c.meal));
+        allChanges.push({ day: c.day, mealKey: c.mealKey, meal });
+      } catch {
+        // comida con formato inválido: se descarta, no rompe el resto del lote
+      }
+    }
+  }
+
+  return { changes: allChanges };
 };
 
 export const findRecipes = async (filters: RecipeFilters): Promise<Recipe[]> => {

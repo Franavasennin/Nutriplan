@@ -264,6 +264,26 @@ export function useAppData(onWriteError?: (message: string) => void) {
       .then(reportError('updateDietPlan'));
   }, []);
 
+  /**
+   * Igual que updateDietPlan, pero antes de sobrescribir empuja el plan
+   * ACTUAL a plan_versions (máx. 10, se descarta la más antigua) — activa el
+   * historial de versiones/deshacer que ya existe en la UI (badge + restaurar
+   * en DietPlanDisplay) y en el esquema de Supabase (plan_versions jsonb),
+   * pero que hasta ahora nada rellenaba. Pensado para "Aplicar pautas", donde
+   * conviene poder deshacer el ajuste.
+   */
+  const MAX_PLAN_VERSIONS = 10;
+  const updateDietPlanWithSnapshot = useCallback((id: string, plan: DietResponse) => {
+    setSavedDiets(prev => prev.map(d => {
+      if (d.id !== id) return d;
+      const snapshot: PlanVersion = { timestamp: Date.now(), plan: d.plan };
+      const planVersions = [...(d.planVersions ?? []), snapshot].slice(-MAX_PLAN_VERSIONS);
+      supabase.from('saved_diets').update({ plan, plan_versions: planVersions }).eq('id', id)
+        .then(reportError('updateDietPlanWithSnapshot'));
+      return { ...d, plan, planVersions };
+    }));
+  }, []);
+
   /** Update all fields of an existing diet (re-generate) */
   const updateFullDiet = useCallback((
     id: string,
@@ -702,6 +722,7 @@ export function useAppData(onWriteError?: (message: string) => void) {
     isDbLoading,
     saveDiet,
     updateDietPlan,
+    updateDietPlanWithSnapshot,
     updateFullDiet,
     updatePatientData,
     deleteDiet,

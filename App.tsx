@@ -30,7 +30,8 @@ import { useAppData }    from './hooks/useAppData';
 
 // Services
 import { exportJSON, exportCSV, importJSON, importCSV } from './services/exportService';
-import { parseDietFromPDF, regenerateSingleDay, getMealSwap } from './services/geminiService';
+import { parseDietFromPDF, regenerateSingleDay, getMealSwap, applyPlanInstructions } from './services/geminiService';
+import { mergeInstructionChanges, findDaysOffTarget } from './utils/planInstructions';
 import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
@@ -55,7 +56,7 @@ const AppContent: React.FC = () => {
   // vez de perderse en la consola del navegador.
   const {
     savedDiets, customFoods, progressData, appointments, dbRecipes, uniqueClients, dbOnline,
-    saveDiet, updateDietPlan, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
+    saveDiet, updateDietPlan, updateDietPlanWithSnapshot, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
     saveLinkedDiet, updateLinkedDiet, unlinkDiet,
     saveAppointment, updateAppointment, deleteAppointment,
     addCustomFood, editCustomFood, deleteCustomFood,
@@ -372,6 +373,43 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // ── Pautas de la nutricionista sobre el plan ya generado ────────────────────
+  const handleApplyInstructions = async (instructions: string) => {
+    if (!patientData || !metrics || !plan) return;
+    setIsLoading(true);
+    try {
+      const { changes } = await applyPlanInstructions(plan, instructions, patientData, metrics);
+      const { plan: mergedPlan, applied, skipped } = mergeInstructionChanges(plan, changes);
+
+      // Prioridad absoluta: exclusiones/alérgenos ganan siempre a la pauta,
+      // igual que en handleRegenerateDay. Vía de mayor riesgo de reintroducir
+      // un alérgeno sin querer.
+      const violations = verifyPlanAgainstAllergens(mergedPlan, patientData);
+      if (violations.length > 0) toast(formatAllergenViolationsMessage(violations), 'error');
+
+      const offTargetDays = findDaysOffTarget(mergedPlan, metrics);
+      if (offTargetDays.length > 0) {
+        toast(`Aviso: el día ${offTargetDays.join(', ')} se desvía más de un 10% del objetivo calórico.`, 'error');
+      }
+      if (skipped.length > 0) {
+        console.warn('Cambios de pauta descartados:', skipped);
+      }
+
+      setPlan(mergedPlan);
+      if (currentDietId) {
+        updateDietPlanWithSnapshot(currentDietId, mergedPlan);
+        updatePatientData(currentDietId, { planInstructions: instructions });
+      }
+      toast(applied > 0
+        ? `Pauta aplicada: ${applied} comida${applied === 1 ? '' : 's'} ajustada${applied === 1 ? '' : 's'}.`
+        : 'La pauta no requería cambios en este plan.', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Error al aplicar la pauta.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ── Meal swap ────────────────────────────────────────────────────────────────
   const handleSwapMeal = async (_dayNumber: number, mealKey: string, currentMeal: Meal): Promise<Meal> => {
     if (!patientData || !metrics) throw new Error('No hay datos del paciente');
@@ -570,6 +608,7 @@ const AppContent: React.FC = () => {
               handleFormSubmit({ ...patientData, dietType: newDietType });
             }}
             onRegenerateDay={handleRegenerateDay}
+            onApplyInstructions={handleApplyInstructions}
             onSwapMeal={handleSwapMeal}
             onRestoreVersion={handleRestoreVersion}
             lockedMeals={viewingDiet?.lockedMeals}

@@ -207,6 +207,12 @@ export interface PatientData {
   calorieGoal?: CalorieGoal;  // objetivo calórico para dietas no-atleta
   trainingTime?: string;    // hora de entrenamiento HH:MM — solo dieta atleta
   clinicalNotes?: string;   // notas clínicas del nutricionista (no enviadas a la IA)
+  // Pautas de la nutricionista sobre el plan ya generado (ej: "todos los
+  // desayunos con pan integral"). A diferencia de clinicalNotes, ESTA SÍ se
+  // envía a la IA — se persiste aquí para que toda regeneración futura
+  // (día suelto o plan completo) la respete, no solo el ajuste puntual que
+  // la creó. Prioridad siempre por debajo de exclusiones/alérgenos.
+  planInstructions?: string;
   // ─── Cribado de seguridad clínica (auditoría) ──────────────────────────────
   isPregnant?: boolean;     // embarazo — bloquea déficit calórico y ayuno automáticos
   isLactating?: boolean;    // lactancia — bloquea déficit calórico y ayuno automáticos

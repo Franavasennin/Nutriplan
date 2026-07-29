@@ -31,6 +31,10 @@ interface Props {
   onRegenerateDay?: (dayNumber: number) => void;
   onSwapMeal?: (dayNumber: number, mealKey: string, currentMeal: Meal) => Promise<Meal>;
   onRestoreVersion?: (version: PlanVersion) => void;
+  /** "Pautas de la nutricionista": ajusta solo las comidas necesarias para
+   *  cumplir una instrucción en lenguaje natural (ej: "todos los desayunos
+   *  con pan integral"), conservando el resto del plan intacto. */
+  onApplyInstructions?: (instructions: string) => Promise<void>;
   // ─── Pareja Inteligente: bloqueo de comidas editadas manualmente ───────────
   /** Claves "<day>-<mealKey>" bloqueadas — no se tocan al resincronizar con el principal. */
   lockedMeals?: string[];
@@ -524,7 +528,7 @@ const CoupleShoppingList: React.FC<{ list: ShoppingList; days: number }> = ({ li
 const DietPlanDisplay: React.FC<Props> = ({
   metrics, plan, patientName, mealCount, fastingProtocol, patientData,
   isLoading, planVersions, dietId, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
-  lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal, otherPersonDiet,
+  lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal, otherPersonDiet, onApplyInstructions,
 }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
@@ -537,6 +541,9 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [showVersions,   setShowVersions]   = useState(false);
   const [showShopping,   setShowShopping]   = useState(false);
   const [showEducation,  setShowEducation]  = useState(false); // mejora #13: módulo educativo
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructionsText, setInstructionsText] = useState(patientData?.planInstructions ?? '');
+  const [isApplyingInstructions, setIsApplyingInstructions] = useState(false);
   const [selectedDiet,   setSelectedDiet]   = useState<DietType>(patientData?.dietType ?? DietType.Balanced);
   const [swappingKey,    setSwappingKey]    = useState<string | null>(null); // `${day}-${mealKey}`
   const [listHasChanges, setListHasChanges] = useState(false);   // feature 4: lista compra
@@ -953,6 +960,17 @@ const DietPlanDisplay: React.FC<Props> = ({
                   <span className="hidden sm:inline">Rehacer día {activeDay}</span>
                 </button>
               )}
+              {onApplyInstructions && (
+                <button onClick={() => { setShowInstructions(v => !v); setShowRegen(false); setShowVersions(false); }}
+                  title="Añadir una pauta en lenguaje natural (ej: todos los desayunos con pan)"
+                  className={`flex items-center gap-2 h-11 px-5 rounded-xl border text-sm font-bold transition-all relative ${showInstructions ? 'bg-amber-500 text-white border-amber-500' : 'bg-surface-light dark:bg-surface-dark border-border-light dark:border-border-dark hover:border-amber-400'}`}>
+                  <span className="material-symbols-outlined text-[20px]">tips_and_updates</span>
+                  <span className="hidden sm:inline">Pautas</span>
+                  {patientData?.planInstructions && (
+                    <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-amber-500 border border-white dark:border-background-dark" />
+                  )}
+                </button>
+              )}
               {onRegenerate && (
                 <button onClick={() => setShowRegen(v => !v)}
                   className="flex items-center gap-2 h-11 px-6 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-sm font-bold hover:border-primary transition-all">
@@ -1050,6 +1068,54 @@ const DietPlanDisplay: React.FC<Props> = ({
                     Generar
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pautas de la nutricionista */}
+          {showInstructions && onApplyInstructions && (
+            <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-amber-400/40 p-5 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-500">tips_and_updates</span>
+                <h3 className="font-bold text-text-main dark:text-white">Pautas sobre este plan</h3>
+              </div>
+              <p className="text-xs text-text-sub dark:text-gray-400">
+                Escribe una instrucción en lenguaje natural. Solo se ajustarán las comidas necesarias para
+                cumplirla — el resto del plan y sus macros no se tocan. Ejemplos: "todos los desayunos con pan
+                integral", "nada de pescado en las cenas", "más variedad de verduras".
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                Las alergias y alimentos excluidos del paciente siguen teniendo prioridad absoluta sobre esta pauta.
+              </p>
+              <textarea
+                rows={3}
+                value={instructionsText}
+                onChange={e => setInstructionsText(e.target.value)}
+                placeholder="Ej: necesito que todos los desayunos tengan pan"
+                className="w-full bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark rounded-lg p-3 outline-none dark:text-white focus:border-amber-400 transition-colors text-sm"
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowInstructions(false)}
+                  className="h-11 px-5 rounded-lg border border-border-light dark:border-border-dark text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-sub">
+                  Cancelar
+                </button>
+                <button type="button"
+                  onClick={async () => {
+                    setIsApplyingInstructions(true);
+                    try {
+                      await onApplyInstructions(instructionsText);
+                      setShowInstructions(false);
+                    } finally {
+                      setIsApplyingInstructions(false);
+                    }
+                  }}
+                  disabled={isApplyingInstructions || isLoading || !instructionsText.trim()}
+                  className="h-11 px-6 rounded-lg bg-amber-500 text-white text-sm font-black hover:brightness-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <span className={`material-symbols-outlined text-[18px] ${isApplyingInstructions ? 'animate-spin' : ''}`}>
+                    {isApplyingInstructions ? 'progress_activity' : 'tips_and_updates'}
+                  </span>
+                  Aplicar pautas
+                </button>
               </div>
             </div>
           )}
