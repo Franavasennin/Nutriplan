@@ -4,6 +4,7 @@ import { FIXED_SUBSTITUTION_RULES, FIXED_FRUIT_PORTIONS } from '../data/nutritio
 import { QUANTITY_RE } from './planScaling';
 import { extractFoodName } from './foodVocabulary';
 import { findMatchingAllergens } from './shoppingList';
+import { normalizeKey, findFoodEntry, extractGrams } from './foodLookup';
 
 /**
  * Motor determinista de equivalencias nutricionales — "hoy me toca pollo y no
@@ -25,11 +26,6 @@ export interface EquivalentOption {
   kcalDelta: number;
 }
 
-/** Clave de comparación: minúsculas y sin acentos (mismo criterio que foodVocabulary). */
-function normalizeKey(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
-}
-
 /** Macro que se iguala al buscar equivalentes — el que define ese grupo de alimentos. */
 function dominantMacro(group: SwapGroup): 'protein' | 'carbs' | 'fats' {
   switch (group) {
@@ -44,46 +40,6 @@ function dominantMacro(group: SwapGroup): 'protein' | 'carbs' | 'fats' {
     default:
       return 'protein';
   }
-}
-
-/** Busca la entrada de composición cuyo nombre/alias case con el texto — gana el match más largo. */
-function findFoodEntry(foodName: string): FoodComposition | undefined {
-  const key = normalizeKey(foodName);
-  if (!key) return undefined;
-  let best: FoodComposition | undefined;
-  let bestLen = 0;
-  for (const entry of FOOD_COMPOSITION) {
-    for (const candidate of [entry.name, ...(entry.aliases ?? [])]) {
-      const candidateKey = normalizeKey(candidate);
-      if ((key === candidateKey || key.includes(candidateKey)) && candidateKey.length > bestLen) {
-        best = entry;
-        bestLen = candidateKey.length;
-      }
-    }
-  }
-  return best;
-}
-
-const GRAM_LIKE = /^(g|gr|gramos)$/i;
-const ML_LIKE = /^ml$/i;
-const KG_LIKE = /^kg$/i;
-const LITRE_LIKE = /^l(itro[s]?)?$/i;
-const UNIT_LIKE = /^unidad(es)?$/i;
-
-/**
- * Gramos reales del ingrediente. Solo convierte unidades de masa/volumen
- * fiables (g/gr/gramos/kg/ml/l/litro) y "unidad(es)" si el alimento tiene
- * `gramsPerUnit` conocido. cucharada/taza no son fiables — devuelve null en
- * vez de inventar una conversión (mismo criterio que el resto del corpus).
- */
-function extractGrams(rawAmount: string, unit: string, origin: FoodComposition): number | null {
-  const amount = parseFloat(rawAmount.replace(',', '.'));
-  if (!Number.isFinite(amount) || amount <= 0) return null;
-  if (UNIT_LIKE.test(unit)) return origin.gramsPerUnit ? amount * origin.gramsPerUnit : null;
-  if (KG_LIKE.test(unit)) return amount * 1000;
-  if (LITRE_LIKE.test(unit)) return amount * 1000;
-  if (GRAM_LIKE.test(unit) || ML_LIKE.test(unit)) return amount;
-  return null;
 }
 
 function parseExcludedFoods(excludedFoods?: string): string[] {

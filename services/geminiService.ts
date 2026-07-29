@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from '../utils/calculations';
 import { reconcileMealMacros, reconcileDayPlan, reconcileDietResponse } from '../utils/macroValidation';
+import { verifyAndCorrectMeal, verifyAndCorrectDayPlan, verifyAndCorrectDietResponse } from '../utils/nutritionVerification';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 import { getClinicalTargets } from '../utils/clinicalTargets';
 
@@ -801,7 +802,21 @@ export const generateDietPlan = async (
     }),
     patient.calorieGoal
   );
-  return reconcileDietResponse({ weeklyPlan: allDayPlans, generalGuidelines: finalGuidelines, durationText });
+  const reconciled = reconcileDietResponse({ weeklyPlan: allDayPlans, generalGuidelines: finalGuidelines, durationText });
+
+  // Verificador nutricional determinista (sin coste de IA): compara los macros
+  // declarados por el modelo contra los que dan sus propios ingredientes según
+  // data/foodComposition.ts, y corrige las cantidades cuando se desvían. Cierra
+  // el hueco documentado en utils/macroValidation.ts — reconcileDietResponse
+  // solo comprueba consistencia aritmética interna, nunca contra la realidad.
+  const { plan: verifiedPlan, notes } = verifyAndCorrectDietResponse(reconciled);
+  if (notes.length > 0) {
+    verifiedPlan.generalGuidelines = [
+      ...verifiedPlan.generalGuidelines,
+      `Verificación nutricional: se ajustaron automáticamente ${notes.length} comida${notes.length === 1 ? '' : 's'} cuyas cantidades no coincidían con los macros declarados.`,
+    ];
+  }
+  return verifiedPlan;
 };
 
 // ─── Recipe search ────────────────────────────────────────────────────────────
@@ -928,13 +943,13 @@ export const parseDietFromPDF = async (pdfBase64: string): Promise<SavedDiet> =>
     timestamp: Date.now(),
     patientData,
     metrics:   { imc, bmr, tee, macros },
-    plan: reconcileDietResponse({
+    plan: verifyAndCorrectDietResponse(reconcileDietResponse({
       weeklyPlan,
       generalGuidelines: Array.isArray(parsed.generalGuidelines)
         ? parsed.generalGuidelines
         : ['Plan importado desde PDF'],
       durationText: `${weeklyPlan.length} días`,
-    }),
+    })).plan,
   };
 };
 
@@ -961,7 +976,7 @@ export const regenerateSingleDay = async (
   }
   const day = parsed.weeklyPlan[0];
   day.day = dayNumber;
-  return reconcileDayPlan(day);
+  return verifyAndCorrectDayPlan(reconcileDayPlan(day)).day;
 };
 
 // ─── Sugerir alternativa para una comida ─────────────────────────────────────
@@ -1018,7 +1033,7 @@ Devuelve SOLO el JSON.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al sugerir alternativa.');
   try {
-    return reconcileMealMacros(extractMeal(JSON.parse(text)));
+    return verifyAndCorrectMeal(reconcileMealMacros(extractMeal(JSON.parse(text)))).meal;
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta con formato inválido al sugerir la alternativa. Inténtalo de nuevo.');
   }
@@ -1109,7 +1124,7 @@ Devuelve SOLO el JSON.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al generar la toma.');
   try {
-    return reconcileMealMacros(extractMeal(JSON.parse(text)));
+    return verifyAndCorrectMeal(reconcileMealMacros(extractMeal(JSON.parse(text)))).meal;
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta con formato inválido al generar la toma. Inténtalo de nuevo.');
   }
@@ -1161,7 +1176,7 @@ Devuelve SOLO el JSON con los mismos alimentos y las cantidades recalculadas.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al reajustar la comida.');
   try {
-    return reconcileMealMacros(extractMeal(JSON.parse(text)));
+    return verifyAndCorrectMeal(reconcileMealMacros(extractMeal(JSON.parse(text)))).meal;
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
   }
@@ -1276,7 +1291,7 @@ Devuelve SOLO el JSON de cambios, sin explicaciones.
     for (const c of parsed.changes ?? []) {
       if (typeof c?.day !== 'number' || typeof c?.mealKey !== 'string') continue;
       try {
-        const meal = reconcileMealMacros(extractMeal(c.meal));
+        const meal = verifyAndCorrectMeal(reconcileMealMacros(extractMeal(c.meal))).meal;
         allChanges.push({ day: c.day, mealKey: c.mealKey, meal });
       } catch {
         // comida con formato inválido: se descarta, no rompe el resto del lote
