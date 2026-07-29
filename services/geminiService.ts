@@ -7,13 +7,15 @@ import {
   CustomFood, RecipeFilters, Recipe, AthleteGoal, ATHLETE_GOAL_LABELS,
   SavedDiet, Gender, ActivityLevel, Duration, Condition,
   CalorieGoal, CALORIE_GOAL_LABELS, CALORIE_GOAL_ADJUST,
-  DayPlan, Meal, BudgetLevel, ALLERGEN_LABELS,
+  DayPlan, Meal, BudgetLevel, ALLERGEN_LABELS, Allergen,
 } from '../types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight } from '../utils/calculations';
 import { reconcileMealMacros, reconcileDayPlan, reconcileDietResponse } from '../utils/macroValidation';
 import { verifyAndCorrectMeal, verifyAndCorrectDayPlan, verifyAndCorrectDietResponse } from '../utils/nutritionVerification';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 import { getClinicalTargets } from '../utils/clinicalTargets';
+import { FOOD_COMPOSITION, SwapGroup } from '../data/foodComposition';
+import { normalizeKey } from '../utils/foodLookup';
 
 // ─── Micronutrientes obligatorios: vegana/vegetariana (auditoría #7) y
 //     embarazo/lactancia (P-002.A, hallazgo A-2 de la auditoría de Nutrición) ──
@@ -296,7 +298,83 @@ SNACKS / MERIENDAS (morningSnack, afternoonSnack) — SOLO alimentos ligeros:
 - Prohibido: guisos, platos elaborados, fritos pesados, embutidos en cantidad
 `.trim();
 
-export const buildDietSystemPrompt = (mealKeys: string[], fastingProtocol?: string, dietNote?: string): string => {
+// ─── Bloque de densidades generado desde data/foodComposition.ts ──────────────
+/**
+ * Antes esto eran 3 bloques de prosa escritos a mano con ~25 alimentos
+ * (auditoría: "Pechuga de pollo/pavo: 31g P/100g" cuando la tabla real de
+ * `foodComposition.ts` tiene 23g/100g para esa misma entrada — el prompt y el
+ * verificador nutricional determinista (utils/nutritionVerification.ts)
+ * divergían sobre el mismo alimento). Ahora se genera desde la MISMA tabla
+ * que usa el verificador: una sola fuente de verdad, y añadir un alimento a
+ * `foodComposition.ts` mejora la generación y la verificación a la vez.
+ */
+const PROTEIN_GROUPS: SwapGroup[] = ['ave', 'carne_roja_magra', 'cerdo_magro', 'pescado_blanco', 'pescado_azul', 'marisco', 'huevo', 'lacteo_proteico', 'proteina_vegetal', 'legumbre'];
+const CARB_GROUPS: SwapGroup[] = ['cereal', 'tuberculo', 'fruta'];
+const FAT_GROUPS: SwapGroup[] = ['fruto_seco', 'grasa'];
+
+// Excluir por texto (nombre/alias) no basta para alérgenos por categoría:
+// "Crustáceos" no es substring de "gambas". Se excluye también por SwapGroup
+// completo para los alérgenos que mapean claramente a un grupo del corpus.
+const ALLERGEN_TO_GROUPS: Partial<Record<Allergen, SwapGroup[]>> = {
+  [Allergen.Crustaceos]:   ['marisco'],
+  [Allergen.Moluscos]:     ['marisco'],
+  [Allergen.Pescado]:      ['pescado_blanco', 'pescado_azul'],
+  [Allergen.Huevos]:       ['huevo'],
+  [Allergen.FrutosCascara]: ['fruto_seco'],
+  [Allergen.Leche]:        ['lacteo', 'lacteo_proteico'],
+};
+
+function isExcludedEntry(
+  entryName: string, aliases: string[] | undefined, group: SwapGroup,
+  excludedTerms: string[], excludedGroups: Set<SwapGroup>
+): boolean {
+  if (excludedGroups.has(group)) return true;
+  if (excludedTerms.length === 0) return false;
+  const names = [entryName, ...(aliases ?? [])].map(normalizeKey);
+  return excludedTerms.some(term => names.some(n => n.includes(term) || term.includes(n)));
+}
+
+function densityLines(
+  groups: SwapGroup[],
+  macro: 'protein' | 'carbs' | 'fats',
+  label: string,
+  targetGrams: number,
+  excludedTerms: string[],
+  excludedGroups: Set<SwapGroup>,
+  limit = 8
+): string[] {
+  return FOOD_COMPOSITION
+    .filter(e => groups.includes(e.group) && e.per100[macro] > 0)
+    .filter(e => !isExcludedEntry(e.name, e.aliases, e.group, excludedTerms, excludedGroups))
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, limit)
+    .map(e => {
+      const perGram = e.per100[macro];
+      const needed = Math.round((targetGrams * 100) / perGram);
+      const unitLabel = e.unit === 'ml' ? 'ml' : 'g';
+      return `- ${e.name}: ${perGram}g ${label} / 100${unitLabel} → para ${targetGrams}g ${label} necesitas ~${needed}${unitLabel}`;
+    });
+}
+
+function buildDensityReferenceBlock(excludedTerms: string[], allergens: Allergen[] = []): string {
+  const excludedGroups = new Set<SwapGroup>(allergens.flatMap(a => ALLERGEN_TO_GROUPS[a] ?? []));
+  const proteinLines = densityLines(PROTEIN_GROUPS, 'protein', 'P', 60, excludedTerms, excludedGroups);
+  const carbLines     = densityLines(CARB_GROUPS,    'carbs',   'HC', 80, excludedTerms, excludedGroups);
+  const fatLines      = densityLines(FAT_GROUPS,     'fats',    'G', 30, excludedTerms, excludedGroups);
+
+  return `
+REFERENCIA DE DENSIDAD PROTEICA (usa estas fuentes reales para calibrar):
+${proteinLines.join('\n')}
+
+REFERENCIA DE DENSIDAD DE CARBOHIDRATOS (usa estas fuentes reales para calibrar — igual que haces con proteína):
+${carbLines.join('\n')}
+
+REFERENCIA DE DENSIDAD DE GRASAS (usa estas fuentes reales para calibrar):
+${fatLines.join('\n')}
+`.trim();
+}
+
+export const buildDietSystemPrompt = (mealKeys: string[], fastingProtocol?: string, dietNote?: string, excludedTerms: string[] = [], allergens: Allergen[] = []): string => {
   const mealStructure = mealKeys.map(k => `        "${k}": { "name": "string", "description": "string", "ingredients": ["string con gramos/medida"], "calories": número, "protein": número, "carbs": número, "fats": número }`).join(',\n');
   const fastingNote = (fastingProtocol && fastingProtocol !== FastingProtocol.None)
     ? `\nAYUNO INTERMITENTE: ${FASTING_WINDOW[fastingProtocol] ?? ''}\n- Adapta los horarios de las tomas a la ventana indicada.\n- NO incluyas tomas fuera de la ventana de alimentación.`
@@ -348,37 +426,7 @@ REGLAS CRÍTICAS — INCUMPLIR CUALQUIERA INVALIDA EL PLAN:
     - Es PREFERIBLE ajustar los gramos de un ingrediente existente que añadir alimentos nuevos.
     - NO entregues el JSON hasta que las sumas de cada día cuadren con el objetivo. Este paso es lo que diferencia un plan profesional de uno aproximado.
 
-REFERENCIA DE DENSIDAD PROTEICA (usa estas fuentes para calibrar):
-- Pechuga de pollo/pavo: 31g P / 100g → para 60g P necesitas ~195g
-- Salmón/atún fresco: 22g P / 100g → para 60g P necesitas ~270g
-- Atún en agua (lata): 26g P / 100g → para 60g P necesitas ~230g
-- Huevo mediano: 7g P → para 60g P necesitas ~9 huevos (combina con otra fuente)
-- Merluza/bacalao: 20g P / 100g → para 60g P necesitas ~300g
-- Ternera magra: 28g P / 100g → para 60g P necesitas ~215g
-- Requesón/queso cottage: 12g P / 100g → complemento, no fuente principal
-- Yogur griego (0%): 10g P / 100g → complemento
-
-REFERENCIA DE DENSIDAD DE CARBOHIDRATOS (usa estas fuentes para calibrar — igual que haces con proteína):
-- Arroz blanco/integral cocido: 28g HC / 100g → para 80g HC necesitas ~285g arroz cocido (~95g crudo)
-- Pasta cocida: 25g HC / 100g → para 80g HC necesitas ~320g pasta cocida (~110g cruda)
-- Avena: 60g HC / 100g → para 80g HC necesitas ~133g avena seca
-- Pan integral: 46g HC / 100g → para 80g HC necesitas ~175g pan
-- Patatas cocidas: 17g HC / 100g → para 80g HC necesitas ~470g patatas
-- Quinoa cocida: 21g HC / 100g → para 80g HC necesitas ~380g quinoa cocida
-- Legumbres cocidas (lentejas/garbanzos): 20g HC / 100g → para 80g HC necesitas ~400g
-- Plátano: 23g HC / 100g · Manzana: 14g HC / 100g · Pera: 12g HC / 100g
-- Miel: 82g HC / 100g · Dátiles: 75g HC / 100g
-- COMBINA FUENTES si el objetivo es alto: 250g arroz cocido (70g HC) + 200g legumbres cocidas (40g HC) + 1 plátano (23g HC) = 133g HC en una sola toma.
-
-REFERENCIA DE DENSIDAD DE GRASAS (usa estas fuentes para calibrar):
-- AOVE (aceite): 100g G / 100ml → 1 cucharada sopera (10ml) = 10g G
-- Frutos secos (nueces, almendras, cacahuetes): 55g G / 100g → 30g nueces = 17g G
-- Aguacate: 14g G / 100g → 1 aguacate mediano (150g) = 21g G
-- Salmón: 13g G / 100g · Sardinas: 11g G / 100g · Atún fresco: 5g G / 100g
-- Yema de huevo: 5g G / unidad · Huevo entero mediano: 5g G
-- Queso semicurado: 30g G / 100g · Queso fresco: 6g G / 100g
-- Mantequilla: 80g G / 100g → 10g mantequilla = 8g G
-- Estrategia: 1 cda AOVE (10g G) + 20g nueces (11g G) + salmón 150g (20g G) = 41g G en una toma
+${buildDensityReferenceBlock(excludedTerms, allergens)}
 ${fastingNote}
 ${dietNote ? `\n${dietNote}\n` : ''}
 ${MEAL_TIME_CONSTRAINTS}
@@ -540,7 +588,16 @@ const getSystemPrompt = (patient: PatientData): string => {
   const mealCount = patient.mealCount ?? 5;
   const mealKeys  = MEAL_KEYS_BY_COUNT[mealCount] ?? MEAL_KEYS_BY_COUNT[5];
   const dietNote  = patient.dietType === DietType.Precooked ? PRECOOKED_NOTE : undefined;
-  return buildDietSystemPrompt(mealKeys, patient.fastingProtocol, dietNote);
+
+  // El bloque de densidades excluye de sus ejemplos los alimentos que el
+  // paciente no puede comer, para no sugerir en la propia referencia algo
+  // que la Regla 0 luego prohíbe usar.
+  const excludedTerms = [
+    ...(patient.excludedFoods?.trim() ? patient.excludedFoods.split(',').map(s => s.trim()) : []),
+    ...(patient.allergens ?? []).map(a => ALLERGEN_LABELS[a]),
+  ].filter(Boolean).map(normalizeKey);
+
+  return buildDietSystemPrompt(mealKeys, patient.fastingProtocol, dietNote, excludedTerms, patient.allergens ?? []);
 };
 
 // ─── Build user prompt ─────────────────────────────────────────────────────────
