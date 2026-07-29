@@ -608,13 +608,21 @@ export const buildUserPrompt = (
   customFoods: CustomFood[],
   startDay: number,
   daysToGenerate: number,
-  planInstructions?: string
+  planInstructions?: string,
+  clinicCriteria?: string
 ): string => {
   // Pautas persistidas de la nutricionista (ej: "todos los desayunos con
   // pan integral"): se aplican a TODA generación futura, pero explícitamente
   // por debajo de exclusiones/alérgenos (Regla 0 del system prompt).
   const planInstructionsText = planInstructions?.trim()
     ? `\nPAUTA DE LA NUTRICIONISTA (prioridad MENOR que las exclusiones/alérgenos anteriores; si entran en conflicto, gana la exclusión): ${sanitizeForPrompt(planInstructions, 300)}`
+    : '';
+  // Criterio GLOBAL de la clínica ("Hacer la IA experta en nutrición", Fase
+  // 3): se aplica a TODAS las dietas, con la prioridad más baja de las tres
+  // capas de instrucción en texto libre — exclusiones/alérgenos (Regla 0) >
+  // pauta de esta dieta concreta (planInstructions) > criterio de clínica.
+  const clinicCriteriaText = clinicCriteria?.trim()
+    ? `\nCRITERIO GENERAL DE LA CLÍNICA (prioridad MENOR que las exclusiones y que la pauta de esta dieta; si entran en conflicto, ganan esas): ${sanitizeForPrompt(clinicCriteria, 400)}`
     : '';
   const conditionsText = patient.conditions?.length
     ? patient.conditions.map(c => sanitizeForPrompt(c, 50)).join(', ')
@@ -672,7 +680,7 @@ export const buildUserPrompt = (
 Genera un plan de ${daysToGenerate} días (días ${startDay} al ${startDay + daysToGenerate - 1}) para:
 - Paciente: ${patient.age} años, ${patient.gender}, ${patient.weight}kg, ${patient.height}cm
 - Protocolo: ${patient.dietType === DietType.ProteinDAP4 ? 'Protéifine DAP 4' : 'Protéifine DAP 5'}
-${excludedText}${customFoodsText}${planInstructionsText}
+${excludedText}${customFoodsText}${planInstructionsText}${clinicCriteriaText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
 `.trim();
@@ -781,7 +789,7 @@ ${weightGoalText}
   → Si usas solo 100g de un cereal o 100g de aceite en cada toma, el plan NO alcanza el objetivo.${carbsPerMeal > 80 ? `
   ⚠ ALERTA HC ELEVADO (${carbsPerMeal}g por toma): Una sola fuente de cereal NO alcanza este objetivo. DEBES combinar 2-3 fuentes de HC en cada toma principal. Ejemplo para ${carbsPerMeal}g HC: ${Math.round(carbsPerMeal * 0.5 / 0.28)}g arroz integral cocido (${Math.round(carbsPerMeal * 0.5)}g HC) + ${Math.round(carbsPerMeal * 0.3 / 0.20)}g legumbres (${Math.round(carbsPerMeal * 0.3)}g HC) + 1 fruta mediana (${Math.round(carbsPerMeal * 0.2)}g HC). Ajusta según el plato.` : ''}
 ${clinicalTargetsNote}${conditionDirectivesText}${budgetNote}
-${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}${planInstructionsText}
+${fastingNote}${fasting52Note}${t2DiabetesNote}${vulnerableNote}${renalNote}${precookedUserNote}${excludedText}${customFoodsText}${planInstructionsText}${clinicCriteriaText}
 
 Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
 `.trim();
@@ -792,7 +800,8 @@ Numera los días desde ${startDay}. Devuelve SOLO el JSON. Sin explicaciones.
 export const generateDietPlan = async (
   patient: PatientData,
   metrics: CalculatedMetrics,
-  customFoods: CustomFood[] = []
+  customFoods: CustomFood[] = [],
+  clinicCriteria?: string
 ): Promise<DietResponse> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new Error('API Key no encontrada. Revisa vite.config.ts');
@@ -813,7 +822,7 @@ export const generateDietPlan = async (
     const daysLeft = totalDays - batch * DAYS_PER_BATCH;
     const daysThisBatch = Math.min(DAYS_PER_BATCH, daysLeft);
 
-    const userPrompt = buildUserPrompt(patient, metrics, customFoods, startDay, daysThisBatch, patient.planInstructions);
+    const userPrompt = buildUserPrompt(patient, metrics, customFoods, startDay, daysThisBatch, patient.planInstructions, clinicCriteria);
 
     try {
       const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
@@ -1016,13 +1025,14 @@ export const regenerateSingleDay = async (
   patient: PatientData,
   metrics: CalculatedMetrics,
   dayNumber: number,
-  customFoods: CustomFood[] = []
+  customFoods: CustomFood[] = [],
+  clinicCriteria?: string
 ): Promise<DayPlan> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new Error('API Key no encontrada. Revisa .env.local');
 
   const systemPrompt = getSystemPrompt(patient);
-  const userPrompt   = buildUserPrompt(patient, metrics, customFoods, dayNumber, 1, patient.planInstructions);
+  const userPrompt   = buildUserPrompt(patient, metrics, customFoods, dayNumber, 1, patient.planInstructions, clinicCriteria);
 
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA');

@@ -17,6 +17,7 @@ import LoadingOverlay   from './components/LoadingOverlay';
 
 // New components
 import { Sidebar }         from './components/Sidebar';
+import ClinicCriteriaModal from './components/ClinicCriteriaModal';
 import { MobileNav }       from './components/MobileNav';
 import { ToastProvider, useToast }       from './components/Toast';
 import { ConfirmProvider, useConfirm }   from './components/ConfirmDialog';
@@ -56,6 +57,7 @@ const AppContent: React.FC = () => {
   // vez de perderse en la consola del navegador.
   const {
     savedDiets, customFoods, progressData, appointments, dbRecipes, uniqueClients, dbOnline,
+    clinicCriteria, updateClinicCriteria,
     saveDiet, updateDietPlan, updateDietPlanWithSnapshot, updateFullDiet, updatePatientData, deleteDiet, restorePlanVersion,
     saveLinkedDiet, updateLinkedDiet, unlinkDiet,
     saveAppointment, updateAppointment, deleteAppointment,
@@ -86,6 +88,7 @@ const AppContent: React.FC = () => {
   // Session state (no need to persist between steps)
   const [currentStep,    setCurrentStep]    = useState<Step>('dashboard');
   const [isLoading,      setIsLoading]      = useState(false);
+  const [showClinicCriteria, setShowClinicCriteria] = useState(false);
   const [metrics,        setMetrics]        = useState<CalculatedMetrics | null>(null);
   const [plan,           setPlan]           = useState<DietResponse | null>(null);
   const [patientData,    setPatientData]    = useState<PatientData | null>(null);
@@ -245,7 +248,7 @@ const AppContent: React.FC = () => {
       }
 
       setMetrics(calc);
-      const dietPlan = await generateDietPlan(data, calc, customFoods);
+      const dietPlan = await generateDietPlan(data, calc, customFoods, clinicCriteria);
       // Verificador determinista post-generación (auditoría iteración 002,
       // MEJORA-010): red de seguridad adicional por si el modelo no respetó
       // la Regla 0 (prioridad absoluta de exclusiones) del prompt.
@@ -355,7 +358,7 @@ const AppContent: React.FC = () => {
     if (!patientData || !metrics || !plan) return;
     setIsLoading(true);
     try {
-      const newDay = await regenerateSingleDay(patientData, metrics, dayNumber, customFoods);
+      const newDay = await regenerateSingleDay(patientData, metrics, dayNumber, customFoods, clinicCriteria);
       // MEJORA-011 (iteración 003): verificación de alérgenos del día regenerado.
       const dayViolations = verifyDayAgainstAllergens(newDay, patientData);
       if (dayViolations.length > 0) toast(formatAllergenViolationsMessage(dayViolations), 'error');
@@ -536,7 +539,16 @@ const AppContent: React.FC = () => {
         onExportCSV={handleExportCSV}
         onImport={handleImport}
         lastBackupLabel={lastBackupLabel}
+        onOpenClinicCriteria={() => setShowClinicCriteria(true)}
       />
+
+      {showClinicCriteria && (
+        <ClinicCriteriaModal
+          criteria={clinicCriteria}
+          onSave={updateClinicCriteria}
+          onClose={() => setShowClinicCriteria(false)}
+        />
+      )}
 
       <main className="flex-1 flex flex-col min-h-0 overflow-y-auto bg-background-light dark:bg-background-dark relative transition-colors duration-200">
 

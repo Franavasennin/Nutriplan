@@ -57,11 +57,13 @@ export interface SidebarProps {
   onExportCSV: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   lastBackupLabel?: string;
+  onOpenClinicCriteria?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentStep, isDark, dbOnline, onNavigate, onGoHome,
   onToggleTheme, onExportJSON, onExportCSV, onImport, lastBackupLabel,
+  onOpenClinicCriteria,
 }) => (
   <aside className="hidden w-64 flex-col border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark lg:flex z-50 transition-colors duration-200 no-print">
     <div className="flex h-full flex-col justify-between p-4">
@@ -161,6 +163,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="material-symbols-outlined text-sm">{isDark ? 'light_mode' : 'dark_mode'}</span>
           {isDark ? 'Modo luz' : 'Modo oscuro'}
         </button>
+
+        {onOpenClinicCriteria && (
+          <button
+            onClick={onOpenClinicCriteria}
+            title="Criterio general que se aplica a TODAS las dietas generadas (ej: preferencias, alimentos habituales, normas propias)."
+            className="flex items-center justify-center gap-2 p-3 rounded-xl bg-background-light dark:bg-background-dark text-text-sub text-xs font-bold border border-border-light dark:border-border-dark hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">psychology</span>
+            Criterio de la IA
+          </button>
+        )}
 
         <div className="flex items-center gap-3 px-4 py-4 rounded-xl border-2 border-primary bg-primary/10">
           <div className="bg-primary rounded-full size-8 flex items-center justify-center text-background-dark font-black text-sm shrink-0">

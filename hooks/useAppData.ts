@@ -127,6 +127,10 @@ export function useAppData(onWriteError?: (message: string) => void) {
   const [dbOnline,     setDbOnline]     = useState(true);
   const [isDbLoading,  setIsDbLoading]  = useState(true);
   const [dbRecipes,    setDbRecipes]    = useState<Recipe[]>([]);
+  // Criterio global de la nutricionista ("Hacer la IA experta en nutrición",
+  // Fase 3) — se aplica a TODAS las generaciones futuras, a diferencia de
+  // PatientData.planInstructions (por dieta concreta).
+  const [clinicCriteria, setClinicCriteria] = useState<string>('');
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -233,6 +237,30 @@ export function useAppData(onWriteError?: (message: string) => void) {
     return () => { cancelled = true; };
   }, []);
 
+  // ── Carga del criterio global de clínica (separada: tabla nueva, fila única) ──
+  useEffect(() => {
+    let cancelled = false;
+    async function loadClinicSettings() {
+      try {
+        const { data, error } = await supabase
+          .from('clinic_settings')
+          .select('*')
+          .eq('id', 'default')
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          console.warn('[clinic_settings] no disponible:', error.message);
+          return;
+        }
+        setClinicCriteria(data?.criteria ?? '');
+      } catch (err: any) {
+        if (!cancelled) console.warn('[clinic_settings] error:', err?.message);
+      }
+    }
+    loadClinicSettings();
+    return () => { cancelled = true; };
+  }, []);
+
   // ── Diets ─────────────────────────────────────────────────────────────────
 
   /** Sync return for backward compat — Supabase save fires in background */
@@ -323,6 +351,13 @@ export function useAppData(onWriteError?: (message: string) => void) {
         .then(reportError('updatePatientData'));
       return current;
     });
+  }, []);
+
+  const updateClinicCriteria = useCallback((criteria: string) => {
+    setClinicCriteria(criteria);
+    supabase.from('clinic_settings')
+      .upsert({ id: 'default', criteria, updated_at: new Date().toISOString() })
+      .then(reportError('updateClinicCriteria'));
   }, []);
 
   const deleteDiet = useCallback((id: string) => {
@@ -717,6 +752,8 @@ export function useAppData(onWriteError?: (message: string) => void) {
     progressData,
     appointments,
     dbRecipes,
+    clinicCriteria,
+    updateClinicCriteria,
     uniqueClients,
     dbOnline,
     isDbLoading,
