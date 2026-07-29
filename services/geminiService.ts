@@ -1228,6 +1228,7 @@ REGLAS:
 2. OBJETIVO DE MACROS — el más importante: cada comida que cambies debe cuadrar (±8%) con los macros de LA COMIDA ORIGINAL que sustituye (te los doy en el prompt de usuario, comida por comida). El objetivo NO es el macro medio del día — es el de esa comida concreta. Recalcula las cantidades de los ingredientes para lograrlo.
 3. Solo modifica las comidas que la pauta obliga a cambiar. NO toques comidas que ya cumplen la pauta o que no están relacionadas con ella.
 4. No cambies el número de días ni añadas comidas nuevas — "mealKey" debe ser una de las claves que ya existen en ese día del plan recibido.
+5. VARIEDAD Y ADAPTACIÓN REAL — MUY IMPORTANTE: cuando la pauta afecta a varios días (ej. "todos los desayunos con pan"), NO te limites a coger la comida original y sustituir un único ingrediente (ej. cambiar solo "avena" por "pan" y dejar el resto igual) — eso da el mismo plato disfrazado cada día. Diseña un plato distinto y bien pensado para CADA día que use el elemento pedido como base, variando los acompañamientos entre opciones dulces y saladas: huevo (revuelto/duro/plancha), aguacate, tomate, atún, pavo/jamón cocido, queso fresco/cottage, hummus, mermelada sin azúcar añadido, plátano, canela. PROHIBIDO repetir la misma combinación de acompañamientos en más de un día del mismo lote.
 ${MEAL_TIME_CONSTRAINTS}
 `.trim();
 
