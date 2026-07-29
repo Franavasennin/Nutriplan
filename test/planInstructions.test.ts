@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeInstructionChanges, findDaysOffTarget } from '../utils/planInstructions';
+import { mergeInstructionChanges, findDaysOffTarget, enforceMealMacroTarget } from '../utils/planInstructions';
 import type { Meal, DayPlan, DietResponse, CalculatedMetrics } from '../types';
 import type { InstructionChange } from '../services/geminiService';
 
@@ -107,5 +107,56 @@ describe('findDaysOffTarget', () => {
   it('no reporta ningún día si todos están dentro de tolerancia', () => {
     const offTarget = findDaysOffTarget(plan(), metrics(1300), 10);
     expect(offTarget).toEqual([]);
+  });
+});
+
+describe('enforceMealMacroTarget', () => {
+  it('reescala una comida que la IA infló por encima de la tolerancia (bug real reportado)', () => {
+    // Desayuno original: 300 kcal (12P/50C/6G). La IA añade pan y sube a ~450 kcal
+    // sin reducir nada más -- exactamente el bug reportado ("incrementó las kcal
+    // en vez de cuadrarlas").
+    const original = meal({ name: 'Avena con fruta', calories: 300, protein: 12, carbs: 50, fats: 6 });
+    const inflated = meal({
+      name: 'Avena con fruta y pan integral',
+      ingredients: ['60g avena', '1 plátano', '2 rebanadas de pan integral (60g)'],
+      protein: 15, carbs: 78, fats: 8, // deriva a 15*4+78*4+8*9 = 60+312+72 = 444 kcal
+    });
+    const result = enforceMealMacroTarget(inflated, original);
+    const derivedCalories = result.protein! * 4 + result.carbs! * 4 + result.fats! * 9;
+    // Debe cuadrar con el objetivo original (300 kcal), no quedarse en ~444
+    expect(Math.abs(derivedCalories - 300)).toBeLessThanOrEqual(5);
+    expect(result.name).toBe('Avena con fruta y pan integral'); // conserva el plato con pan
+    expect(result.ingredients).toContain(
+      result.ingredients.find(i => i.includes('pan integral'))
+    ); // el pan sigue en la lista, solo cambia la cantidad si aplica
+  });
+
+  it('no toca una comida ya dentro de tolerancia', () => {
+    const original = meal({ calories: 300, protein: 12, carbs: 50, fats: 6 });
+    const closeEnough = meal({ protein: 13, carbs: 52, fats: 6 }); // ~314 kcal, <8% de diff
+    const result = enforceMealMacroTarget(closeEnough, original);
+    expect(result).toEqual(closeEnough);
+  });
+
+  it('no toca la comida si faltan macros (no se puede calcular el factor)', () => {
+    const original = meal({ protein: undefined });
+    const returned = meal({ calories: 900 });
+    const result = enforceMealMacroTarget(returned, original);
+    expect(result).toEqual(returned);
+  });
+
+  it('mergeInstructionChanges aplica el guard de macros automáticamente', () => {
+    const p = plan(); // día 1 breakfast: 300 kcal (12P/50C/6G)
+    const changes: InstructionChange[] = [
+      { day: 1, mealKey: 'breakfast', meal: meal({
+        name: 'Avena con fruta y pan integral',
+        protein: 15, carbs: 78, fats: 8, // ~444 kcal sin cuadrar
+      }) },
+    ];
+    const { plan: result } = mergeInstructionChanges(p, changes);
+    const merged = result.weeklyPlan[0].meals.breakfast!;
+    const derivedCalories = merged.protein! * 4 + merged.carbs! * 4 + merged.fats! * 9;
+    expect(Math.abs(derivedCalories - 300)).toBeLessThanOrEqual(5);
+    expect(merged.name).toBe('Avena con fruta y pan integral');
   });
 });

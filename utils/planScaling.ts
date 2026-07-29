@@ -55,8 +55,13 @@ function clampFactor(raw: number, macroLabel: string, warnings: ScaleWarning[]):
   return raw;
 }
 
-/** Escala el texto de un ingrediente reescribiendo solo la cantidad inicial (si es parseable). */
-function scaleIngredientText(ingredient: string, factor: number): string {
+/**
+ * Escala el texto de un ingrediente reescribiendo solo la cantidad inicial
+ * (si es parseable). Exportada: utils/planInstructions.ts la reutiliza para
+ * corregir determinísticamente las comidas que devuelve la IA en "Pautas de
+ * la nutricionista" cuando se desvían del objetivo de macros.
+ */
+export function scaleIngredientText(ingredient: string, factor: number): string {
   const match = ingredient.match(QUANTITY_RE);
   if (!match) return ingredient; // sin cantidad parseable: se deja intacto
   const [, rawAmount, unit, rest] = match;
