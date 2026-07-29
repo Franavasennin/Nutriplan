@@ -68,6 +68,7 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
   const [name,        setName]        = useState(meal.name);
   const [description, setDescription] = useState(meal.description);
   const [ingredients, setIngredients] = useState(meal.ingredients.map(normalizeIngredient).join('\n'));
+  const [instructions, setInstructions] = useState((meal.instructions ?? []).join('\n'));
   const [recipeQuery, setRecipeQuery] = useState('');
 
   const mealTagMap: Record<string, string> = {
@@ -89,12 +90,14 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
     setName(recipe.title);
     setDescription(recipe.description);
     setIngredients(recipe.ingredients.join('\n'));
+    setInstructions(recipe.instructions.join('\n'));
     setTab('manual');
   };
 
   const handleSave = () => {
     const parsed = ingredients.split('\n').map(s => s.trim()).filter(Boolean);
-    onSave({ ...meal, name, description, ingredients: parsed });
+    const parsedInstructions = instructions.split('\n').map(s => s.trim()).filter(Boolean);
+    onSave({ ...meal, name, description, ingredients: parsed, instructions: parsedInstructions.length ? parsedInstructions : undefined });
   };
 
   return (
@@ -160,6 +163,12 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
             <IngredientTextarea title="Ingredientes de la comida" value={ingredients} onChange={setIngredients} rows={4}
               wrapperClassName="mt-1"
               className="w-full px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm text-text-main dark:text-white outline-none focus:border-primary transition-colors resize-none" />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Preparación (opcional, un paso por línea)</label>
+            <textarea title="Preparación de la comida" value={instructions} onChange={e => setInstructions(e.target.value)} rows={4}
+              placeholder={'Calentar la leche...\nAñadir la avena...'}
+              className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm text-text-main dark:text-white outline-none focus:border-primary transition-colors resize-none" />
           </div>
         </>
       )}
@@ -1554,6 +1563,16 @@ const DietPlanDisplay: React.FC<Props> = ({
                                 <span key={idx} className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{normalizeIngredient(ing)}</span>
                               ))}
                             </div>
+                          )}
+                          {(meal.instructions?.length ?? 0) > 0 && (
+                            <ol className="mt-1.5 space-y-0.5 list-none">
+                              {meal.instructions!.map((step, idx) => (
+                                <li key={idx} className="text-[9px] text-gray-600 flex gap-1.5">
+                                  <span className="font-bold text-green-600 shrink-0">{idx + 1}.</span>
+                                  <span>{step}</span>
+                                </li>
+                              ))}
+                            </ol>
                           )}
                         </div>
                       </div>

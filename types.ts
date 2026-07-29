@@ -253,6 +253,10 @@ export interface Meal {
   protein?: number;
   carbs?: number;
   fats?: number;
+  // Pasos de preparación (uno por elemento) — se rellena al importar una
+  // receta de data/recipes.ts o de la tabla `recipes`, o se escribe a mano.
+  // Opcional: las comidas generadas por la IA no lo traen por defecto.
+  instructions?: string[];
 }
 
 export interface DayPlan {
