@@ -375,7 +375,7 @@ ${fatLines.join('\n')}
 }
 
 export const buildDietSystemPrompt = (mealKeys: string[], fastingProtocol?: string, dietNote?: string, excludedTerms: string[] = [], allergens: Allergen[] = []): string => {
-  const mealStructure = mealKeys.map(k => `        "${k}": { "name": "string", "description": "string", "ingredients": ["string con gramos/medida"], "calories": número, "protein": número, "carbs": número, "fats": número }`).join(',\n');
+  const mealStructure = mealKeys.map(k => `        "${k}": { "name": "string", "description": "string", "ingredients": ["string con gramos/medida"], "instructions": ["paso 1", "paso 2", "..."], "calories": número, "protein": número, "carbs": número, "fats": número }`).join(',\n');
   const fastingNote = (fastingProtocol && fastingProtocol !== FastingProtocol.None)
     ? `\nAYUNO INTERMITENTE: ${FASTING_WINDOW[fastingProtocol] ?? ''}\n- Adapta los horarios de las tomas a la ventana indicada.\n- NO incluyas tomas fuera de la ventana de alimentación.`
     : '';
@@ -425,6 +425,12 @@ REGLAS CRÍTICAS — INCUMPLIR CUALQUIERA INVALIDA EL PLAN:
     - Si proteína/HC/grasa total difiere más del 8% del objetivo → ajusta las cantidades de los ingredientes correspondientes.
     - Es PREFERIBLE ajustar los gramos de un ingrediente existente que añadir alimentos nuevos.
     - NO entregues el JSON hasta que las sumas de cada día cuadren con el objetivo. Este paso es lo que diferencia un plan profesional de uno aproximado.
+12. PREPARACIÓN OBLIGATORIA EN CADA TOMA: rellena "instructions" con los pasos de preparación de ESE plato concreto, no una receta genérica. Reglas de claridad — el plan lo puede usar cualquier paciente, incluidos los que necesitan instrucciones muy simples y explícitas:
+    - Un paso = una acción física concreta ("Calienta la leche en un cazo a fuego medio", no "Prepara la base").
+    - Frases cortas, sin tecnicismos de cocina que no expliques (nada de "saltear", "blanquear" sin decir cómo).
+    - Incluye SIEMPRE tiempos y temperaturas cuando apliquen ("cocina 5 minutos", "horno a 180°C").
+    - 3 a 6 pasos por toma. Si el plato es tan simple que no necesita cocción (ej. yogur con fruta), igualmente describe el montaje paso a paso ("1. Vierte el yogur en un bol. 2. Añade la fruta troceada. 3. Añade las nueces por encima.").
+    - NUNCA dejes "instructions" vacío o con un solo paso genérico tipo "Mezclar todo".
 
 ${buildDensityReferenceBlock(excludedTerms, allergens)}
 ${fastingNote}
@@ -1076,11 +1082,13 @@ Formato:
   "name": "string",
   "description": "string (máx 15 palabras)",
   "ingredients": ["string con gramos/medida"],
+  "instructions": ["paso 1", "paso 2", "..."],
   "calories": número,
   "protein": número,
   "carbs": número,
   "fats": número
 }
+"instructions": pasos de preparación claros y concretos de ESTE plato (3-6 pasos, con tiempos/temperaturas si aplican) — el plan lo puede usar cualquier paciente, incluidos los que necesitan instrucciones muy simples y explícitas. Nunca lo dejes vacío.
 ${MEAL_TIME_CONSTRAINTS}
 `.trim();
 
@@ -1168,11 +1176,13 @@ Formato:
   "name": "string",
   "description": "string (máx 15 palabras)",
   "ingredients": ["string con gramos/medida"],
+  "instructions": ["paso 1", "paso 2", "..."],
   "calories": número,
   "protein": número,
   "carbs": número,
   "fats": número
 }
+"instructions": pasos de preparación claros y concretos de ESTA toma (3-6 pasos, con tiempos/temperaturas si aplican) — el plan lo puede usar cualquier paciente, incluidos los que necesitan instrucciones muy simples y explícitas. Nunca lo dejes vacío.
 ${MEAL_TIME_CONSTRAINTS}
 `.trim();
 
@@ -1243,7 +1253,11 @@ Devuelve SOLO el JSON con los mismos alimentos y las cantidades recalculadas.
   const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
   if (!text) throw new Error('Sin respuesta de la IA al reajustar la comida.');
   try {
-    return verifyAndCorrectMeal(reconcileMealMacros(extractMeal(JSON.parse(text)))).meal;
+    const reportioned = verifyAndCorrectMeal(reconcileMealMacros(extractMeal(JSON.parse(text)))).meal;
+    // El plato es EL MISMO (solo cambian las cantidades) — se conserva la
+    // preparación original tal cual en vez de pedirle a la IA que la
+    // regenere, más fiable y sin coste extra.
+    return meal.instructions?.length ? { ...reportioned, instructions: meal.instructions } : reportioned;
   } catch (err: any) {
     throw new Error(err.message || 'La IA devolvió una respuesta inválida al reajustar la comida. Inténtalo de nuevo.');
   }
@@ -1303,7 +1317,7 @@ Eres un nutricionista clínico. Estás AJUSTANDO un plan nutricional YA EXISTENT
 Devuelve ÚNICAMENTE un JSON con las comidas que HAY QUE CAMBIAR para cumplir la pauta. Si ninguna comida de los días recibidos necesita cambiar, devuelve un array vacío.
 
 Formato de respuesta (obligatorio, sin texto adicional):
-{"changes":[{"day":número,"mealKey":"breakfast|morningSnack|lunch|afternoonSnack|dinner","meal":{"name":"string","description":"string","ingredients":["string con gramos/medida"],"calories":número,"protein":número,"carbs":número,"fats":número}}]}
+{"changes":[{"day":número,"mealKey":"breakfast|morningSnack|lunch|afternoonSnack|dinner","meal":{"name":"string","description":"string","ingredients":["string con gramos/medida"],"instructions":["paso 1","paso 2","..."],"calories":número,"protein":número,"carbs":número,"fats":número}}]}
 
 REGLAS:
 1. PRIORIDAD ABSOLUTA — EXCLUSIONES: ${excludedText}. Si la pauta pide un alimento excluido, IGNORA la pauta para esa comida (no la incluyas en "changes").
