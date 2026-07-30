@@ -16,6 +16,7 @@ import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 import { getClinicalTargets } from '../utils/clinicalTargets';
 import { FOOD_COMPOSITION, SwapGroup } from '../data/foodComposition';
 import { normalizeKey } from '../utils/foodLookup';
+import { enforceDayMacroTarget } from '../utils/planScaling';
 
 // ─── Micronutrientes obligatorios: vegana/vegetariana (auditoría #7) y
 //     embarazo/lactancia (P-002.A, hallazgo A-2 de la auditoría de Nutrición) ──
@@ -842,7 +843,20 @@ export const generateDietPlan = async (
       // Renumerar días desde startDay por si el modelo no respeta la numeración
       parsed.weeklyPlan.forEach((day, i) => { day.day = startDay + i; });
 
-      allDayPlans.push(...parsed.weeklyPlan);
+      // Guardarraíl determinista (bug real reportado): la Regla 11 del prompt
+      // solo le PIDE a la IA que cuadre los totales diarios — nada lo
+      // garantizaba en código si no lo cumplía. Se excluyen los protocolos
+      // Protéifine (raciones fijas, no calorías objetivo) y los días de
+      // ayuno del 5:2 (objetivo intencionalmente bajo, ~500 kcal).
+      const canEnforceCalories = patient.dietType !== DietType.ProteinDAP4 && patient.dietType !== DietType.ProteinDAP5;
+      const correctedDays = canEnforceCalories
+        ? parsed.weeklyPlan.map(day => {
+            const isFastingDay = patient.fastingProtocol === FastingProtocol.IF5_2 && (day.day === startDay + 2 || day.day === startDay + 5);
+            return isFastingDay ? day : enforceDayMacroTarget(day, metrics.macros, 10);
+          })
+        : parsed.weeklyPlan;
+
+      allDayPlans.push(...correctedDays);
 
       if (batch === 0) {
         generalGuidelines = parsed.generalGuidelines ?? [];
@@ -1049,7 +1063,16 @@ export const regenerateSingleDay = async (
   }
   const day = parsed.weeklyPlan[0];
   day.day = dayNumber;
-  return verifyAndCorrectDayPlan(reconcileDayPlan(day)).day;
+
+  // Mismo guardarraíl determinista que generateDietPlan (ver comentario ahí):
+  // sin él, "Rehacer día" podía devolver un día que no cuadrara con el
+  // objetivo calórico real del paciente.
+  const canEnforceCalories = patient.dietType !== DietType.ProteinDAP4 && patient.dietType !== DietType.ProteinDAP5;
+  const dayOffsetInWeek = (dayNumber - 1) % 7;
+  const isFastingDay = patient.fastingProtocol === FastingProtocol.IF5_2 && (dayOffsetInWeek === 2 || dayOffsetInWeek === 5);
+  const correctedDay = canEnforceCalories && !isFastingDay ? enforceDayMacroTarget(day, metrics.macros, 10) : day;
+
+  return verifyAndCorrectDayPlan(reconcileDayPlan(correctedDay)).day;
 };
 
 // ─── Sugerir alternativa para una comida ─────────────────────────────────────

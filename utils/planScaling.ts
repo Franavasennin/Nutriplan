@@ -126,6 +126,40 @@ function scaleDay(
   return { ...day, meals };
 }
 
+/**
+ * Corrige un día cuyo total de calorías se desvía más de `tolerancePct` del
+ * objetivo diario del paciente.
+ *
+ * Bug real reportado por la nutricionista: pidió que el plan se mantuviera
+ * en el gasto energético calculado y en su lugar los días variaban entre
+ * 1380 y 1750 kcal (objetivo real 1500 kcal) -- porque `generateDietPlan` y
+ * `regenerateSingleDay` solo le PIDEN a la IA que cuadre los totales diarios
+ * (Regla 11 del prompt de `buildDietSystemPrompt`), sin que nada lo
+ * garantice en código si el modelo no cumple esa instrucción al pie de la
+ * letra. Reescala todas las comidas del día proporcionalmente -- mismo
+ * criterio que `scalePlanToTarget` (Pareja Inteligente), pero por día
+ * individual en vez de para el plan entero.
+ */
+export function enforceDayMacroTarget(
+  day: DayPlan,
+  target: { calories: number; protein: number; carbs: number; fats: number },
+  tolerancePct = 10
+): DayPlan {
+  const totals = sumDayMacros(day.meals);
+  if (!totals || target.calories <= 0) return day;
+
+  const diffPct = Math.abs(totals.calories - target.calories) / target.calories * 100;
+  if (diffPct <= tolerancePct) return day;
+
+  const warnings: ScaleWarning[] = [];
+  const macroFactors = {
+    protein: clampFactor(totals.protein > 0 ? target.protein / totals.protein : 1, 'proteína', warnings),
+    carbs:   clampFactor(totals.carbs   > 0 ? target.carbs   / totals.carbs   : 1, 'carbohidratos', warnings),
+    fats:    clampFactor(totals.fats    > 0 ? target.fats    / totals.fats    : 1, 'grasas', warnings),
+  };
+  return scaleDay(day, macroFactors, new Set(), undefined, warnings);
+}
+
 export interface ScaleOptions {
   /** Claves "<day>-<mealKey>" que no deben tocarse — se conservan de currentPartnerPlan. */
   lockedMeals?: string[];

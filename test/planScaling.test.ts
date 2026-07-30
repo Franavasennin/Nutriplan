@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { scalePlanToTarget } from '../utils/planScaling';
-import type { DietResponse, Meal, CalculatedMetrics } from '../types';
+import { scalePlanToTarget, enforceDayMacroTarget } from '../utils/planScaling';
+import type { DietResponse, DayPlan, Meal, CalculatedMetrics } from '../types';
 
 const meal = (overrides: Partial<Meal> = {}): Meal => ({
   name: 'Avena con leche',
@@ -99,5 +99,44 @@ describe('scalePlanToTarget', () => {
     const { plan, warnings } = scalePlanToTarget(basePlan({ weeklyPlan: [] }), metrics());
     expect(plan.weeklyPlan).toHaveLength(0);
     expect(warnings).toHaveLength(0);
+  });
+});
+
+describe('enforceDayMacroTarget', () => {
+  const day = (overrides: Partial<DayPlan['meals']> = {}): DayPlan => ({
+    day: 1,
+    meals: {
+      breakfast: meal({ name: 'Avena con leche', calories: 500, protein: 40, carbs: 60, fats: 10 }),
+      lunch: meal({ name: 'Pollo con arroz', ingredients: ['150g pollo', '100g arroz'], calories: 600, protein: 50, carbs: 70, fats: 12 }),
+      ...overrides,
+    },
+  });
+
+  it('reproduce el bug real reportado: día 1750 kcal con objetivo 1500 -- lo corrige', () => {
+    // 500 + 600 = 1100 en el fixture base; forzamos un día real de 1750 vs objetivo 1500
+    const inflatedDay = day({
+      dinner: meal({ name: 'Salmón con quinoa', ingredients: ['200g salmón', '150g quinoa'], calories: 650, protein: 45, carbs: 55, fats: 22 }),
+    });
+    const target = { calories: 1500, protein: 110, carbs: 155, fats: 34 };
+    const corrected = enforceDayMacroTarget(inflatedDay, target, 10);
+
+    const totalCalories = Object.values(corrected.meals).reduce((s, m) => s + (m?.calories ?? 0), 0);
+    expect(Math.abs(totalCalories - 1500)).toBeLessThanOrEqual(target.calories * 0.1);
+    // Conserva los mismos platos, solo ajusta cantidades/macros
+    expect(corrected.meals.breakfast?.name).toBe('Avena con leche');
+    expect(corrected.meals.dinner?.name).toBe('Salmón con quinoa');
+  });
+
+  it('no toca un día ya dentro de tolerancia', () => {
+    const d = day(); // 500+600 = 1100
+    const target = { calories: 1100, protein: 90, carbs: 130, fats: 22 };
+    const corrected = enforceDayMacroTarget(d, target, 10);
+    expect(corrected).toEqual(d);
+  });
+
+  it('día sin macros declarados no rompe (devuelve el día tal cual)', () => {
+    const emptyDay: DayPlan = { day: 1, meals: {} };
+    const corrected = enforceDayMacroTarget(emptyDay, { calories: 1500, protein: 100, carbs: 150, fats: 40 });
+    expect(corrected).toEqual(emptyDay);
   });
 });
