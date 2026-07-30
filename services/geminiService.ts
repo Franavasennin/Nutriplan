@@ -209,7 +209,7 @@ const groqRequest = async (
     body: JSON.stringify({
       model,
       temperature: 0.4,
-      max_tokens: 12000,
+      max_tokens: 16000,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -832,12 +832,28 @@ export const generateDietPlan = async (
     const userPrompt = buildUserPrompt(patient, metrics, customFoods, startDay, daysThisBatch, patient.planInstructions, clinicCriteria);
 
     try {
-      const text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
+      // Reintento defensivo (bug real detectado): con el campo "instructions"
+      // obligatorio en cada toma, un lote de varios días puede acercarse al
+      // límite de tokens y el modelo devuelve MENOS días de los pedidos sin
+      // que sea un JSON inválido (JSON.parse no lo detecta por sí solo).
+      // Un solo día silenciosamente ausente en un plan de varios es peor que
+      // reintentar una vez antes de aceptar el resultado.
+      let text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
       if (!text) throw new Error('Sin respuesta de la IA');
+      let parsed = JSON.parse(text) as DietResponse;
 
-      const parsed = JSON.parse(text) as DietResponse;
+      if ((!Array.isArray(parsed.weeklyPlan) || parsed.weeklyPlan.length < daysThisBatch) && daysThisBatch > 1) {
+        console.warn(`Lote ${batch + 1}: se pidieron ${daysThisBatch} días y llegaron ${parsed.weeklyPlan?.length ?? 0} — reintentando una vez.`);
+        text = await groqRequest(apiKey, MODEL_DIET, systemPrompt, userPrompt);
+        if (!text) throw new Error('Sin respuesta de la IA');
+        parsed = JSON.parse(text) as DietResponse;
+      }
+
       if (!Array.isArray(parsed.weeklyPlan) || parsed.weeklyPlan.length === 0) {
         throw new Error('El plan generado está vacío o tiene formato incorrecto');
+      }
+      if (parsed.weeklyPlan.length < daysThisBatch) {
+        throw new Error(`El modelo solo generó ${parsed.weeklyPlan.length} de ${daysThisBatch} días solicitados tras reintentar. Inténtalo de nuevo.`);
       }
 
       // Renumerar días desde startDay por si el modelo no respeta la numeración
