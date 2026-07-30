@@ -160,11 +160,25 @@ const CATEGORY_RULES: CategoryRule[] = [
 // ─── Parsing helpers ──────────────────────────────────────────────────────────
 
 const AMOUNT_RE = /^(\d[\d.,]*\s*(?:g|kg|ml|l|cl|dl|unidades?|latas?|botes?|sobres?|cdas?\.?|cucharad[as]*|cucharitas?|porciones?|tazas?|rebanadas?|lonchas?|rodajas?|piezas?|tarrinas?|bolsas?|vasos?|copas?)\b)\s*/i;
+// Fallback para cantidades sin palabra de unidad explícita (ej. "2 huevos
+// enteros", "1 diente de ajo") — sin esto, AMOUNT_RE no las reconoce y el
+// número queda enterrado en el nombre en vez de sumarse entre días.
+const BARE_COUNT_RE = /^(\d+(?:[.,]\d+)?)\s+(?=\S)/;
 
 function parseIngredient(raw: string): { amount: string; name: string } {
   const m = raw.match(AMOUNT_RE);
   if (m) return { amount: m[1].trim(), name: raw.slice(m[0].length).trim() };
+  const bare = raw.match(BARE_COUNT_RE);
+  if (bare) return { amount: bare[1].trim(), name: raw.slice(bare[0].length).trim() };
   return { amount: '', name: raw.trim() };
+}
+
+// Nombre a mostrar en la lista: sin las anotaciones de macros que el
+// verificador nutricional añade entre paréntesis (ej. "(34.5g P, 0g HC,
+// 3.75g G)") — son datos internos, no algo que la nutricionista necesite
+// ver al comprar.
+function cleanDisplayName(name: string): string {
+  return name.replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeName(name: string): string {
@@ -246,8 +260,9 @@ export function generateShoppingList(...plans: DietResponse[]): ShoppingList {
           if (!normalized || normalized.length < 2) continue;
 
           if (!seen.has(normalized)) {
+            const displayName = cleanDisplayName(name);
             seen.set(normalized, {
-              name: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+              name: displayName.charAt(0).toUpperCase() + displayName.slice(1).toLowerCase(),
               amounts: [],
               catIdx: categorize(normalized),
             });

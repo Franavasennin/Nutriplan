@@ -129,6 +129,25 @@ describe('generateShoppingList', () => {
     );
   });
 
+  it('no muestra las anotaciones de macros del verificador nutricional en el nombre', () => {
+    const list = generateShoppingList(makePlan([['150g pechuga de pollo a la plancha (34.5g P, 0g HC, 3.75g G)']]));
+    const cat = list.find(c => c.category === 'Carnes, aves y fiambres');
+    const item = cat!.items.find(i => i.name.toLowerCase().includes('pollo'));
+    expect(item!.name).toBe('Pechuga de pollo a la plancha');
+  });
+
+  it('reconoce y suma cantidades sin palabra de unidad explícita (ej. "2 huevos")', () => {
+    const plan = makePlan([
+      ['2 huevos enteros (100g)'],
+      ['2 huevos enteros (100g)'],
+    ]);
+    const list = generateShoppingList(plan);
+    const cat = list.find(c => c.category === 'Huevos y lácteos');
+    const item = cat!.items.find(i => i.name.toLowerCase().includes('huevos enteros'));
+    expect(item).toBeDefined();
+    expect(item!.amounts).toEqual(['4']);
+  });
+
   it('procesa múltiples comidas en el mismo día', () => {
     const plan: DietResponse = {
       weeklyPlan: [{
