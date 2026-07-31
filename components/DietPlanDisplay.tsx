@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CalculatedMetrics, DietResponse, DayPlan, Meal, FastingProtocol, DietType, DIET_TYPE_LABELS,
   PatientData, ActivityLevel, Condition, PlanVersion, Recipe, Gender, FASTING_LABELS,
-  CALORIE_GOAL_LABELS, ATHLETE_GOAL_LABELS, BUDGET_LEVEL_LABELS, BudgetLevel,
+  CALORIE_GOAL_LABELS, ATHLETE_GOAL_LABELS, BUDGET_LEVEL_LABELS, BudgetLevel, CalorieGoal,
   ALLERGEN_LABELS, AppliedSubstitution, SavedDiet,
 } from '../types';
 import { CLINIC } from '../config/clinic';
@@ -11,6 +11,8 @@ import { generateShoppingList, ShoppingList, findMatchingAllergens } from '../ut
 import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { MEAL_PRINT_ORDER, alignCoupleDays, pairIngredients, extractQuantityLabel, AlignedMealSlot } from '../utils/couplePrint';
+import { scalePlanToTarget } from '../utils/planScaling';
+import { computeMetrics } from '../utils/calculations';
 import { MealKey, MealSectionConfig, getMealSections, ALL_MEAL_CONFIGS } from '../utils/mealSchedule';
 import { FoodAutocompleteInput, IngredientTextarea } from './FoodAutocomplete';
 import { useConfirm } from './ConfirmDialog';
@@ -52,6 +54,11 @@ interface Props {
    *  Presente independientemente de qué lado se esté viendo — App.tsx resuelve
    *  la relación simétricamente. Habilita el selector de formato de impresión. */
   otherPersonDiet?: SavedDiet;
+  /** Recalcula las cantidades del plan (sin cambiar recetas) para un nuevo
+   *  nivel de actividad / objetivo calórico: recibe patientData, metrics y
+   *  plan ya actualizados — persiste igual que "Rehacer plan" (inmediato,
+   *  no requiere "Guardar cambios"). */
+  onRecalculateTargets?: (patientData: PatientData, metrics: CalculatedMetrics, plan: DietResponse) => void;
 }
 
 // ─── Editor de comida ─────────────────────────────────────────────────────────
@@ -458,6 +465,65 @@ const PatientDataPanel: React.FC<{ patientData: PatientData }> = ({ patientData:
   );
 };
 
+// ─── Recalcular objetivo (actividad / calórico) sin tocar recetas ─────────────
+// Cambia solo el NIVEL DE ACTIVIDAD y/o OBJETIVO CALÓRICO del paciente y
+// reescala las cantidades de las recetas ya elegidas para cuadrar con el
+// nuevo objetivo (mismo motor que "Pareja Inteligente" — scalePlanToTarget),
+// sin llamar a la IA ni cambiar qué platos hay en el plan.
+const RecalculateTargetsPanel: React.FC<{
+  patientData: PatientData;
+  metrics: CalculatedMetrics;
+  onRecalculate: (activity: ActivityLevel, calorieGoal: CalorieGoal) => void;
+  isRecalculating?: boolean;
+}> = ({ patientData, metrics, onRecalculate, isRecalculating }) => {
+  const [activity, setActivity] = useState<ActivityLevel>(patientData.activity);
+  const [calorieGoal, setCalorieGoal] = useState<CalorieGoal>(patientData.calorieGoal ?? CalorieGoal.Maintenance);
+
+  const hasChanged = activity !== patientData.activity || calorieGoal !== (patientData.calorieGoal ?? CalorieGoal.Maintenance);
+
+  return (
+    <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-transparent dark:border-[#233629] p-6 shadow-sm mt-6">
+      <h3 className="font-bold text-lg text-text-main dark:text-white mb-1">Cambiar objetivo calórico</h3>
+      <p className="text-xs text-text-sub dark:text-gray-400 mb-4">
+        Cambia el nivel de actividad y/o el objetivo calórico y recalcula las cantidades de las
+        recetas YA elegidas para el nuevo objetivo — no genera platos nuevos con IA.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Nivel de actividad</label>
+          <select value={activity} onChange={e => setActivity(e.target.value as ActivityLevel)}
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-semibold text-text-main dark:text-white outline-none focus:border-primary transition-colors">
+            {Object.values(ActivityLevel).map(a => (
+              <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Objetivo calórico</label>
+          <select value={calorieGoal} onChange={e => setCalorieGoal(e.target.value as CalorieGoal)}
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-semibold text-text-main dark:text-white outline-none focus:border-primary transition-colors">
+            {Object.values(CalorieGoal).map(g => (
+              <option key={g} value={g}>{CALORIE_GOAL_LABELS[g].title} ({CALORIE_GOAL_LABELS[g].subtitle})</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex items-center justify-between mt-4">
+        <p className="text-xs text-text-sub dark:text-gray-400">
+          Objetivo actual: <span className="font-bold text-text-main dark:text-white">{metrics.macros.calories} kcal</span>
+        </p>
+        <button
+          onClick={() => onRecalculate(activity, calorieGoal)}
+          disabled={!hasChanged || isRecalculating}
+          className="px-4 py-2 rounded-lg text-xs font-black bg-primary text-background-dark hover:brightness-90 transition-all disabled:opacity-40 flex items-center gap-2">
+          {isRecalculating && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
+          Recalcular cantidades
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Impresión "Dieta de Pareja" — subcomponentes ──────────────────────────────
 
 /** Cabecera dual (paciente + pareja) reutilizada por los formatos "paralelo" y
@@ -565,6 +631,7 @@ const DietPlanDisplay: React.FC<Props> = ({
   metrics, plan, patientName, mealCount, fastingProtocol, patientData,
   isLoading, planVersions, dietId, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
   lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal, otherPersonDiet, onApplyInstructions,
+  onRecalculateTargets,
 }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
@@ -585,6 +652,7 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [listHasChanges, setListHasChanges] = useState(false);   // feature 4: lista compra
   const [addingMeal,     setAddingMeal]     = useState(false);   // feature 1: spinner añadir toma
   const [showMealPicker, setShowMealPicker] = useState(false);   // feature 1: selector de toma
+  const [isRecalculatingTargets, setIsRecalculatingTargets] = useState(false); // cambiar actividad/objetivo calórico
   // ── Impresión "Dieta de Pareja" ──────────────────────────────────────────────
   const [printMode, setPrintMode] = useState<'individual' | 'parallel' | 'consolidated' | null>(null);
   const [showPrintFormatPicker, setShowPrintFormatPicker] = useState(false);
@@ -898,6 +966,28 @@ const DietPlanDisplay: React.FC<Props> = ({
     onMealManuallyEdited?.(activeDay, mealKeyA, updatedPlan);
     onMealManuallyEdited?.(activeDay, mealKeyB, updatedPlan);
     toast('Tomas intercambiadas. Recuerda guardar los cambios.', 'success');
+  };
+
+  // Cambia el nivel de actividad y/o el objetivo calórico SIN cambiar las
+  // recetas: recalcula TMB/GET/macros con los nuevos datos y reescala las
+  // cantidades de ingredientes de cada día ya elegido para cuadrar con el
+  // nuevo objetivo (mismo motor determinista que "Pareja Inteligente" —
+  // scalePlanToTarget, sin llamadas a la IA).
+  const handleRecalculateTargets = async (activity: ActivityLevel, calorieGoal: CalorieGoal) => {
+    if (!patientData) return;
+    setIsRecalculatingTargets(true);
+    try {
+      const newPatientData: PatientData = { ...patientData, activity, calorieGoal };
+      const newMetrics = computeMetrics(newPatientData);
+      const { plan: rescaled, warnings } = scalePlanToTarget(localPlan, newMetrics);
+      setLocalPlan(rescaled);
+      setHasChanges(false);
+      onRecalculateTargets?.(newPatientData, newMetrics, rescaled);
+      warnings.forEach(w => toast(w.message, 'error'));
+      toast(`Cantidades recalculadas para ${newMetrics.macros.calories} kcal.`, 'success');
+    } finally {
+      setIsRecalculatingTargets(false);
+    }
   };
 
   // ── feature 5: rehacer día con confirmación ─────────────────────────────────
@@ -1467,6 +1557,14 @@ const DietPlanDisplay: React.FC<Props> = ({
 
           {/* Datos del paciente */}
           {activeDay === 0 && patientData && <PatientDataPanel patientData={patientData} />}
+          {activeDay === 0 && patientData && onRecalculateTargets && (
+            <RecalculateTargetsPanel
+              patientData={patientData}
+              metrics={metrics}
+              onRecalculate={handleRecalculateTargets}
+              isRecalculating={isRecalculatingTargets}
+            />
+          )}
 
           {/* Meals */}
           {activeDay !== 0 && activeDayPlan?.meals && (() => {

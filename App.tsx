@@ -615,6 +615,12 @@ const AppContent: React.FC = () => {
               if (currentDietId) { updateDietPlan(currentDietId, updatedPlan); }
               toast('Plan actualizado y guardado.', 'success');
             }}
+            onRecalculateTargets={(newPatientData, newMetrics, newPlan) => {
+              setPatientData(newPatientData);
+              setMetrics(newMetrics);
+              setPlan(newPlan);
+              if (currentDietId) { updateFullDiet(currentDietId, newPatientData, newMetrics, newPlan); }
+            }}
             onRegenerate={(newDietType: DietType) => {
               if (!patientData) return;
               handleFormSubmit({ ...patientData, dietType: newDietType });
