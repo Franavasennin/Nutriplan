@@ -250,12 +250,17 @@ interface MealSectionProps {
   isLocked?: boolean;
   onUnlock?: () => void;
   mealSubstitutions?: AppliedSubstitution[];
+  /** "Cambiar de sitio": otras tomas del mismo día con las que se puede
+   *  intercambiar esta (ej. cambiar el almuerzo por la cena). */
+  moveOptions?: { key: string; title: string }[];
+  onMove?: (targetKey: string) => void;
 }
 
 const MealSection: React.FC<MealSectionProps> = ({
   title, time, meal, icon, mealKey, editingKey, activeEditKey, onEditRequest, onSave, onCancel, onSwapRequest, isSwapping, onRemove,
-  isLocked, onUnlock, mealSubstitutions,
+  isLocked, onUnlock, mealSubstitutions, moveOptions, onMove,
 }) => {
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
   if (!meal) return null;
   const isEditing = activeEditKey === editingKey;
   return (
@@ -296,9 +301,31 @@ const MealSection: React.FC<MealSectionProps> = ({
             Resincronizar
           </button>
         )}
+        {onMove && moveOptions && moveOptions.length > 0 && (
+          <div className={`relative no-print ${meal.calories != null || (isLocked && onUnlock) ? '' : 'ml-auto'}`}>
+            <button onClick={() => setShowMoveMenu(v => !v)} title={`Cambiar de sitio "${title}"`}
+              className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all">
+              <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+            </button>
+            {showMoveMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
+                <div className="absolute right-0 top-9 z-20 w-48 py-1 rounded-lg bg-white dark:bg-[#1A2C20] border border-border-light dark:border-border-dark shadow-lg">
+                  <p className="px-3 py-1 text-[10px] font-bold uppercase text-text-sub dark:text-gray-400">Cambiar por</p>
+                  {moveOptions.map(opt => (
+                    <button key={opt.key} onClick={() => { onMove(opt.key); setShowMoveMenu(false); }}
+                      className="w-full text-left px-3 py-1.5 text-xs font-semibold text-text-main dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                      {opt.title}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {onRemove && (
           <button onClick={onRemove} title={`Eliminar ${title}`}
-            className={`size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all no-print ${meal.calories != null ? '' : 'ml-auto'}`}>
+            className={`size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-all no-print ${meal.calories != null || onMove ? '' : 'ml-auto'}`}>
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         )}
@@ -849,6 +876,28 @@ const DietPlanDisplay: React.FC<Props> = ({
     }));
     setHasChanges(true);
     toast('Toma eliminada. Recuerda guardar los cambios.', 'success');
+  };
+
+  // Intercambia dos tomas de sitio dentro del mismo día activo (ej. "cambiar
+  // el almuerzo por la cena"). El horario de cada toma es propio de la
+  // posición (ver mealSchedule.ts), así que basta con intercambiar el
+  // contenido entre las dos claves — nada más que recalcular.
+  const handleMoveMeal = (mealKeyA: MealKey, mealKeyB: MealKey) => {
+    if (!activeDayPlan) return;
+    const mealA = activeDayPlan.meals[mealKeyA];
+    const mealB = activeDayPlan.meals[mealKeyB];
+    if (!mealA || !mealB) return;
+    const updatedPlan: DietResponse = {
+      ...localPlan,
+      weeklyPlan: localPlan.weeklyPlan.map(d =>
+        d.day === activeDay ? { ...d, meals: { ...d.meals, [mealKeyA]: mealB, [mealKeyB]: mealA } } : d
+      ),
+    };
+    setLocalPlan(updatedPlan);
+    setHasChanges(true);
+    onMealManuallyEdited?.(activeDay, mealKeyA, updatedPlan);
+    onMealManuallyEdited?.(activeDay, mealKeyB, updatedPlan);
+    toast('Tomas intercambiadas. Recuerda guardar los cambios.', 'success');
   };
 
   // ── feature 5: rehacer día con confirmación ─────────────────────────────────
@@ -1443,6 +1492,8 @@ const DietPlanDisplay: React.FC<Props> = ({
                     onSwapRequest={onSwapMeal ? () => handleSwap(activeDay, key) : undefined}
                     isSwapping={swappingKey === `${activeDay}-${key}`}
                     onRemove={presentSections.length > 1 ? () => handleRemoveMeal(key, activeDayPlan.meals[key]!.name) : undefined}
+                    moveOptions={presentSections.filter(s => s.key !== key).map(s => ({ key: s.key, title: s.title }))}
+                    onMove={(targetKey) => handleMoveMeal(key, targetKey as MealKey)}
                     isLocked={lockedMeals?.includes(`${activeDay}-${key}`)}
                     onUnlock={onUnlockMeal ? () => onUnlockMeal(activeDay, key) : undefined}
                     mealSubstitutions={substitutions?.filter(s => s.day === activeDay && s.mealKey === key)}
