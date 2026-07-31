@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeInstructionChanges, findDaysOffTarget, enforceMealMacroTarget } from '../utils/planInstructions';
+import { mergeInstructionChanges, findDaysOffTarget, enforceMealMacroTarget, extractForcedSubstitutions, applyForcedSubstitutions } from '../utils/planInstructions';
 import type { Meal, DayPlan, DietResponse, CalculatedMetrics } from '../types';
 import type { InstructionChange } from '../services/geminiService';
 
@@ -158,5 +158,70 @@ describe('enforceMealMacroTarget', () => {
     const derivedCalories = merged.protein! * 4 + merged.carbs! * 4 + merged.fats! * 9;
     expect(Math.abs(derivedCalories - 300)).toBeLessThanOrEqual(5);
     expect(merged.name).toBe('Avena con fruta y pan integral');
+  });
+});
+
+describe('extractForcedSubstitutions', () => {
+  it('detecta "sustituye X por Y"', () => {
+    const pairs = extractForcedSubstitutions('sustituye toda la cebolla por cebollino');
+    expect(pairs).toEqual([{ banned: 'cebolla', replacement: 'cebollino' }]);
+  });
+
+  it('detecta "no usar X ... sustituir por Y" (orden invertido, caso real reportado)', () => {
+    const pairs = extractForcedSubstitutions('no usar nunca cebolla, sustituir por cebollino');
+    expect(pairs).toEqual([{ banned: 'cebolla', replacement: 'cebollino' }]);
+  });
+
+  it('devuelve vacío si no hay patrón de sustitución', () => {
+    expect(extractForcedSubstitutions('las cenas deben ser sencillas y rápidas')).toEqual([]);
+  });
+});
+
+describe('applyForcedSubstitutions', () => {
+  it('sustituye el término prohibido en nombre, descripción e ingredientes de TODO el plan', () => {
+    const p: DietResponse = {
+      weeklyPlan: [
+        day(1, { lunch: meal({ name: 'Pollo con cebolla', description: 'con cebolla caramelizada', ingredients: ['150g pollo', '50g cebolla picada'] }) }),
+      ],
+      generalGuidelines: [],
+      durationText: '1 día',
+    };
+    const { plan: result, substitutions } = applyForcedSubstitutions(p, 'sustituye toda la cebolla por cebollino');
+    const lunch = result.weeklyPlan[0].meals.lunch!;
+    expect(lunch.name).toBe('Pollo con cebollino');
+    expect(lunch.description).toBe('con cebollino caramelizada');
+    expect(lunch.ingredients).toEqual(['150g pollo', '50g cebollino picada']);
+    expect(substitutions).toEqual([{ banned: 'cebolla', replacement: 'cebollino', occurrences: 3 }]);
+  });
+
+  it('es garantizado incluso si la IA ignoró la instrucción (no depende de "changes")', () => {
+    // Reproduce el bug real: la instrucción se repite pero la cebolla sigue ahí.
+    const p = plan(); // ninguna comida menciona cebolla ni cebollino
+    const withOnion: DietResponse = {
+      ...p,
+      weeklyPlan: p.weeklyPlan.map(d => ({
+        ...d,
+        meals: { ...d.meals, dinner: meal({ name: 'Cena con cebolla', ingredients: ['1 cebolla'] }) },
+      })),
+    };
+    const { plan: result } = applyForcedSubstitutions(withOnion, 'no usar nunca cebolla, sustituir por cebollino');
+    for (const d of result.weeklyPlan) {
+      expect(d.meals.dinner!.name).toBe('Cena con cebollino');
+      expect(d.meals.dinner!.ingredients).toEqual(['1 cebollino']);
+    }
+  });
+
+  it('no toca nada si el texto no contiene un patrón de sustitución', () => {
+    const p = plan();
+    const { plan: result, substitutions } = applyForcedSubstitutions(p, 'las cenas deben ser sencillas');
+    expect(result).toEqual(p);
+    expect(substitutions).toEqual([]);
+  });
+
+  it('sin instructionText, no hace nada', () => {
+    const p = plan();
+    const { plan: result, substitutions } = applyForcedSubstitutions(p, undefined);
+    expect(result).toBe(p);
+    expect(substitutions).toEqual([]);
   });
 });

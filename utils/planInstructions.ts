@@ -3,6 +3,122 @@ import { sumDayMacros, reconcileDietResponse } from './macroValidation';
 import { scaleIngredientText } from './planScaling';
 import { InstructionChange } from '../services/geminiService';
 
+// ─── Sustituciones forzadas (deterministas) ────────────────────────────────────
+// Bug real reportado por la nutricionista: pidió "sustituye toda la cebolla
+// por cebollino" en varias pacientes y, por muchas veces que lo repitiera en
+// "Pautas", la cebolla seguía apareciendo — porque applyPlanInstructions
+// solo se lo PIDE a la IA, nada lo garantiza si el modelo no cumple al pie
+// de la letra (mismo patrón de bug que ya se corrigió para las calorías con
+// enforceMealMacroTarget). Para instrucciones de la forma "sustituye X por
+// Y" / "no usar X ... sustituir por Y", esto lo garantiza a nivel de texto,
+// sin depender de la IA: se ejecuta SIEMPRE después de aplicar los cambios,
+// idempotente (si la IA ya cumplió, no encuentra nada que sustituir).
+const SUBSTITUTION_TRIGGERS: RegExp[] = [
+  /sustitu[a-záéíóúñ]*\s+(?:toda\s+la\s+|todo\s+el\s+|la\s+|el\s+|los\s+|las\s+)?([a-záéíóúñ]{3,30})\s+por\s+([a-záéíóúñ]{3,30})/gi,
+  /(?:no\s+usar|nunca\s+usar|quita|quitar|detesta[s]?)\s+(?:nunca\s+)?(?:el\s+|la\s+|los\s+|las\s+)?([a-záéíóúñ]{3,30})[,.]?\s+(?:y\s+)?sustitu[a-záéíóúñ]*\s+por\s+([a-záéíóúñ]{3,30})/gi,
+];
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Extrae pares (término prohibido, reemplazo) de un texto de instrucción libre. */
+export function extractForcedSubstitutions(instructionText: string): { banned: string; replacement: string }[] {
+  const pairs: { banned: string; replacement: string }[] = [];
+  for (const re of SUBSTITUTION_TRIGGERS) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(instructionText)) !== null) {
+      pairs.push({ banned: m[1].toLowerCase(), replacement: m[2].toLowerCase() });
+    }
+  }
+  const seen = new Set<string>();
+  return pairs.filter(p => {
+    const key = `${p.banned}=>${p.replacement}`;
+    if (seen.has(key) || p.banned === p.replacement) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Reemplaza `banned` (con o sin plural) por `replacement`, respetando mayúscula inicial. */
+function replaceWordPreservingCase(text: string, banned: string, replacement: string): { text: string; count: number } {
+  const re = new RegExp(`\\b${escapeRegex(banned)}s?\\b`, 'gi');
+  let count = 0;
+  const newText = text.replace(re, (match) => {
+    count++;
+    const isPlural = /s$/i.test(match) && !/s$/i.test(banned);
+    const base = isPlural ? `${replacement}s` : replacement;
+    return match.charAt(0) === match.charAt(0).toUpperCase()
+      ? base.charAt(0).toUpperCase() + base.slice(1)
+      : base;
+  });
+  return { text: newText, count };
+}
+
+export interface ForcedSubstitution { banned: string; replacement: string; occurrences: number; }
+
+/**
+ * Aplica de forma determinista los pares "sustituye X por Y" detectados en
+ * `instructionText` a TODO el plan (nombre, descripción, ingredientes y
+ * preparación de cada comida) — garantiza el cambio incluso si la IA lo
+ * ignoró. No toca macros/calorías (solo texto), así que no hace falta
+ * reescalar nada.
+ */
+export function applyForcedSubstitutions(
+  plan: DietResponse,
+  instructionText: string | undefined
+): { plan: DietResponse; substitutions: ForcedSubstitution[] } {
+  if (!instructionText) return { plan, substitutions: [] };
+  const pairs = extractForcedSubstitutions(instructionText);
+  if (pairs.length === 0) return { plan, substitutions: [] };
+
+  const totals = new Map<string, ForcedSubstitution>();
+
+  const weeklyPlan = plan.weeklyPlan.map(day => {
+    const meals = { ...day.meals };
+    let dayMutated = false;
+
+    for (const key of Object.keys(meals) as (keyof DayPlan['meals'])[]) {
+      const meal = meals[key];
+      if (!meal) continue;
+      let mealMutated = false;
+      let { name, description, ingredients, instructions } = meal;
+
+      for (const { banned, replacement } of pairs) {
+        const rName = replaceWordPreservingCase(name ?? '', banned, replacement);
+        const rDesc = replaceWordPreservingCase(description ?? '', banned, replacement);
+        const rIngredients = (ingredients ?? []).map(i => replaceWordPreservingCase(i, banned, replacement));
+        const rInstructions = (instructions ?? []).map(i => replaceWordPreservingCase(i, banned, replacement));
+        const occurrences = rName.count + rDesc.count
+          + rIngredients.reduce((s, r) => s + r.count, 0)
+          + rInstructions.reduce((s, r) => s + r.count, 0);
+
+        if (occurrences > 0) {
+          mealMutated = true;
+          name = rName.text;
+          description = rDesc.text;
+          ingredients = rIngredients.map(r => r.text);
+          instructions = rInstructions.map(r => r.text);
+          const totalsKey = `${banned}=>${replacement}`;
+          const prev = totals.get(totalsKey) ?? { banned, replacement, occurrences: 0 };
+          prev.occurrences += occurrences;
+          totals.set(totalsKey, prev);
+        }
+      }
+
+      if (mealMutated) {
+        meals[key] = { ...meal, name, description, ingredients, instructions };
+        dayMutated = true;
+      }
+    }
+
+    return dayMutated ? { ...day, meals } : day;
+  });
+
+  return { plan: { ...plan, weeklyPlan }, substitutions: [...totals.values()] };
+}
+
 // Tolerancia de calorías por comida antes de forzar el reescalado — misma
 // cifra que la Regla 2 documentada en el prompt de applyPlanInstructions.
 const MEAL_CALORIE_TOLERANCE_PCT = 8;

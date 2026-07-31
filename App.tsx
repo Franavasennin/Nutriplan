@@ -32,7 +32,7 @@ import { useAppData }    from './hooks/useAppData';
 // Services
 import { exportJSON, exportCSV, importJSON, importCSV } from './services/exportService';
 import { parseDietFromPDF, regenerateSingleDay, getMealSwap, applyPlanInstructions } from './services/geminiService';
-import { mergeInstructionChanges, findDaysOffTarget } from './utils/planInstructions';
+import { mergeInstructionChanges, findDaysOffTarget, applyForcedSubstitutions } from './utils/planInstructions';
 import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
@@ -384,13 +384,19 @@ const AppContent: React.FC = () => {
       const { changes } = await applyPlanInstructions(plan, instructions, patientData, metrics);
       const { plan: mergedPlan, applied, skipped } = mergeInstructionChanges(plan, changes);
 
+      // Sustituciones "X por Y" (ej. "sustituye toda la cebolla por
+      // cebollino") garantizadas a nivel de texto sobre TODO el plan, no
+      // solo sobre las comidas que la IA decidió tocar — bug real: la IA
+      // ignoraba repetidamente esta instrucción por mucho que se repitiera.
+      const { plan: substitutedPlan, substitutions: forcedSubs } = applyForcedSubstitutions(mergedPlan, instructions);
+
       // Prioridad absoluta: exclusiones/alérgenos ganan siempre a la pauta,
       // igual que en handleRegenerateDay. Vía de mayor riesgo de reintroducir
       // un alérgeno sin querer.
-      const violations = verifyPlanAgainstAllergens(mergedPlan, patientData);
+      const violations = verifyPlanAgainstAllergens(substitutedPlan, patientData);
       if (violations.length > 0) toast(formatAllergenViolationsMessage(violations), 'error');
 
-      const offTargetDays = findDaysOffTarget(mergedPlan, metrics);
+      const offTargetDays = findDaysOffTarget(substitutedPlan, metrics);
       if (offTargetDays.length > 0) {
         toast(`Aviso: el día ${offTargetDays.join(', ')} se desvía más de un 10% del objetivo calórico.`, 'error');
       }
@@ -398,14 +404,17 @@ const AppContent: React.FC = () => {
         console.warn('Cambios de pauta descartados:', skipped);
       }
 
-      setPlan(mergedPlan);
+      setPlan(substitutedPlan);
       if (currentDietId) {
-        updateDietPlanWithSnapshot(currentDietId, mergedPlan);
+        updateDietPlanWithSnapshot(currentDietId, substitutedPlan);
         updatePatientData(currentDietId, { planInstructions: instructions });
       }
-      toast(applied > 0
+      const subsMsg = forcedSubs.length > 0
+        ? ` Sustituido en todo el plan: ${forcedSubs.map(s => `"${s.banned}"→"${s.replacement}" (${s.occurrences})`).join(', ')}.`
+        : '';
+      toast((applied > 0
         ? `Pauta aplicada: ${applied} comida${applied === 1 ? '' : 's'} ajustada${applied === 1 ? '' : 's'}.`
-        : 'La pauta no requería cambios en este plan.', 'success');
+        : 'La pauta no requería cambios en este plan.') + subsMsg, 'success');
     } catch (err: any) {
       toast(err.message || 'Error al aplicar la pauta.', 'error');
     } finally {
