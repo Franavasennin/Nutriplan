@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { findEquivalents } from '../utils/equivalences';
-import { Allergen } from '../types';
+import { findEquivalents, getMealEquivalents } from '../utils/equivalences';
+import { Allergen, Meal } from '../types';
 
 describe('findEquivalents', () => {
   it('identifica el alimento por alias y devuelve alternativas', () => {
@@ -123,5 +123,44 @@ describe('findEquivalents', () => {
       expect(res.length).toBeGreaterThan(0);
       expect(res.every(r => /^\d+g /.test(r.label))).toBe(true);
     });
+  });
+});
+
+describe('getMealEquivalents', () => {
+  const meal = (overrides: Partial<Meal> = {}): Meal => ({
+    name: 'Pollo con arroz',
+    description: '',
+    ingredients: ['150g pechuga de pollo', '100g arroz blanco'],
+    ...overrides,
+  });
+
+  it('usa el cálculo automático cuando no hay override', () => {
+    const lines = getMealEquivalents(meal());
+    const pollo = lines.find(l => l.ing === '150g pechuga de pollo');
+    expect(pollo).toBeDefined();
+    expect(pollo!.isCustom).toBe(false);
+    expect(pollo!.options.length).toBeGreaterThan(0);
+  });
+
+  it('usa el override de la nutricionista en vez del cálculo automático cuando existe', () => {
+    const m = meal({ equivalentOverrides: { '150g pechuga de pollo': ['180g merluza', '3 huevos'] } });
+    const lines = getMealEquivalents(m);
+    const pollo = lines.find(l => l.ing === '150g pechuga de pollo');
+    expect(pollo).toBeDefined();
+    expect(pollo!.isCustom).toBe(true);
+    expect(pollo!.options.map(o => o.label)).toEqual(['180g merluza', '3 huevos']);
+  });
+
+  it('un override vacío oculta las equivalencias de ese ingrediente (no cae al cálculo automático)', () => {
+    const m = meal({ equivalentOverrides: { '150g pechuga de pollo': [] } });
+    const lines = getMealEquivalents(m);
+    expect(lines.find(l => l.ing === '150g pechuga de pollo')).toBeUndefined();
+  });
+
+  it('los ingredientes sin override siguen usando el cálculo automático', () => {
+    const m = meal({ equivalentOverrides: { '150g pechuga de pollo': ['180g merluza'] } });
+    const lines = getMealEquivalents(m);
+    const arroz = lines.find(l => l.ing === '100g arroz blanco');
+    expect(arroz?.isCustom).toBe(false);
   });
 });

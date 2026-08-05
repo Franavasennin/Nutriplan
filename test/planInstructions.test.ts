@@ -175,6 +175,11 @@ describe('extractForcedSubstitutions', () => {
   it('devuelve vacío si no hay patrón de sustitución', () => {
     expect(extractForcedSubstitutions('las cenas deben ser sencillas y rápidas')).toEqual([]);
   });
+
+  it('detecta "no usar X ... sustituir por Y" con texto libre en medio (caso real reportado)', () => {
+    const pairs = extractForcedSubstitutions('No usar nunca cebolla en ningun plato, sustituir siempre por cebollino.');
+    expect(pairs).toEqual([{ banned: 'cebolla', replacement: 'cebollino' }]);
+  });
 });
 
 describe('applyForcedSubstitutions', () => {

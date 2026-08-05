@@ -257,6 +257,13 @@ export interface Meal {
   // receta de data/recipes.ts o de la tabla `recipes`, o se escribe a mano.
   // Opcional: las comidas generadas por la IA no lo traen por defecto.
   instructions?: string[];
+  /** Equivalencias nutricionales EDITADAS a mano por la nutricionista para
+   *  este plato, clave = línea de ingrediente exacta (tal cual aparece en
+   *  `ingredients`), valor = lista de alternativas en texto libre ("180g
+   *  merluza", "3 huevos"...). Si un ingrediente no tiene entrada aquí, se
+   *  usa el cálculo automático (utils/equivalences.ts findEquivalents) —
+   *  esto es solo un override puntual, no reemplaza el motor determinista. */
+  equivalentOverrides?: Record<string, string[]>;
 }
 
 export interface DayPlan {

@@ -14,8 +14,14 @@ import { InstructionChange } from '../services/geminiService';
 // sin depender de la IA: se ejecuta SIEMPRE después de aplicar los cambios,
 // idempotente (si la IA ya cumplió, no encuentra nada que sustituir).
 const SUBSTITUTION_TRIGGERS: RegExp[] = [
-  /sustitu[a-záéíóúñ]*\s+(?:toda\s+la\s+|todo\s+el\s+|la\s+|el\s+|los\s+|las\s+)?([a-záéíóúñ]{3,30})\s+por\s+([a-záéíóúñ]{3,30})/gi,
-  /(?:no\s+usar|nunca\s+usar|quita|quitar|detesta[s]?)\s+(?:nunca\s+)?(?:el\s+|la\s+|los\s+|las\s+)?([a-záéíóúñ]{3,30})[,.]?\s+(?:y\s+)?sustitu[a-záéíóúñ]*\s+por\s+([a-záéíóúñ]{3,30})/gi,
+  /sustitu[a-záéíóúñ]*\s+(?:siempre\s+)?(?:toda\s+la\s+|todo\s+el\s+|la\s+|el\s+|los\s+|las\s+)?(?!siempre\b)([a-záéíóúñ]{3,30})\s+por\s+([a-záéíóúñ]{3,30})/gi,
+  // "no usar/nunca/quita/detesta X ... sustituir por Y" — el hueco entre el
+  // término prohibido y "sustituir por" es de longitud libre (hasta el
+  // siguiente punto), porque en la práctica la frase real trae texto de por
+  // medio: "no usar nunca cebolla EN NINGÚN PLATO, sustituir SIEMPRE por
+  // cebollino" (caso real reportado — con un hueco corto y fijo, y sin
+  // permitir el adverbio antes de "por", esto no se detectaba).
+  /(?:no\s+usar|nunca\s+usar|quita|quitar|detesta[s]?)\s+(?:nunca\s+)?(?:el\s+|la\s+|los\s+|las\s+)?([a-záéíóúñ]{3,30})\b[^.]{0,80}?sustitu[a-záéíóúñ]*\s+(?:siempre\s+)?por\s+([a-záéíóúñ]{3,30})/gis,
 ];
 
 function escapeRegex(s: string): string {

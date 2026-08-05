@@ -1,4 +1,4 @@
-import { Allergen } from '../types';
+import { Allergen, Meal } from '../types';
 import { FOOD_COMPOSITION, GROUP_FALLBACKS, FoodComposition, SwapGroup } from '../data/foodComposition';
 import { FIXED_SUBSTITUTION_RULES, FIXED_FRUIT_PORTIONS } from '../data/nutritionistRules';
 import { QUANTITY_RE } from './planScaling';
@@ -241,4 +241,38 @@ export function findEquivalents(
   }
 
   return results;
+}
+
+// ─── Equivalencias integradas en la dieta (editables por la nutricionista) ────
+// La nutricionista pidió que las equivalencias -- hasta ahora solo visibles en
+// el portal del paciente, calculadas al vuelo -- aparezcan también en SU
+// propia vista del plan, y que pueda editarlas a mano (añadir/quitar
+// alternativas concretas) en vez de depender solo del cálculo automático.
+// `Meal.equivalentOverrides` guarda esa edición puntual por ingrediente; esta
+// función es el único punto que decide "override si existe, si no automático"
+// -- la usan tanto components/DietPlanDisplay.tsx (nutricionista) como
+// components/portal/PatientPortal.tsx (paciente), para que ambas vistas
+// muestren siempre exactamente lo mismo.
+
+export interface MealEquivalenceLine {
+  ing: string;
+  options: EquivalentOption[];
+  /** true si viene de una edición manual de la nutricionista, no del cálculo automático. */
+  isCustom: boolean;
+}
+
+export function getMealEquivalents(
+  meal: Meal,
+  constraints: EquivalenceConstraints = {},
+  opts: EquivalenceOptions = {}
+): MealEquivalenceLine[] {
+  return (meal.ingredients ?? [])
+    .map((ing): MealEquivalenceLine => {
+      const override = meal.equivalentOverrides?.[ing];
+      if (override !== undefined) {
+        return { ing, options: override.map(label => ({ name: label, label, kcalDelta: 0 })), isCustom: true };
+      }
+      return { ing, options: findEquivalents(ing, constraints, opts), isCustom: false };
+    })
+    .filter(line => line.options.length > 0);
 }

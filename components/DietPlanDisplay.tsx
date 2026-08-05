@@ -12,6 +12,7 @@ import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { MEAL_PRINT_ORDER, alignCoupleDays, pairIngredients, extractQuantityLabel, AlignedMealSlot } from '../utils/couplePrint';
 import { scalePlanToTarget } from '../utils/planScaling';
+import { getMealEquivalents, MealEquivalenceLine } from '../utils/equivalences';
 import { computeMetrics } from '../utils/calculations';
 import { MealKey, MealSectionConfig, getMealSections, ALL_MEAL_CONFIGS } from '../utils/mealSchedule';
 import { FoodAutocompleteInput, IngredientTextarea } from './FoodAutocomplete';
@@ -198,7 +199,30 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
 
 // ─── Fila de comida ───────────────────────────────────────────────────────────
 
-const MealRow: React.FC<{ meal: Meal; onEditRequest: () => void; onSwapRequest?: () => void; isSwapping?: boolean }> = ({ meal, onEditRequest, onSwapRequest, isSwapping }) => (
+const MealRow: React.FC<{
+  meal: Meal; onEditRequest: () => void; onSwapRequest?: () => void; isSwapping?: boolean;
+  equivalents?: MealEquivalenceLine[];
+  onSaveEquivalents?: (updated: Meal) => void;
+}> = ({ meal, onEditRequest, onSwapRequest, isSwapping, equivalents, onSaveEquivalents }) => {
+  const [editingEquiv, setEditingEquiv] = useState(false);
+  const [drafts, setDrafts] = useState<string[]>([]);
+
+  const openEquivEditor = () => {
+    const byIng = new Map((equivalents ?? []).map(e => [e.ing, e]));
+    setDrafts((meal.ingredients ?? []).map(ing => (byIng.get(ing)?.options ?? []).map(o => o.label).join(', ')));
+    setEditingEquiv(true);
+  };
+
+  const handleSaveEquiv = () => {
+    const equivalentOverrides: Record<string, string[]> = {};
+    (meal.ingredients ?? []).forEach((ing, idx) => {
+      equivalentOverrides[ing] = (drafts[idx] ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    });
+    onSaveEquivalents?.({ ...meal, equivalentOverrides });
+    setEditingEquiv(false);
+  };
+
+  return (
   <div className="p-4 bg-white dark:bg-[#15231b] border border-gray-100 dark:border-gray-700 rounded-lg group hover:border-primary/50 transition-colors">
     <div className="flex items-start gap-4">
       <div className="size-10 rounded-lg shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-400 mt-0.5">
@@ -221,6 +245,12 @@ const MealRow: React.FC<{ meal: Meal; onEditRequest: () => void; onSwapRequest?:
                 }
               </button>
             )}
+            {onSaveEquivalents && (
+              <button onClick={() => (editingEquiv ? setEditingEquiv(false) : openEquivEditor())} title="Editar equivalencias"
+                className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all">
+                <span className="material-symbols-outlined text-base">tune</span>
+              </button>
+            )}
             <button onClick={onEditRequest} title="Editar"
               className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary transition-all">
               <span className="material-symbols-outlined text-base">edit</span>
@@ -238,10 +268,52 @@ const MealRow: React.FC<{ meal: Meal; onEditRequest: () => void; onSwapRequest?:
             ))}
           </div>
         )}
+
+        {editingEquiv ? (
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+            <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-400">
+              Equivalencias por ingrediente (separadas por comas)
+            </p>
+            {(meal.ingredients ?? []).map((ing, idx) => (
+              <div key={idx}>
+                <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{normalizeIngredient(ing)}</label>
+                <input
+                  type="text"
+                  value={drafts[idx] ?? ''}
+                  onChange={e => setDrafts(prev => { const next = [...prev]; next[idx] = e.target.value; return next; })}
+                  placeholder="Ej: 180g merluza, 3 huevos"
+                  className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-xs text-text-main dark:text-white outline-none focus:border-primary transition-colors"
+                />
+              </div>
+            ))}
+            <div className="flex gap-2 justify-end pt-1">
+              <button onClick={() => setEditingEquiv(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-border-light dark:border-border-dark hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-sub">
+                Cancelar
+              </button>
+              <button onClick={handleSaveEquiv}
+                className="px-3 py-1.5 rounded-lg text-xs font-black bg-primary text-background-dark hover:brightness-90 transition-all">
+                Guardar equivalencias
+              </button>
+            </div>
+          </div>
+        ) : equivalents && equivalents.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-1">
+            <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-400">🔄 Equivalencias</p>
+            {equivalents.map((e, i) => (
+              <p key={i} className="text-[11px] text-text-sub dark:text-gray-400">
+                <span className="font-semibold text-gray-600 dark:text-gray-300">{normalizeIngredient(e.ing)}</span>
+                {' → '}
+                {e.options.map(o => o.label).join(' · ')}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   </div>
-);
+  );
+};
 
 // ─── Sección de toma ──────────────────────────────────────────────────────────
 
@@ -261,11 +333,16 @@ interface MealSectionProps {
    *  intercambiar esta (ej. cambiar el almuerzo por la cena). */
   moveOptions?: { key: string; title: string }[];
   onMove?: (targetKey: string) => void;
+  /** Equivalencias nutricionales de esta comida (override manual o cálculo
+   *  automático — ver utils/equivalences.ts getMealEquivalents) y el guardado
+   *  de las que edite la nutricionista. */
+  equivalents?: MealEquivalenceLine[];
+  onSaveEquivalents?: (updated: Meal) => void;
 }
 
 const MealSection: React.FC<MealSectionProps> = ({
   title, time, meal, icon, mealKey, editingKey, activeEditKey, onEditRequest, onSave, onCancel, onSwapRequest, isSwapping, onRemove,
-  isLocked, onUnlock, mealSubstitutions, moveOptions, onMove,
+  isLocked, onUnlock, mealSubstitutions, moveOptions, onMove, equivalents, onSaveEquivalents,
 }) => {
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   if (!meal) return null;
@@ -340,7 +417,8 @@ const MealSection: React.FC<MealSectionProps> = ({
       <div className="p-4">
         {isEditing
           ? <MealEditor meal={meal} mealKey={mealKey} onSave={onSave} onCancel={onCancel} />
-          : <MealRow meal={meal} onEditRequest={() => onEditRequest(editingKey)} onSwapRequest={onSwapRequest} isSwapping={isSwapping} />
+          : <MealRow meal={meal} onEditRequest={() => onEditRequest(editingKey)} onSwapRequest={onSwapRequest} isSwapping={isSwapping}
+              equivalents={equivalents} onSaveEquivalents={onSaveEquivalents} />
         }
       </div>
     </div>
@@ -1595,6 +1673,8 @@ const DietPlanDisplay: React.FC<Props> = ({
                     isLocked={lockedMeals?.includes(`${activeDay}-${key}`)}
                     onUnlock={onUnlockMeal ? () => onUnlockMeal(activeDay, key) : undefined}
                     mealSubstitutions={substitutions?.filter(s => s.day === activeDay && s.mealKey === key)}
+                    equivalents={getMealEquivalents(activeDayPlan.meals[key]!, { allergens: patientData?.allergens, excludedFoods: patientData?.excludedFoods })}
+                    onSaveEquivalents={(updated) => handleSaveMeal(key, updated)}
                   />
                 ))}
 

@@ -5,7 +5,7 @@ import { fetchPortalDiet, postMealCompletion, PortalDietPayload, PortalCompletio
 import { generateShoppingList } from '../../utils/shoppingList';
 import { normalizeIngredient } from '../../utils/macroValidation';
 import { getMealSections, MealSectionConfig } from '../../utils/mealSchedule';
-import { findEquivalents } from '../../utils/equivalences';
+import { getMealEquivalents } from '../../utils/equivalences';
 import { VEGETABLE_PORTION_GUIDANCE, VEGETABLE_MODERATE_MAX_GRAMS } from '../../data/nutritionistRules';
 
 /**
@@ -228,9 +228,7 @@ const PatientPortal: React.FC<Props> = ({ token }) => {
             if (!meal) return null;
             const done = isCompleted(section.key);
             const equivalents = data!.showEquivalences
-              ? (meal.ingredients ?? [])
-                  .map(ing => ({ ing, options: findEquivalents(ing, { allergens: patientData.allergens, excludedFoods: patientData.excludedFoods }) }))
-                  .filter(e => e.options.length > 0)
+              ? getMealEquivalents(meal, { allergens: patientData.allergens, excludedFoods: patientData.excludedFoods })
               : [];
             return (
               <div key={section.key} className="bg-white rounded-xl border border-gray-100 p-4 break-inside-avoid">
