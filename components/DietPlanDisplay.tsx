@@ -551,13 +551,26 @@ const PatientDataPanel: React.FC<{ patientData: PatientData }> = ({ patientData:
 const RecalculateTargetsPanel: React.FC<{
   patientData: PatientData;
   metrics: CalculatedMetrics;
-  onRecalculate: (activity: ActivityLevel, calorieGoal: CalorieGoal) => void;
+  onRecalculate: (activity: ActivityLevel, calorieGoal: CalorieGoal, manualCalorieTarget?: number) => void;
   isRecalculating?: boolean;
 }> = ({ patientData, metrics, onRecalculate, isRecalculating }) => {
   const [activity, setActivity] = useState<ActivityLevel>(patientData.activity);
   const [calorieGoal, setCalorieGoal] = useState<CalorieGoal>(patientData.calorieGoal ?? CalorieGoal.Maintenance);
+  const [useManual, setUseManual] = useState(patientData.manualCalorieTarget != null);
+  const [manualText, setManualText] = useState(String(patientData.manualCalorieTarget ?? ''));
 
-  const hasChanged = activity !== patientData.activity || calorieGoal !== (patientData.calorieGoal ?? CalorieGoal.Maintenance);
+  const manualValue = Number(manualText);
+  const manualIsValid = manualText.trim() !== '' && Number.isFinite(manualValue) && manualValue > 0;
+  // Mismo suelo clínico que utils/calculations.ts — se muestra aquí para que
+  // la nutricionista sepa de antemano por qué la app no bajará de esa cifra.
+  const floor = patientData.gender === Gender.Female ? 1200 : 1500;
+  const belowFloor = manualIsValid && manualValue < floor;
+
+  const nextManual = useManual && manualIsValid ? manualValue : undefined;
+  const hasChanged =
+    activity !== patientData.activity ||
+    calorieGoal !== (patientData.calorieGoal ?? CalorieGoal.Maintenance) ||
+    nextManual !== patientData.manualCalorieTarget;
 
   return (
     <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-transparent dark:border-[#233629] p-6 shadow-sm mt-6">
@@ -579,20 +592,50 @@ const RecalculateTargetsPanel: React.FC<{
         <div>
           <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Objetivo calórico</label>
           <select value={calorieGoal} onChange={e => setCalorieGoal(e.target.value as CalorieGoal)}
-            className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-semibold text-text-main dark:text-white outline-none focus:border-primary transition-colors">
+            disabled={useManual}
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-semibold text-text-main dark:text-white outline-none focus:border-primary transition-colors disabled:opacity-40">
             {Object.values(CalorieGoal).map(g => (
               <option key={g} value={g}>{CALORIE_GOAL_LABELS[g].title} ({CALORIE_GOAL_LABELS[g].subtitle})</option>
             ))}
           </select>
         </div>
       </div>
+
+      {/* Objetivo exacto en kcal — los presets van a saltos de 250/500 kcal y
+          no permiten pautar una cifra concreta (ej. 1290 kcal). Sin esto la
+          única forma de conseguirla era falsear el peso del paciente. */}
+      <div className="mt-3 rounded-lg border border-border-light dark:border-border-dark p-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={useManual} onChange={e => setUseManual(e.target.checked)}
+            className="size-4 accent-primary" />
+          <span className="text-xs font-bold text-text-main dark:text-white">Fijar un objetivo exacto en kcal</span>
+        </label>
+        {useManual && (
+          <div className="mt-2">
+            <input
+              type="number" inputMode="numeric" min={floor} step={10}
+              value={manualText}
+              onChange={e => setManualText(e.target.value)}
+              placeholder={`Ej: ${floor + 90}`}
+              title="Objetivo calórico exacto"
+              className="w-full px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm font-semibold text-text-main dark:text-white outline-none focus:border-primary transition-colors"
+            />
+            <p className={`text-[11px] mt-1.5 ${belowFloor ? 'text-amber-600 dark:text-amber-500 font-semibold' : 'text-text-sub dark:text-gray-400'}`}>
+              {belowFloor
+                ? `Por seguridad clínica no se baja de ${floor} kcal (${patientData.gender === Gender.Female ? 'mujer' : 'hombre'}); se aplicará ${floor}.`
+                : `Sustituye al objetivo calórico de arriba. Mínimo permitido: ${floor} kcal.`}
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center justify-between mt-4">
         <p className="text-xs text-text-sub dark:text-gray-400">
           Objetivo actual: <span className="font-bold text-text-main dark:text-white">{metrics.macros.calories} kcal</span>
         </p>
         <button
-          onClick={() => onRecalculate(activity, calorieGoal)}
-          disabled={!hasChanged || isRecalculating}
+          onClick={() => onRecalculate(activity, calorieGoal, nextManual)}
+          disabled={!hasChanged || isRecalculating || (useManual && !manualIsValid)}
           className="px-4 py-2 rounded-lg text-xs font-black bg-primary text-background-dark hover:brightness-90 transition-all disabled:opacity-40 flex items-center gap-2">
           {isRecalculating && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
           Recalcular cantidades
@@ -1051,11 +1094,11 @@ const DietPlanDisplay: React.FC<Props> = ({
   // cantidades de ingredientes de cada día ya elegido para cuadrar con el
   // nuevo objetivo (mismo motor determinista que "Pareja Inteligente" —
   // scalePlanToTarget, sin llamadas a la IA).
-  const handleRecalculateTargets = async (activity: ActivityLevel, calorieGoal: CalorieGoal) => {
+  const handleRecalculateTargets = async (activity: ActivityLevel, calorieGoal: CalorieGoal, manualCalorieTarget?: number) => {
     if (!patientData) return;
     setIsRecalculatingTargets(true);
     try {
-      const newPatientData: PatientData = { ...patientData, activity, calorieGoal };
+      const newPatientData: PatientData = { ...patientData, activity, calorieGoal, manualCalorieTarget };
       const newMetrics = computeMetrics(newPatientData);
       const { plan: rescaled, warnings } = scalePlanToTarget(localPlan, newMetrics);
       setLocalPlan(rescaled);
@@ -1349,7 +1392,12 @@ const DietPlanDisplay: React.FC<Props> = ({
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Calorías',  target: `${metrics.tee}`,             actual: dayTotals ? `${dayTotals.calories}` : null,             color: 'bg-primary',    unit: 'kcal' },
+              // OJO: el objetivo es macros.calories (TMB × actividad ± déficit/superávit
+              // o el objetivo manual), NO metrics.tee (el gasto total bruto). Antes se
+              // mostraba tee y por tanto la cifra mentía en cuanto había déficit: a una
+              // paciente con GET 1703 y objetivo real 1500 le ponía "obj. 1703 kcal",
+              // que es justo el número que la nutricionista lee para comprobar su pauta.
+              { label: 'Calorías',  target: `${metrics.macros.calories}`, actual: dayTotals ? `${dayTotals.calories}` : null,             color: 'bg-primary',    unit: 'kcal' },
               { label: 'Proteínas', target: `${metrics.macros.protein}`,  actual: dayTotals ? `${dayTotals.protein}`  : null,             color: 'bg-blue-500',   unit: 'g'    },
               { label: 'Carbos',    target: `${metrics.macros.carbs}`,    actual: dayTotals ? `${dayTotals.carbs}`    : null,             color: 'bg-yellow-500', unit: 'g'    },
               { label: 'Grasas',    target: `${metrics.macros.fats}`,     actual: dayTotals ? `${dayTotals.fats}`     : null,             color: 'bg-red-400',    unit: 'g'    },

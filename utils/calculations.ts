@@ -179,14 +179,28 @@ export const calculateMacros = (
   imc?: number,
   conditions?: Condition[],
   calorieGoal?: CalorieGoal,
-  safety?: { isMinor?: boolean; isPregnant?: boolean; isLactating?: boolean }
+  safety?: {
+    isMinor?: boolean; isPregnant?: boolean; isLactating?: boolean;
+    gender?: Gender;
+    /** Objetivo exacto en kcal fijado a mano (PatientData.manualCalorieTarget). */
+    manualCalorieTarget?: number;
+  }
 ) => {
   const isAthlete = dietType === DietType.Athlete && !!athleteGoal;
   const def = isAthlete
     ? ATHLETE_GOAL_DEFS[athleteGoal!]
     : (MACRO_DEFS[dietType] ?? MACRO_DEFS[DietType.Balanced]);
 
-  const MIN_CALORIES    = 1500;
+  // ── Suelo calórico mínimo — depende del sexo, no un valor único ─────────────
+  // Antes era 1500 kcal para todo el mundo: el umbral de hombre aplicado
+  // también a mujeres. Bloqueaba objetivos válidos en mujeres de baja
+  // estatura — caso real: mujer de 147cm y 58.7kg (TMB ~1340 kcal) a la que
+  // la nutricionista quería pautar 1290 kcal y la app devolvía siempre 1500,
+  // empujándola a falsear el peso del paciente para esquivarlo. Referencia
+  // estándar (NIH/academia): por debajo de 1200 kcal en mujeres y 1500 en
+  // hombres una dieta deja de considerarse segura sin supervisión médica
+  // estrecha (VLCD). Sin `gender` conocido se mantiene el valor conservador.
+  const MIN_CALORIES    = safety?.gender === Gender.Female ? 1200 : 1500;
   const OBESITY_DEFICIT = 450; // kcal — déficit clínico estándar para IMC > 30
 
   // ── Seguridad clínica: perfil vulnerable → sin déficit/superávit automático ──
@@ -213,7 +227,17 @@ export const calculateMacros = (
     kcalAdjust = 0; // mantenimiento
   }
 
-  const targetCalories = Math.max(tee + kcalAdjust, MIN_CALORIES);
+  // Objetivo manual de la nutricionista: gana a los presets y al déficit
+  // automático por obesidad, pero NUNCA al bloqueo de perfil vulnerable ni al
+  // suelo clínico por sexo — esos dos son barreras de seguridad, no
+  // preferencias. Existe porque los presets van a saltos de 250/500 kcal y no
+  // permiten pautar una cifra concreta (ej. 1290 kcal).
+  const manual = safety?.manualCalorieTarget;
+  const usesManual = !isVulnerable && manual !== undefined && Number.isFinite(manual) && manual > 0;
+
+  const targetCalories = usesManual
+    ? Math.max(manual!, MIN_CALORIES)
+    : Math.max(tee + kcalAdjust, MIN_CALORIES);
 
   let protein = Math.round(def.proteinGPerKg * referenceWeightKg);
   const remaining = Math.max(targetCalories - protein * 4, 0);
@@ -325,6 +349,7 @@ export const calculateAllMetrics = (data: PatientData): ExtendedMetrics => {
   const refWeight      = adjustedWeight ?? data.weight;
   const macros         = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
     isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
+    gender: data.gender, manualCalorieTarget: data.manualCalorieTarget,
   });
   const dailyWater     = calculateDailyWater(data.weight, data.activity);
 
@@ -347,6 +372,7 @@ export const computeMetrics = (data: PatientData): CalculatedMetrics => {
     : (imc > 30 ? calculateAdjustedWeight(data.weight, idealWeight) : data.weight);
   const macros      = calculateMacros(tee, data.dietType, refWeight, data.athleteGoal, imc, data.conditions, data.calorieGoal, {
     isMinor: data.age < 18, isPregnant: data.isPregnant, isLactating: data.isLactating,
+    gender: data.gender, manualCalorieTarget: data.manualCalorieTarget,
   });
   const clinicalTargets = getClinicalTargets(data, macros.calories);
   return {

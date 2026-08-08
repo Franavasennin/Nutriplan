@@ -205,6 +205,15 @@ export interface PatientData {
   targetWeight?: number;    // kg — client's weight goal
   athleteGoal?: AthleteGoal; // objetivo específico para dieta atleta
   calorieGoal?: CalorieGoal;  // objetivo calórico para dietas no-atleta
+  /** Objetivo calórico EXACTO en kcal fijado a mano por la nutricionista.
+   *  Cuando está presente gana a `calorieGoal` y al déficit automático por
+   *  obesidad — sigue respetando el suelo clínico por sexo y el bloqueo de
+   *  perfiles vulnerables (menor/embarazo/lactancia), que no son negociables.
+   *  Existe porque los presets van a saltos de 250/500 kcal y no permiten
+   *  pautar una cifra concreta: sin esto, la única forma de conseguirla era
+   *  falsear el peso del paciente, lo que corrompe el seguimiento (caso real
+   *  detectado: 50 kg registrados frente a 58,7 kg reales). */
+  manualCalorieTarget?: number;
   trainingTime?: string;    // hora de entrenamiento HH:MM — solo dieta atleta
   clinicalNotes?: string;   // notas clínicas del nutricionista (no enviadas a la IA)
   // Pautas de la nutricionista sobre el plan ya generado (ej: "todos los

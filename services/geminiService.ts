@@ -548,42 +548,56 @@ ESTRUCTURA JSON OBLIGATORIA:
 
 const PRECOOKED_NOTE = `
 ⚠ DIETA SIN COCINA — REGLAS QUE ANULAN LAS REGLAS GENERALES DEL SISTEMA:
-Esta dieta es para personas que NO cocinan. TODAS las preparaciones: sin fogones, sin horno, solo frío o microondas.
+Esta dieta es para una persona que NO cocina y que además NO quiere trabajo de preparación.
+
+── PRINCIPIO RECTOR (lo más importante de este bloque) ──
+PRODUCTO YA HECHO > RECETA DE MONTAJE.
+El objetivo es "comprar, abrir y comer", NO "pesar cinco ingredientes y montar un bol".
+Una comida ideal aquí es: 1 producto que se compra hecho + 1 o 2 acompañamientos triviales.
+✓ BIEN: "1 envase de lentejas preparadas + 1 lata de atún al natural"
+✓ BIEN: "Bocadillo de pavo: 2 rebanadas de pan de molde integral, 4 lonchas de pavo, tomate"
+✗ MAL:  "124g garbanzos + 24g jamón en taquitos + 40g aguacate + 7ml AOVE + 10g perejil fresco"
+El ejemplo MAL está PROHIBIDO: son cinco pesadas y un montaje. Es exactamente lo que NO se quiere.
+
+REGLAS DURAS DE FORMATO:
+1. MÁXIMO 4 ingredientes por comida. Si necesitas más, has elegido mal el plato: cámbialo por un producto ya preparado.
+2. Expresa las cantidades en UNIDADES DE COMPRA siempre que puedas ("1 lata", "1 envase", "1 botellín", "2 rebanadas", "1 tarrina", "1 bolsa"), no en gramos sueltos. Usa gramos solo cuando no exista una unidad natural.
+3. Nada de picar, trocear ni emplatar elaborado. Escurrir una lata y aliñar, sí; "cortar en juliana", no.
 
 ── ANULACIÓN OBLIGATORIA DE LA REGLA 5 (variedad de proteínas) ──
 La rotación estándar (pollo fresco, ternera, merluza…) NO APLICA porque esos alimentos requieren cocción.
-Usa EXACTAMENTE esta rotación de conservas para almuerzo/cena (7 días):
-  Día 1: atún en agua  /  garbanzos en lata + jamón cocido
-  Día 2: sardinas en tomate  /  lentejas en lata + queso fresco
-  Día 3: caballa en escabeche  /  mejillones en lata + arroz precocinado
-  Día 4: atún en aceite de oliva  /  alubias blancas + fiambre de pavo
-  Día 5: pulpo cocido en lata  /  garbanzos + huevos duros precocidos
-  Día 6: berberechos + palitos de cangrejo  /  lentejas + requesón
-  Día 7: sardinas en aceite  /  alubias rojas + jamón cocido
-Si el plan tiene más de 7 días, repite el ciclo desde el día 1 variando el cereal o la verdura de acompañamiento.
+Rota entre estas fuentes de proteína SIN COCCIÓN a lo largo de la semana, sin repetir la misma más de 2 veces:
+atún en lata · sardinas en lata · caballa en lata · mejillones o berberechos en lata · pulpo en lata ·
+fiambre de pavo o pollo · jamón cocido · pollo asado ya hecho · huevos duros precocidos ·
+tortilla de patata comprada hecha · queso fresco o requesón · batido de proteínas · legumbre de bote.
 GENERA SIEMPRE TODOS LOS DÍAS SOLICITADOS — no te detengas en el día 1.
 
 ── ALIMENTOS PERMITIDOS ──
-• Conservas de pescado: atún en agua, atún en aceite, sardinas en tomate, caballa en escabeche, mejillones, berberechos, pulpo cocido en lata, anchoas
+• PLATOS PREPARADOS DE SUPERMERCADO (Mercadona, Lidl) — primera opción para almuerzo y cena, úsalos con generosidad: lentejas o garbanzos preparados en envase, crema de verduras, pisto, gazpacho y salmorejo en tetrabrik, ensaladilla, tortilla de patata refrigerada ya hecha
+• Conservas de pescado: atún al natural o en aceite, sardinas, caballa, mejillones, berberechos, pulpo cocido, anchoas
 • Legumbres cocidas (lata/bote): garbanzos, lentejas, alubias blancas, alubias rojas
-• Verduras en conserva: pimientos del piquillo (bote), espárragos (lata), aceitunas, alcachofas, tomate triturado, maíz dulce (lata)
-• Proteínas frías listas: huevos duros precocidos (bolsa), fiambre de pavo/pollo loncheado, jamón cocido, palitos de cangrejo, queso en porciones, queso fresco tipo Burgos, requesón
+• Verduras listas o en conserva: bolsas de ensalada lavada, tomate cherry, pimientos del piquillo, espárragos, aceitunas, alcachofas, maíz dulce
+• Proteínas frías listas: huevos duros precocidos (bolsa), fiambre de pavo/pollo, jamón cocido, pollo asado ya hecho, palitos de cangrejo, salmón ahumado, queso en porciones, queso fresco, requesón
+• Bocadillos y wraps (se montan en frío, sin cocinar): pan de molde integral, pan de pita, biscotes, tortillas de trigo para fajitas
+• Bebibles proteicos: yogur líquido desnatado para beber, batidos de proteínas listos, proteína en polvo con leche desnatada
 • Lácteos: yogur natural/griego, kéfir, leche
-• Cereales listos: pan de molde integral, tortitas de arroz/maíz, avena de cocción rápida (agua caliente 2 min), bolsas arroz precocinado (microondas 90 s), quinoa precocinada en bolsa
-• Platos fríos envasados: gazpacho en tetrabrik, salmorejo en tetrabrik, hummus comercial, guacamole en tarrina
-• Frutas frescas: plátano, manzana, pera, naranja, kiwi, fresas, uvas, arándanos
-• Frutos secos: nueces, almendras, anacardos, semillas de chía/lino
+• Cereales listos: bolsas de arroz o quinoa precocinados (microondas 90 s), tortitas de arroz/maíz, avena de cocción rápida
+• Untables listos: hummus, guacamole en tarrina
+• Frutas frescas enteras: manzana, pera, naranja, kiwi, fresas, plátano, arándanos, piña
+• Frutos secos y semillas: nueces, almendras, anacardos, pipas, chía, lino
 
 ── PREPARACIONES PERMITIDAS ✓ ──
-✓ Abrir lata/bote, escurrir y aliñar en frío con AOVE + limón + especias
-✓ Microondas: bolsa de arroz precocinado (90 s)
-✓ Hervir agua para avena de cocción rápida o té/café
-✓ Mezclar y aliñar en frío (ensaladas, boles)
+✓ Abrir un envase, una lata o una bolsa y servir
+✓ Escurrir una lata y aliñar en frío con AOVE, limón o especias
+✓ Montar un bocadillo, un wrap o una fajita en frío
+✓ Microondas: bolsa de arroz precocinado (90 s) o plato preparado envasado
+✓ Batir en vaso de batidora (batidos de proteína)
 
 ── PROHIBIDO ✗ ──
 ✗ Plancha, sartén, horno, freidora, olla
 ✗ Carne o pescado fresco (requieren cocinarse)
 ✗ Pasta o arroz no precocinado
+✗ Comidas de más de 4 ingredientes, o que exijan picar/trocear varios alimentos
 `.trim();
 
 // ─── Get system prompt ─────────────────────────────────────────────────────────

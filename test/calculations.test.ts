@@ -219,9 +219,62 @@ describe('calculateMacros', () => {
     expect(m.calories).toBe(2050);
   });
 
-  it('nunca baja de 1500 kcal', () => {
+  it('sin sexo conocido mantiene el suelo conservador de 1500 kcal', () => {
     const m = calculateMacros(1600, DietType.Balanced, 50, undefined, 30, [], CalorieGoal.DeficitFast);
     expect(m.calories).toBeGreaterThanOrEqual(1500);
+  });
+
+  describe('suelo calórico por sexo', () => {
+    it('mujer → suelo 1200 kcal, no 1500', () => {
+      const m = calculateMacros(1600, DietType.Balanced, 50, undefined, 30, [], CalorieGoal.DeficitFast, {
+        gender: Gender.Female,
+      });
+      expect(m.calories).toBe(1200);
+    });
+
+    it('hombre → sigue en 1500 kcal', () => {
+      const m = calculateMacros(1600, DietType.Balanced, 50, undefined, 30, [], CalorieGoal.DeficitFast, {
+        gender: Gender.Male,
+      });
+      expect(m.calories).toBe(1500);
+    });
+  });
+
+  describe('objetivo calórico manual', () => {
+    it('gana al preset de calorieGoal', () => {
+      const m = calculateMacros(1608, DietType.Balanced, 58.7, undefined, 27, [], CalorieGoal.DeficitSlow, {
+        gender: Gender.Female, manualCalorieTarget: 1290,
+      });
+      expect(m.calories).toBe(1290);
+    });
+
+    it('gana al déficit automático por obesidad (IMC > 30)', () => {
+      const m = calculateMacros(2500, DietType.Balanced, 70, undefined, 32, [], undefined, {
+        gender: Gender.Female, manualCalorieTarget: 1800,
+      });
+      expect(m.calories).toBe(1800);
+    });
+
+    it('NO puede saltarse el suelo clínico por sexo', () => {
+      const m = calculateMacros(1600, DietType.Balanced, 50, undefined, 25, [], undefined, {
+        gender: Gender.Female, manualCalorieTarget: 900,
+      });
+      expect(m.calories).toBe(1200);
+    });
+
+    it('NO se aplica en perfil vulnerable — embarazo fuerza mantenimiento', () => {
+      const m = calculateMacros(2000, DietType.Balanced, 60, undefined, 24, [], undefined, {
+        gender: Gender.Female, isPregnant: true, manualCalorieTarget: 1300,
+      });
+      expect(m.calories).toBe(2000);
+    });
+
+    it('un valor inválido (0 o negativo) se ignora y cae al cálculo normal', () => {
+      const m = calculateMacros(2000, DietType.Balanced, 70, undefined, 22, [], CalorieGoal.SurplusSlow, {
+        gender: Gender.Female, manualCalorieTarget: 0,
+      });
+      expect(m.calories).toBe(2200);
+    });
   });
 
   it('diabetes T2 — grasas ≤ 35% de calorías (evidencia ADA/EASD)', () => {
