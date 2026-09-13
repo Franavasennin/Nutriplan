@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Appointment, AppointmentStatus, APPOINTMENT_STATUS_LABELS } from '../types';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
+import { CLINIC } from '../config/clinic';
+import { openWhatsApp } from '../utils/whatsapp';
 
 interface Props {
   clients: string[];
@@ -34,6 +36,7 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
   const now = Date.now();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientName, setClientName] = useState('');
+  const [phone, setPhone] = useState('');
   const [date, setDate] = useState(() => toDateInput(now));
   const [time, setTime] = useState('09:00');
   const [duration, setDuration] = useState(30);
@@ -45,6 +48,7 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
   const resetForm = () => {
     setEditingId(null);
     setClientName('');
+    setPhone('');
     setDate(toDateInput(Date.now()));
     setTime('09:00');
     setDuration(30);
@@ -92,6 +96,7 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
   const handleEdit = (appt: Appointment) => {
     setEditingId(appt.id);
     setClientName(appt.clientName);
+    setPhone(appt.phone ?? '');
     setDate(toDateInput(appt.scheduledAt));
     setTime(toTimeInput(appt.scheduledAt));
     setDuration(appt.durationMinutes);
@@ -108,19 +113,51 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
     if (editingId) {
       const original = appointments.find(a => a.id === editingId);
       if (!original) return;
-      onUpdate({ ...original, clientName, scheduledAt, durationMinutes: duration, notes: notes || undefined });
+      onUpdate({
+        ...original,
+        clientName,
+        scheduledAt,
+        durationMinutes: duration,
+        notes: notes || undefined,
+        phone: phone.trim() || undefined,
+      });
       toast('Cita actualizada.', 'success');
     } else {
       onSave({
         id: crypto.randomUUID(),
-        clientName, scheduledAt, durationMinutes: duration,
+        clientName,
+        scheduledAt,
+        durationMinutes: duration,
         status: AppointmentStatus.Scheduled,
         notes: notes || undefined,
+        phone: phone.trim() || undefined,
         createdAt: Date.now(),
       });
       toast('Cita programada.', 'success');
     }
     resetForm();
+  };
+
+  const handleWhatsAppReminder = (appt: Appointment) => {
+    const dateFormatted = new Date(appt.scheduledAt).toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    const timeFormatted = toTimeInput(appt.scheduledAt);
+    const clinicName = CLINIC.name || 'NutriPlan Pro';
+    const message = [
+      `¡Hola ${appt.clientName}! 👋`,
+      '',
+      `Te recordamos tu próxima cita de consulta nutricional con ${clinicName}:`,
+      `📅 *Fecha:* ${dateFormatted.charAt(0).toUpperCase() + dateFormatted.slice(1)}`,
+      `⏰ *Hora:* ${timeFormatted} h (${appt.durationMinutes} min)`,
+      appt.notes ? `📝 *Nota:* ${appt.notes}` : '',
+      '',
+      'Por favor, confírmanos si podrás asistir o si necesitas modificar tu horario. ¡Te esperamos!',
+    ].filter(Boolean).join('\n');
+
+    openWhatsApp(message, appt.phone);
   };
 
   const handleStatusChange = (appt: Appointment, status: AppointmentStatus) => {
@@ -158,7 +195,7 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
             {APPOINTMENT_STATUS_LABELS[appt.status]}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-xs text-text-sub dark:text-gray-400 mt-1">
+        <div className="flex items-center gap-3 text-xs text-text-sub dark:text-gray-400 mt-1 flex-wrap">
           <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">calendar_month</span>
             {new Date(appt.scheduledAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -167,10 +204,26 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
             <span className="material-symbols-outlined text-[14px]">schedule</span>
             {toTimeInput(appt.scheduledAt)} · {appt.durationMinutes} min
           </span>
+          {appt.phone && (
+            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+              <span className="material-symbols-outlined text-[14px]">phone</span>
+              {appt.phone}
+            </span>
+          )}
         </div>
         {appt.notes && <p className="text-xs text-text-sub dark:text-gray-500 mt-1 truncate" title={appt.notes}>{appt.notes}</p>}
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {/* Recordatorio por WhatsApp */}
+        <button
+          type="button"
+          onClick={() => handleWhatsAppReminder(appt)}
+          title="Enviar recordatorio por WhatsApp"
+          aria-label={`Enviar recordatorio por WhatsApp a ${appt.clientName}`}
+          className="size-8 inline-flex items-center justify-center rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors focus:ring-2 focus:ring-primary focus-visible:outline-none cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[18px]">chat</span>
+        </button>
         {appt.status === AppointmentStatus.Scheduled && (
           <>
             <button type="button" onClick={() => handleStatusChange(appt, AppointmentStatus.Done)}
@@ -231,6 +284,17 @@ const AgendaView: React.FC<Props> = ({ clients, appointments, onSave, onUpdate, 
                 <datalist id="agenda-clients">
                   {clients.map(c => <option key={c} value={c} />)}
                 </datalist>
+              </div>
+              <div>
+                <label className={labelCls}>Teléfono WhatsApp (opcional)</label>
+                <input
+                  aria-label="Teléfono WhatsApp"
+                  type="tel"
+                  className={inputCls}
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="ej. +34 600 123 456"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

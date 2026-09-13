@@ -29,6 +29,7 @@ const rowToAppointment = (r: any): Appointment => ({
   durationMinutes: r.duration_minutes,
   status:          r.status as AppointmentStatus,
   notes:           r.notes ?? undefined,
+  phone:           r.phone ?? undefined,
   createdAt:       new Date(r.created_at).getTime(),
 });
 
@@ -591,6 +592,7 @@ export function useAppData(onWriteError?: (message: string) => void) {
       scheduled_at: new Date(appt.scheduledAt).toISOString(),
       duration_minutes: appt.durationMinutes, status: appt.status,
       notes: appt.notes ?? null,
+      phone: appt.phone ?? null,
     }).then(reportError('saveAppointment'));
   }, []);
 
@@ -603,6 +605,7 @@ export function useAppData(onWriteError?: (message: string) => void) {
       scheduled_at: new Date(appt.scheduledAt).toISOString(),
       duration_minutes: appt.durationMinutes, status: appt.status,
       notes: appt.notes ?? null,
+      phone: appt.phone ?? null,
     }).eq('id', appt.id)
       .then(reportError('updateAppointment'));
   }, []);

@@ -190,16 +190,13 @@ function sanitizeForPrompt(input: string, maxLength = 300): string {
     .slice(0, maxLength);
 }
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
-const groqRequest = async (
+// ─── Helper: Mistral (fallback) ────────────────────────────────────────────────
+const mistralRequest = async (
   apiKey: string,
   model: string,
   systemPrompt: string,
   userPrompt: string
 ): Promise<string> => {
-  // Verificar rate limit antes de cada llamada a la IA
-  checkRateLimit();
-
   const response = await fetch(GROQ_API_URL, {
     method: 'POST',
     headers: {
@@ -220,12 +217,100 @@ const groqRequest = async (
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    const msg = err?.error?.message || `Error ${response.status}`;
-    throw new Error(msg);
+    // La API de Mistral devuelve el error en forma plana ({message, type,
+    // code}), no anidado bajo `error` (formato OpenAI/Groq) — err?.error?.message
+    // siempre era undefined y el toast mostraba el genérico "Error 429" en vez
+    // del motivo real ("Rate limit exceeded", "Invalid API key"...). Se
+    // mantiene el código de estado en el mensaje para no romper los `.includes()`
+    // que clasifican el error más abajo.
+    const apiMsg = err?.error?.message || err?.message || '';
+    const errType = err?.error?.type || err?.type || '';
+    const detail = apiMsg ? `${apiMsg}${errType ? ` (${errType})` : ''}` : 'sin detalle';
+    throw new Error(`Error ${response.status}: ${detail}`);
   }
 
   const data = await response.json();
   return data.choices?.[0]?.message?.content ?? '';
+};
+
+// ─── Helper: Gemini (proveedor principal) ──────────────────────────────────────
+// Elegido tras comprobar en producción que el free tier de Mistral (~1 req/min)
+// bloqueaba con 429 el flujo normal de generación por lotes (una llamada por
+// semana pedida). El free tier de Gemini da más techo tanto en peticiones/min
+// (10) como sobre todo en tokens/min (~250k, frente a los 6-12k de Groq real),
+// que es lo que de verdad limita aquí dado el tamaño del prompt (reglas
+// clínicas + tabla de 150 alimentos) y max_tokens=16000 de salida.
+const GEMINI_API_URL_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+// gemini-2.5-flash dejó de estar disponible para cuentas nuevas (404
+// "no longer available to new users", confirmado en vivo contra la API real
+// al verificar esta integración) — Google recomienda gemini-3.6-flash.
+const GEMINI_MODEL = 'gemini-3.6-flash';
+
+const geminiRequest = async (
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<string> => {
+  const response = await fetch(`${GEMINI_API_URL_BASE}/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 16000,
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    // La API de Gemini SÍ anida el error bajo `error` (formato distinto al
+    // plano de Mistral): {"error": {"code", "message", "status"}}.
+    const apiMsg = err?.error?.message || '';
+    const errStatus = err?.error?.status || '';
+    const detail = apiMsg ? `${apiMsg}${errStatus ? ` (${errStatus})` : ''}` : 'sin detalle';
+    throw new Error(`Error ${response.status}: ${detail}`);
+  }
+
+  const data = await response.json();
+  const candidate = data.candidates?.[0];
+  // finishReason MAX_TOKENS con content vacío = se cortó por el límite de
+  // salida antes de escribir nada útil; tratarlo como fallo para que el
+  // llamante reintente o caiga al fallback de Mistral, en vez de devolver ''.
+  const text = candidate?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? '';
+  if (!text && candidate?.finishReason && candidate.finishReason !== 'STOP') {
+    throw new Error(`Gemini no devolvió contenido (finishReason: ${candidate.finishReason})`);
+  }
+  return text;
+};
+
+// ─── Orquestador: Gemini primero, Mistral como fallback ────────────────────────
+// Firma idéntica a la del antiguo `groqRequest` a propósito: los ~10 puntos de
+// llamada de este fichero no necesitan cambiar. Si no hay clave de Gemini
+// configurada (VITE_GEMINI_API_KEY vacía en .env.local), se salta directo a
+// Mistral — comportamiento actual sin cambios para quien no la configure.
+const groqRequest = async (
+  apiKey: string,
+  model: string,
+  systemPrompt: string,
+  userPrompt: string
+): Promise<string> => {
+  // Verificar rate limit antes de cada llamada a la IA (compartido entre proveedores)
+  checkRateLimit();
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    try {
+      return await geminiRequest(geminiKey, systemPrompt, userPrompt);
+    } catch (geminiError: any) {
+      console.warn('Gemini falló, usando Mistral como fallback:', geminiError?.message ?? geminiError);
+    }
+  }
+
+  return await mistralRequest(apiKey, model, systemPrompt, userPrompt);
 };
 
 // ─── OCR: extrae el texto del PDF con mistral-ocr-latest ──────────────────────
@@ -247,7 +332,9 @@ const extractTextFromPDF = async (apiKey: string, pdfBase64: string): Promise<st
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Error OCR ${response.status}`);
+    // Mismo formato de error plano de Mistral que en groqRequest.
+    const apiMsg = err?.error?.message || err?.message || 'sin detalle';
+    throw new Error(`Error OCR ${response.status}: ${apiMsg}`);
   }
 
   const data = await response.json();

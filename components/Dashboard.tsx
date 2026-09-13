@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SavedDiet, DIET_TYPE_LABELS, PatientData, Gender, ActivityLevel, Condition } from '../types';
 
 interface Props {
@@ -68,6 +68,18 @@ const Dashboard: React.FC<Props> = ({
 
     const closeMenu = () => setMenuOpen(null);
 
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (menuOpen) setMenuOpen(null);
+                if (editingDiet) closeEditModal();
+                if (historyClient) setHistoryClient(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [menuOpen, editingDiet, historyClient]);
+
     const openEditModal = (diet: SavedDiet) => {
         setEditingDiet(diet);
         setEditForm({ ...diet.patientData });
@@ -110,11 +122,11 @@ const Dashboard: React.FC<Props> = ({
                     </div>
                     <div className="flex gap-3">
                         {installEvent && (
-                            <button onClick={onInstall} className="flex size-10 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm" title="Instalar Aplicación">
+                            <button onClick={onInstall} className="flex size-10 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm focus:ring-2 focus:ring-primary focus-visible:outline-none" title="Instalar Aplicación" aria-label="Instalar Aplicación PWA">
                                 <span className="material-symbols-outlined">download</span>
                             </button>
                         )}
-                        <button onClick={onExportCSV} className="flex size-10 items-center justify-center rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm" title="Exportar CSV">
+                        <button onClick={onExportCSV} className="flex size-10 items-center justify-center rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm focus:ring-2 focus:ring-primary focus-visible:outline-none" title="Exportar CSV" aria-label="Exportar datos a CSV">
                             <span className="material-symbols-outlined">table_view</span>
                         </button>
                         <a
@@ -250,8 +262,11 @@ const Dashboard: React.FC<Props> = ({
                                 {/* Menú contextual */}
                                 <div className="absolute top-3 right-3" onClick={e => e.stopPropagation()}>
                                     <button
+                                        type="button"
                                         onClick={() => toggleMenu(diet.id)}
-                                        className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-0 group-hover:opacity-100"
+                                        aria-label={`Opciones de ${diet.patientData.name || 'paciente'}`}
+                                        aria-expanded={menuOpen === diet.id}
+                                        className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 focus:ring-2 focus:ring-primary focus-visible:outline-none"
                                     >
                                         <span className="material-symbols-outlined text-base">more_vert</span>
                                     </button>

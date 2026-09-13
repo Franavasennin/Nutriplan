@@ -85,6 +85,15 @@ const AppContent: React.FC = () => {
     return map;
   }, [savedDiets]);
 
+  // Citas programadas para hoy (para badge dinámico en la navegación)
+  const todayAppointmentsCount = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return appointments.filter(a => {
+      const aDate = new Date(a.scheduledAt).toISOString().slice(0, 10);
+      return aDate === today && a.status === 'scheduled';
+    }).length;
+  }, [appointments]);
+
   // Session state (no need to persist between steps)
   const [currentStep,    setCurrentStep]    = useState<Step>('dashboard');
   const [isLoading,      setIsLoading]      = useState(false);
@@ -549,6 +558,10 @@ const AppContent: React.FC = () => {
         onImport={handleImport}
         lastBackupLabel={lastBackupLabel}
         onOpenClinicCriteria={() => setShowClinicCriteria(true)}
+        hasPlan={!!plan}
+        activePatientName={patientData?.name}
+        todayAppointmentsCount={todayAppointmentsCount}
+        savedDietsCount={visibleSavedDiets.length}
       />
 
       {showClinicCriteria && (
@@ -589,7 +602,7 @@ const AppContent: React.FC = () => {
         )}
 
         {currentStep === 'form' && (
-          <PatientForm onSubmit={handleFormSubmit} isLoading={isLoading} initialData={patientData ?? undefined} />
+          <PatientForm onSubmit={handleFormSubmit} isLoading={isLoading} initialData={patientData ?? undefined} onCancel={handleGoHome} />
         )}
 
         {currentStep === 'result' && metrics && plan && (
@@ -621,7 +634,7 @@ const AppContent: React.FC = () => {
             planVersions={currentDietId ? savedDiets.find(d => d.id === currentDietId)?.planVersions : undefined}
             onUpdatePlan={(updatedPlan) => {
               setPlan(updatedPlan);
-              if (currentDietId) { updateDietPlan(currentDietId, updatedPlan); }
+              if (currentDietId) { updateDietPlanWithSnapshot(currentDietId, updatedPlan); }
               toast('Plan actualizado y guardado.', 'success');
             }}
             onRecalculateTargets={(newPatientData, newMetrics, newPlan) => {
@@ -718,7 +731,19 @@ const AppContent: React.FC = () => {
 
        </Suspense>
 
-        <MobileNav currentStep={currentStep} onNavigate={navigate} hasPlan={!!plan} />
+        <MobileNav
+          currentStep={currentStep}
+          onNavigate={navigate}
+          hasPlan={!!plan}
+          isDark={isDark}
+          onToggleTheme={toggleTheme}
+          dbOnline={dbOnline}
+          onExportJSON={handleExportJSON}
+          onExportCSV={handleExportCSV}
+          onImport={handleImport}
+          onOpenClinicCriteria={() => setShowClinicCriteria(true)}
+          lastBackupLabel={lastBackupLabel}
+        />
       </main>
     </div>
     </FoodVocabularyProvider>

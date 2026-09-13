@@ -34,6 +34,18 @@ export default {
         'display': ['Manrope', 'sans-serif'],
         'sans': ['Manrope', 'sans-serif'],
       },
+      keyframes: {
+        'fade-in': {
+          from: { opacity: '0' },
+          to:   { opacity: '1' },
+        },
+      },
+      animation: {
+        // Usada en modales/overlays (backdrop + panel). Duración corta a
+        // propósito (150-300ms es el rango recomendado para micro-interacciones);
+        // desactivada globalmente bajo prefers-reduced-motion en index.css.
+        'fade-in': 'fade-in 200ms ease-out',
+      },
     },
   },
   plugins: [

@@ -6,8 +6,9 @@ import {
   ALLERGEN_LABELS, AppliedSubstitution, SavedDiet,
 } from '../types';
 import { CLINIC } from '../config/clinic';
+import { openWhatsApp } from '../utils/whatsapp';
 import { RECIPES } from '../data/recipes';
-import { generateShoppingList, ShoppingList, findMatchingAllergens } from '../utils/shoppingList';
+import { generateShoppingList, ShoppingList, findMatchingAllergens, SUPERMARKET_AISLES, formatShoppingListForShare } from '../utils/shoppingList';
 import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { MEAL_PRINT_ORDER, alignCoupleDays, pairIngredients, extractQuantityLabel, AlignedMealSlot } from '../utils/couplePrint';
@@ -18,6 +19,7 @@ import { MealKey, MealSectionConfig, getMealSections, ALL_MEAL_CONFIGS } from '.
 import { FoodAutocompleteInput, IngredientTextarea } from './FoodAutocomplete';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './Toast';
+import { PlanDiffModal } from './PlanDiffModal';
 
 interface Props {
   metrics: CalculatedMetrics;
@@ -766,6 +768,7 @@ const DietPlanDisplay: React.FC<Props> = ({
   const [showShopping,   setShowShopping]   = useState(false);
   const [showEducation,  setShowEducation]  = useState(false); // mejora #13: módulo educativo
   const [showInstructions, setShowInstructions] = useState(false);
+  const [diffVersion,    setDiffVersion]    = useState<{ version: PlanVersion; versionNumber: number } | null>(null);
   const [instructionsText, setInstructionsText] = useState(patientData?.planInstructions ?? '');
   const [isApplyingInstructions, setIsApplyingInstructions] = useState(false);
   const [selectedDiet,   setSelectedDiet]   = useState<DietType>(patientData?.dietType ?? DietType.Balanced);
@@ -808,9 +811,10 @@ const DietPlanDisplay: React.FC<Props> = ({
   // ── Editable shopping list ──────────────────────────────────────────────────
   interface EditItem { name: string; amounts: string[]; checked: boolean; }
   interface EditCat  { category: string; icon: string; color: string; items: EditItem[]; }
-  const [editList,    setEditList]    = useState<EditCat[]>([]);
-  const [addingToCat, setAddingToCat] = useState<number | null>(null);
-  const [newItemName, setNewItemName] = useState('');
+  const [editList,      setEditList]      = useState<EditCat[]>([]);
+  const [addingToCat,   setAddingToCat]   = useState<string | null>(null);
+  const [newItemName,   setNewItemName]   = useState('');
+  const [selectedAisle, setSelectedAisle] = useState<string>('all');
 
   // feature 4: clave localStorage por dieta y helpers seguros (modo incógnito)
   const shoppingKey = dietId ? `shopping_list_${dietId}` : null;
@@ -850,27 +854,30 @@ const DietPlanDisplay: React.FC<Props> = ({
     }
   };
 
-  const toggleShopItem = (ci: number, ii: number) => {
-    setEditList(prev => prev.map((cat, c) =>
-      c !== ci ? cat : { ...cat, items: cat.items.map((it, i) => i !== ii ? it : { ...it, checked: !it.checked }) }
+  const toggleShopItem = (catName: string, itemIdx: number) => {
+    setEditList(prev => prev.map(cat =>
+      cat.category !== catName ? cat : {
+        ...cat,
+        items: cat.items.map((it, i) => i !== itemIdx ? it : { ...it, checked: !it.checked }),
+      }
     ));
     setListHasChanges(true);
   };
 
-  const removeShopItem = (ci: number, ii: number) => {
+  const removeShopItem = (catName: string, itemIdx: number) => {
     setEditList(prev =>
-      prev.map((cat, c) =>
-        c !== ci ? cat : { ...cat, items: cat.items.filter((_, i) => i !== ii) }
+      prev.map(cat =>
+        cat.category !== catName ? cat : { ...cat, items: cat.items.filter((_, i) => i !== itemIdx) }
       ).filter(cat => cat.items.length > 0)
     );
     setListHasChanges(true);
   };
 
-  const addShopItem = (ci: number) => {
+  const addShopItem = (catName: string) => {
     const name = newItemName.trim();
     if (!name) return;
-    setEditList(prev => prev.map((cat, c) =>
-      c !== ci ? cat : {
+    setEditList(prev => prev.map(cat =>
+      cat.category !== catName ? cat : {
         ...cat,
         items: [...cat.items, { name: name.charAt(0).toUpperCase() + name.slice(1), amounts: [], checked: false }]
           .sort((a, b) => a.name.localeCompare(b.name, 'es')),
@@ -880,6 +887,43 @@ const DietPlanDisplay: React.FC<Props> = ({
     setAddingToCat(null);
     setListHasChanges(true);
   };
+
+  const handleShareWhatsAppShopping = () => {
+    const text = formatShoppingListForShare(editList, {
+      patientName: patientName ?? undefined,
+      durationText: localPlan.durationText,
+    });
+    openWhatsApp(text);
+  };
+
+  const handleCopyShoppingList = async () => {
+    const text = formatShoppingListForShare(editList, {
+      patientName: patientName ?? undefined,
+      durationText: localPlan.durationText,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Lista de la compra copiada con casillas [ ]', 'success');
+    } catch {
+      toast('No se pudo copiar automáticamente al portapapeles', 'error');
+    }
+  };
+
+  const handleToggleAllShopItems = () => {
+    const hasUnchecked = editList.some(cat => cat.items.some(it => !it.checked));
+    setEditList(prev => prev.map(cat => ({
+      ...cat,
+      items: cat.items.map(it => ({ ...it, checked: hasUnchecked })),
+    })));
+    setListHasChanges(true);
+  };
+
+  const displayedCategories = useMemo(() => {
+    if (selectedAisle === 'all') return editList;
+    const aisleConfig = SUPERMARKET_AISLES.find(a => a.id === selectedAisle);
+    if (!aisleConfig) return editList;
+    return editList.filter(cat => aisleConfig.categoryNames.includes(cat.category));
+  }, [editList, selectedAisle]);
 
   useEffect(() => {
     setLocalPlan(plan);
@@ -1142,7 +1186,7 @@ const DietPlanDisplay: React.FC<Props> = ({
   ].filter((l): l is string => l !== null).join('\n');
 
   const handleShareWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(buildShareSummary())}`, '_blank', 'noopener,noreferrer');
+    openWhatsApp(buildShareSummary());
   };
 
   const handleShareEmail = () => {
@@ -1459,119 +1503,239 @@ const DietPlanDisplay: React.FC<Props> = ({
                         {' · '}{v.plan.weeklyPlan.length} días
                       </p>
                     </div>
-                    <button onClick={() => { onRestoreVersion(v); setShowVersions(false); }}
-                      className="text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
-                      Restaurar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDiffVersion({ version: v, versionNumber: planVersions.length - i })}
+                        className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-sub dark:text-gray-300 hover:text-amber-500 hover:border-amber-400 transition-colors cursor-pointer"
+                        title="Ver comparativa de platos y macros frente al plan actual"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">compare</span>
+                        <span>Comparar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { onRestoreVersion(v); setShowVersions(false); }}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
+                      >
+                        Restaurar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* Modal de Comparativa de Versiones (Diff) */}
+          {diffVersion && (
+            <PlanDiffModal
+              currentPlan={localPlan}
+              version={diffVersion.version}
+              versionNumber={diffVersion.versionNumber}
+              onRestore={(v) => {
+                onRestoreVersion?.(v);
+                setDiffVersion(null);
+                setShowVersions(false);
+              }}
+              onClose={() => setDiffVersion(null)}
+            />
+          )}
+
           {/* Shopping list panel */}
           {showShopping && (
-            <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-emerald-300/60 dark:border-emerald-700/40 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-text-main dark:text-white flex items-center gap-2">
-                  <span className="material-symbols-outlined text-emerald-500 text-[20px]">shopping_cart</span>
-                  Lista de la Compra — {localPlan.weeklyPlan.length} días
-                </h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-text-sub dark:text-gray-400 hidden sm:inline">
-                    {editList.reduce((s, c) => s + c.items.filter(i => !i.checked).length, 0)} pendientes · {editList.reduce((s, c) => s + c.items.length, 0)} total
-                  </span>
+            <div className="bg-surface-light dark:bg-surface-dark rounded-2xl border border-emerald-400/50 dark:border-emerald-600/40 p-5 shadow-sm space-y-4">
+              {/* Cabecera y acciones */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3 border-b border-border-light dark:border-border-dark">
+                <div>
+                  <h3 className="font-bold text-text-main dark:text-white flex items-center gap-2 text-lg">
+                    <span className="material-symbols-outlined text-emerald-500 text-[24px]">shopping_cart</span>
+                    Lista de la Compra — {localPlan.weeklyPlan.length} días
+                  </h3>
+                  <p className="text-xs text-text-sub dark:text-gray-400 mt-0.5">
+                    {editList.reduce((s, c) => s + c.items.filter(i => !i.checked).length, 0)} pendientes · {editList.reduce((s, c) => s + c.items.length, 0)} artículos en total
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* WhatsApp */}
+                  <button
+                    onClick={handleShareWhatsAppShopping}
+                    className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition-all shadow-sm focus:ring-2 focus:ring-primary focus-visible:outline-none"
+                    title="Enviar lista por WhatsApp con casillas [ ]"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">chat</span>
+                    <span>WhatsApp</span>
+                  </button>
+
+                  {/* Copiar texto */}
+                  <button
+                    onClick={handleCopyShoppingList}
+                    className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-100 dark:hover:bg-gray-800 text-text-main dark:text-white text-xs font-bold transition-all shadow-sm focus:ring-2 focus:ring-primary focus-visible:outline-none"
+                    title="Copiar lista al portapapeles con formato [ ]"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                    <span>Copiar</span>
+                  </button>
+
+                  {/* Marcar / Desmarcar todos */}
+                  <button
+                    onClick={handleToggleAllShopItems}
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-100 dark:hover:bg-gray-800 text-text-sub dark:text-gray-300 text-xs font-bold transition-all shadow-sm focus:ring-2 focus:ring-primary focus-visible:outline-none"
+                    title="Marcar o desmarcar todos los artículos"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">done_all</span>
+                    <span className="hidden sm:inline">Marcar todo</span>
+                  </button>
+
+                  {/* Guardar cambios */}
                   {listHasChanges && canPersistList && (
-                    <button onClick={saveShoppingList}
-                      className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-emerald-500 text-white text-xs font-black hover:bg-emerald-600 transition-all shadow-sm">
+                    <button
+                      onClick={saveShoppingList}
+                      className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-emerald-500 text-white text-xs font-black hover:bg-emerald-600 transition-all shadow-sm focus:ring-2 focus:ring-primary focus-visible:outline-none"
+                    >
                       <span className="material-symbols-outlined text-[16px]">save</span>
-                      Guardar lista
+                      <span>Guardar lista</span>
                     </button>
                   )}
-                  <button onClick={() => setShowShopping(false)} className="text-text-sub hover:text-text-main transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">close</span>
+
+                  {/* Cerrar */}
+                  <button
+                    onClick={() => setShowShopping(false)}
+                    className="p-1.5 rounded-lg text-text-sub hover:text-text-main dark:hover:text-white transition-colors focus:ring-2 focus:ring-primary focus-visible:outline-none"
+                    aria-label="Cerrar lista de la compra"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">close</span>
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {editList.map((cat, ci) => (
-                  <div key={cat.category} className="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3">
-                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border-light dark:border-border-dark">
-                      <span className="material-symbols-outlined text-emerald-500 text-[16px]">{cat.icon}</span>
-                      <p className="text-xs font-black uppercase text-text-main dark:text-white tracking-wide flex-1">{cat.category}</p>
-                      <span className="text-[10px] font-bold text-text-sub bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full">
-                        {cat.items.filter(i => !i.checked).length}/{cat.items.length}
+
+              {/* Selector de Pasillos de Supermercado */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  onClick={() => setSelectedAisle('all')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    selectedAisle === 'all'
+                      ? 'bg-emerald-500 text-white shadow-sm'
+                      : 'bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-text-sub dark:text-gray-300 hover:text-text-main'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">storefront</span>
+                  <span>Todos los pasillos</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/20">
+                    {editList.reduce((s, c) => s + c.items.length, 0)}
+                  </span>
+                </button>
+
+                {SUPERMARKET_AISLES.map(aisle => {
+                  const aisleCats = editList.filter(c => aisle.categoryNames.includes(c.category));
+                  const totalItems = aisleCats.reduce((s, c) => s + c.items.length, 0);
+                  if (totalItems === 0) return null;
+                  const isSelected = selectedAisle === aisle.id;
+                  return (
+                    <button
+                      key={aisle.id}
+                      onClick={() => setSelectedAisle(aisle.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                        isSelected
+                          ? 'bg-emerald-500 text-white shadow-sm'
+                          : 'bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-text-sub dark:text-gray-300 hover:text-text-main'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">{aisle.icon}</span>
+                      <span>{aisle.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/20">
+                        {totalItems}
                       </span>
-                    </div>
-                    <ul className="space-y-1">
-                      {cat.items.map((item, ii) => {
-                        const matchingAllergens = findMatchingAllergens(item.name, patientData?.allergens ?? []);
-                        return (
-                        <li key={`${item.name}-${ii}`} className="group flex items-start gap-1.5 text-sm">
-                          {/* Checkbox */}
-                          <button
-                            onClick={() => toggleShopItem(ci, ii)}
-                            role="checkbox"
-                            aria-checked={item.checked}
-                            aria-label={`${item.checked ? 'Desmarcar' : 'Marcar'} ${item.name} como comprado`}
-                            className={`mt-0.5 shrink-0 size-4 rounded border flex items-center justify-center transition-all ${
-                              item.checked
-                                ? 'bg-emerald-500 border-emerald-500 text-white'
-                                : 'border-gray-300 dark:border-gray-600 hover:border-emerald-400'
-                            }`}
-                          >
-                            {item.checked && <span className="material-symbols-outlined text-[10px]">check</span>}
-                          </button>
-                          {/* Name */}
-                          <span className={`flex-1 leading-tight transition-all ${item.checked ? 'line-through text-text-sub dark:text-gray-500' : 'text-text-main dark:text-gray-200'}`}>
-                            {item.name}
-                            {matchingAllergens.length > 0 && (
-                              <span
-                                title={`Alérgeno declarado: ${matchingAllergens.map(a => ALLERGEN_LABELS[a]).join(', ')}`}
-                                className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-[10px] font-bold align-middle"
-                              >
-                                <span className="material-symbols-outlined text-[11px]">warning</span>
-                                {matchingAllergens.map(a => ALLERGEN_LABELS[a]).join(', ')}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Grid de Categorías filtradas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayedCategories.map((cat) => (
+                  <div key={cat.category} className="bg-background-light dark:bg-background-dark rounded-xl border border-border-light dark:border-border-dark p-3.5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border-light dark:border-border-dark">
+                        <span className="material-symbols-outlined text-emerald-500 text-[18px]">{cat.icon}</span>
+                        <p className="text-xs font-black uppercase text-text-main dark:text-white tracking-wide flex-1">{cat.category}</p>
+                        <span className="text-[10px] font-bold text-text-sub bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full">
+                          {cat.items.filter(i => !i.checked).length}/{cat.items.length}
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5">
+                        {cat.items.map((item, ii) => {
+                          const matchingAllergens = findMatchingAllergens(item.name, patientData?.allergens ?? []);
+                          return (
+                          <li key={`${item.name}-${ii}`} className="group flex items-start gap-2 text-sm">
+                            {/* Checkbox */}
+                            <button
+                              onClick={() => toggleShopItem(cat.category, ii)}
+                              role="checkbox"
+                              aria-checked={item.checked}
+                              aria-label={`${item.checked ? 'Desmarcar' : 'Marcar'} ${item.name} como comprado`}
+                              className={`mt-0.5 shrink-0 size-4 rounded border flex items-center justify-center transition-all cursor-pointer ${
+                                item.checked
+                                  ? 'bg-emerald-500 border-emerald-500 text-white'
+                                  : 'border-gray-300 dark:border-gray-600 hover:border-emerald-400'
+                              }`}
+                            >
+                              {item.checked && <span className="material-symbols-outlined text-[10px]">check</span>}
+                            </button>
+                            {/* Name */}
+                            <span className={`flex-1 leading-tight transition-all text-xs sm:text-sm ${item.checked ? 'line-through text-text-sub dark:text-gray-500' : 'text-text-main dark:text-gray-200'}`}>
+                              {item.name}
+                              {matchingAllergens.length > 0 && (
+                                <span
+                                  title={`Alérgeno declarado: ${matchingAllergens.map(a => ALLERGEN_LABELS[a]).join(', ')}`}
+                                  className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-[10px] font-bold align-middle"
+                                >
+                                  <span className="material-symbols-outlined text-[11px]">warning</span>
+                                  {matchingAllergens.map(a => ALLERGEN_LABELS[a]).join(', ')}
+                                </span>
+                              )}
+                            </span>
+                            {/* Amount */}
+                            {item.amounts.length > 0 && (
+                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                {item.amounts.join(' + ')}
                               </span>
                             )}
-                          </span>
-                          {/* Amount */}
-                          {item.amounts.length > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
-                              {item.amounts.join(' + ')}
-                            </span>
-                          )}
-                          {/* Remove */}
-                          <button
-                            onClick={() => removeShopItem(ci, ii)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all"
-                            title="Eliminar"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">remove_circle</span>
-                          </button>
-                        </li>
-                        );
-                      })}
-                    </ul>
+                            {/* Remove */}
+                            <button
+                              onClick={() => removeShopItem(cat.category, ii)}
+                              className="shrink-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all p-0.5"
+                              title="Eliminar artículo"
+                              aria-label={`Eliminar ${item.name}`}
+                            >
+                              <span className="material-symbols-outlined text-[14px]">remove_circle</span>
+                            </button>
+                          </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
                     {/* Add item */}
-                    {addingToCat === ci ? (
-                      <div className="flex gap-1 mt-2">
+                    {addingToCat === cat.category ? (
+                      <div className="flex gap-1 mt-3 pt-2 border-t border-border-light dark:border-border-dark">
                         <input
                           autoFocus
                           type="text"
                           value={newItemName}
                           onChange={e => setNewItemName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') addShopItem(ci); if (e.key === 'Escape') { setAddingToCat(null); setNewItemName(''); } }}
+                          onKeyDown={e => { if (e.key === 'Enter') addShopItem(cat.category); if (e.key === 'Escape') { setAddingToCat(null); setNewItemName(''); } }}
                           placeholder="Nombre del artículo..."
-                          className="flex-1 text-xs px-2 py-1 rounded border border-primary outline-none bg-background-light dark:bg-background-dark dark:text-white"
+                          className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-primary outline-none bg-surface-light dark:bg-surface-dark dark:text-white"
+                          aria-label="Nombre del nuevo artículo"
                         />
-                        <button onClick={() => addShopItem(ci)} className="text-xs px-2 py-1 bg-emerald-500 text-white rounded font-bold hover:bg-emerald-600">✓</button>
-                        <button onClick={() => { setAddingToCat(null); setNewItemName(''); }} className="text-xs px-1.5 py-1 text-text-sub hover:text-text-main">✕</button>
+                        <button onClick={() => addShopItem(cat.category)} className="text-xs px-2.5 py-1.5 bg-emerald-500 text-white rounded-lg font-bold hover:bg-emerald-600">✓</button>
+                        <button onClick={() => { setAddingToCat(null); setNewItemName(''); }} className="text-xs px-2 py-1.5 text-text-sub hover:text-text-main">✕</button>
                       </div>
                     ) : (
                       <button
-                        onClick={() => setAddingToCat(ci)}
-                        className="mt-2 w-full flex items-center gap-1 text-[11px] text-text-sub hover:text-emerald-500 transition-colors"
+                        onClick={() => setAddingToCat(cat.category)}
+                        className="mt-3 pt-2 border-t border-border-light dark:border-border-dark w-full flex items-center gap-1 text-[11px] text-text-sub hover:text-emerald-500 transition-colors font-semibold"
                       >
                         <span className="material-symbols-outlined text-[13px]">add_circle</span>
                         Añadir artículo

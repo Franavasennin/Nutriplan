@@ -1176,10 +1176,21 @@ const ProgressTracker: React.FC<Props> = ({ clients, progressData, patientInfo, 
               </div>
             </div>
           </>
+        ) : clients.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark border-dashed text-center">
+            <span className="material-symbols-outlined text-6xl text-primary mb-3">monitoring</span>
+            <h3 className="text-xl font-bold text-text-main dark:text-white mb-2">Aún no hay clientes registrados</h3>
+            <p className="text-text-sub dark:text-gray-400 text-sm max-w-md">
+              Para registrar mediciones de composición corporal (peso, masa muscular, % graso, agua), primero registra a tu primer paciente desde el panel principal.
+            </p>
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-64 bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark border-dashed">
-            <span className="material-symbols-outlined text-6xl text-gray-300 mb-4">search</span>
-            <p className="text-text-sub dark:text-gray-400 text-lg">Selecciona un cliente para ver su progreso</p>
+          <div className="flex flex-col items-center justify-center py-16 px-6 bg-surface-light dark:bg-surface-dark rounded-2xl border border-border-light dark:border-border-dark border-dashed text-center">
+            <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-3">person_search</span>
+            <h3 className="text-xl font-bold text-text-main dark:text-white mb-2">Selecciona un cliente</h3>
+            <p className="text-text-sub dark:text-gray-400 text-sm max-w-md">
+              Elige un paciente del desplegable superior para consultar sus gráficos de evolución, composición corporal y registrar nuevas visitas.
+            </p>
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { DietResponse, Allergen, ALLERGEN_KEYWORDS } from '../types';
+import { CLINIC } from '../config/clinic';
 
 // ─── Alérgenos en la lista de la compra (MEJORA-001, iteración 001) ───────────
 // Coincidencia simple por palabra clave (no NLP) — ver
@@ -291,4 +292,74 @@ export function generateShoppingList(...plans: DietResponse[]): ShoppingList {
       items:    (groups.get(idx) ?? []).sort((a, b) => a.name.localeCompare(b.name, 'es')),
     }))
     .filter(cat => cat.items.length > 0);
+}
+
+// ─── Agrupación por pasillos de supermercado y formateo para compartir ────────
+
+export interface SupermarketAisle {
+  id: string;
+  name: string;
+  icon: string;
+  categoryNames: string[];
+}
+
+export const SUPERMARKET_AISLES: SupermarketAisle[] = [
+  {
+    id: 'frescos',
+    name: 'Frutas y Verduras',
+    icon: 'nutrition',
+    categoryNames: ['Frutas', 'Verduras y hortalizas'],
+  },
+  {
+    id: 'proteinas',
+    name: 'Carnes, Pescados y Lácteos',
+    icon: 'set_meal',
+    categoryNames: ['Carnes, aves y fiambres', 'Pescado y marisco', 'Huevos y lácteos'],
+  },
+  {
+    id: 'despensa',
+    name: 'Despensa y Cereales',
+    icon: 'bakery_dining',
+    categoryNames: ['Legumbres', 'Cereales, pan y pasta'],
+  },
+  {
+    id: 'condimentos',
+    name: 'Aceites, Conservas y Frutos Secos',
+    icon: 'opacity',
+    categoryNames: ['Conservas y precocinados', 'Aceites, grasas y condimentos', 'Frutos secos y semillas'],
+  },
+  {
+    id: 'otros',
+    name: 'Otros',
+    icon: 'grocery',
+    categoryNames: ['Otros'],
+  },
+];
+
+export function formatShoppingListForShare(
+  categories: { category: string; items: { name: string; amounts?: string[]; checked?: boolean }[] }[],
+  options?: { patientName?: string; durationText?: string; onlyUnchecked?: boolean }
+): string {
+  const lines: string[] = [
+    `🛒 *Lista de la Compra — ${CLINIC.appName}*`,
+    options?.patientName ? `👤 Paciente: ${options.patientName}` : '',
+    options?.durationText ? `📅 Duración: ${options.durationText}` : '',
+  ].filter(Boolean);
+
+  for (const cat of categories) {
+    const items = options?.onlyUnchecked
+      ? cat.items.filter(i => !i.checked)
+      : cat.items;
+    if (items.length === 0) continue;
+
+    lines.push(`\n📌 *${cat.category.toUpperCase()}*`);
+    for (const item of items) {
+      const amtStr = item.amounts && item.amounts.length > 0 ? ` (${item.amounts.join(' + ')})` : '';
+      const checkMark = item.checked ? '[x]' : '[ ]';
+      lines.push(`${checkMark} ${item.name}${amtStr}`);
+    }
+  }
+
+  lines.push(`\n_Generado por ${CLINIC.appName} AI_`);
+  return lines.join('\n');
 }

@@ -352,6 +352,7 @@ export interface Appointment {
   durationMinutes: number;  // por defecto 30
   status: AppointmentStatus;
   notes?: string;
+  phone?: string;
   createdAt: number;        // timestamp (ms)
 }
 

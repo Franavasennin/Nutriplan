@@ -104,8 +104,9 @@ const FoodDatabase: React.FC<Props> = ({ foods, onAdd, onDelete, onEdit }) => {
             <div className="relative">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">search</span>
               <input
-                type="text" placeholder="Buscar..."
-                className="pl-9 pr-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm outline-none focus:border-primary dark:text-white w-56"
+                type="text" placeholder="Buscar alimento..."
+                aria-label="Buscar alimento por nombre o marca"
+                className="pl-9 pr-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:text-white w-56"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
@@ -180,7 +181,7 @@ const FoodDatabase: React.FC<Props> = ({ foods, onAdd, onDelete, onEdit }) => {
         )}
 
         {/* Tabla */}
-        <div className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
+        <div className="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-[#15261b] border-b border-border-light dark:border-border-dark text-xs uppercase text-text-sub font-semibold tracking-wider">
@@ -219,16 +220,18 @@ const FoodDatabase: React.FC<Props> = ({ foods, onAdd, onDelete, onEdit }) => {
                         <button
                           type="button"
                           onClick={() => openEdit(food)}
-                          className="text-gray-400 hover:text-primary transition-colors p-2 hover:bg-primary/10 rounded-lg"
+                          className="text-gray-400 hover:text-primary transition-colors p-2 hover:bg-primary/10 rounded-lg focus:ring-2 focus:ring-primary focus-visible:outline-none"
                           title="Editar"
+                          aria-label={`Editar ${food.name}`}
                         >
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(food.id, food.name)}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          className="text-gray-400 hover:text-red-500 transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg focus:ring-2 focus:ring-primary focus-visible:outline-none"
                           title="Eliminar"
+                          aria-label={`Eliminar ${food.name}`}
                         >
                           <span className="material-symbols-outlined text-[18px]">delete</span>
                         </button>

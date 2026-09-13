@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateShoppingList, findMatchingAllergens } from '../utils/shoppingList';
+import { generateShoppingList, findMatchingAllergens, formatShoppingListForShare, SUPERMARKET_AISLES } from '../utils/shoppingList';
 import { Allergen, type DietResponse } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -207,5 +207,65 @@ describe('findMatchingAllergens — excepción de leche vegetal (MEJORA-009, ite
   it('sigue marcando Gluten en avena (correcto según Reglamento UE 1169/2011)', () => {
     const matches = findMatchingAllergens('100g avena', [Allergen.Gluten]);
     expect(matches).toEqual([Allergen.Gluten]);
+  });
+});
+
+describe('formatShoppingListForShare y SUPERMARKET_AISLES', () => {
+  it('SUPERMARKET_AISLES cubre las categorías principales', () => {
+    expect(SUPERMARKET_AISLES.length).toBeGreaterThanOrEqual(4);
+    const fresco = SUPERMARKET_AISLES.find(a => a.id === 'frescos');
+    expect(fresco).toBeDefined();
+    expect(fresco!.categoryNames).toContain('Frutas');
+    expect(fresco!.categoryNames).toContain('Verduras y hortalizas');
+  });
+
+  it('formatea la lista de compra para compartir con casillas [ ] y cantidades', () => {
+    const mockCategories = [
+      {
+        category: 'Frutas',
+        items: [
+          { name: 'Manzana', amounts: ['3 piezas'], checked: false },
+          { name: 'Plátano', amounts: ['500g'], checked: true },
+        ],
+      },
+      {
+        category: 'Carnes, aves y fiambres',
+        items: [
+          { name: 'Pechuga de pollo', amounts: ['600g'], checked: false },
+        ],
+      },
+    ];
+
+    const result = formatShoppingListForShare(mockCategories, {
+      patientName: 'Juan Pérez',
+      durationText: '7 días',
+    });
+
+    expect(result).toContain('Lista de la Compra');
+    expect(result).toContain('Juan Pérez');
+    expect(result).toContain('FRUTAS');
+    expect(result).toContain('[ ] Manzana (3 piezas)');
+    expect(result).toContain('[x] Plátano (500g)');
+    expect(result).toContain('[ ] Pechuga de pollo (600g)');
+  });
+
+  it('permite filtrar solo artículos no comprados (pendientes)', () => {
+    const mockCategories = [
+      {
+        category: 'Frutas',
+        items: [
+          { name: 'Manzana', amounts: ['3 piezas'], checked: false },
+          { name: 'Plátano', amounts: ['500g'], checked: true },
+        ],
+      },
+    ];
+
+    const result = formatShoppingListForShare(mockCategories, {
+      patientName: 'Juan Pérez',
+      onlyUnchecked: true,
+    });
+
+    expect(result).toContain('[ ] Manzana (3 piezas)');
+    expect(result).not.toContain('Plátano');
   });
 });

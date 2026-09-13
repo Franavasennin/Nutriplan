@@ -2,7 +2,7 @@ import React from 'react';
 import { CLINIC } from '../config/clinic';
 import { downloadCSVTemplate } from '../services/exportService';
 
-export type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'couples' | 'agenda';
+export type Step = 'dashboard' | 'form' | 'result' | 'history' | 'foods' | 'progress' | 'recipes' | 'agenda';
 
 interface NavItem {
   step: Step;
@@ -27,22 +27,37 @@ interface NavButtonProps {
   item: NavItem;
   isActive: boolean;
   onClick: () => void;
+  badge?: number | string;
+  badgeColor?: string;
 }
 
-const NavButton: React.FC<NavButtonProps> = ({ item, isActive, onClick }) => (
+const NavButton: React.FC<NavButtonProps> = ({ item, isActive, onClick, badge, badgeColor }) => (
   <button
     onClick={onClick}
     aria-current={isActive ? 'page' : undefined}
-    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left w-full ${
+    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left w-full cursor-pointer ${
       isActive
         ? 'bg-primary text-background-dark font-black shadow-lg shadow-primary/20'
         : 'text-text-sub dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
     }`}
   >
-    <span className={`material-symbols-outlined ${isActive ? 'active-nav-icon' : ''}`}>
-      {item.icon}
-    </span>
-    <span className="text-sm">{item.label}</span>
+    <div className="flex items-center gap-3 min-w-0">
+      <span className={`material-symbols-outlined text-[20px] ${isActive ? 'active-nav-icon' : ''}`}>
+        {item.icon}
+      </span>
+      <span className="text-sm font-semibold truncate">{item.label}</span>
+    </div>
+    {badge !== undefined && badge !== null && (
+      <span
+        className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+          isActive
+            ? 'bg-background-dark text-primary'
+            : badgeColor || 'bg-primary/20 text-primary-accessible dark:text-primary'
+        }`}
+      >
+        {badge}
+      </span>
+    )}
   </button>
 );
 
@@ -58,12 +73,16 @@ export interface SidebarProps {
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   lastBackupLabel?: string;
   onOpenClinicCriteria?: () => void;
+  hasPlan?: boolean;
+  activePatientName?: string;
+  todayAppointmentsCount?: number;
+  savedDietsCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentStep, isDark, dbOnline, onNavigate, onGoHome,
   onToggleTheme, onExportJSON, onExportCSV, onImport, lastBackupLabel,
-  onOpenClinicCriteria,
+  onOpenClinicCriteria, hasPlan, activePatientName, todayAppointmentsCount, savedDietsCount,
 }) => (
   <aside className="hidden w-64 flex-col border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark lg:flex z-50 transition-colors duration-200 no-print">
     <div className="flex h-full flex-col justify-between p-4">
@@ -81,12 +100,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="flex flex-col gap-1 overflow-y-auto max-h-[50vh]">
+          {/* Plan Activo si existe en memoria */}
+          {hasPlan && (
+            <NavButton
+              item={{
+                step: 'result',
+                icon: 'restaurant_menu',
+                label: activePatientName ? `Plan: ${activePatientName}` : 'Plan Activo',
+              }}
+              isActive={currentStep === 'result'}
+              onClick={() => onNavigate('result')}
+              badge="En curso"
+              badgeColor="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+            />
+          )}
+
           {NAV_PRIMARY.map(item => (
             <NavButton
               key={item.step}
               item={item}
               isActive={currentStep === item.step}
               onClick={() => onNavigate(item.step)}
+              badge={
+                item.step === 'agenda' && (todayAppointmentsCount ?? 0) > 0
+                  ? todayAppointmentsCount
+                  : undefined
+              }
+              badgeColor="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
             />
           ))}
           <div className="my-2 border-t border-border-light dark:border-border-dark opacity-50" />
@@ -96,6 +136,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               item={item}
               isActive={currentStep === item.step}
               onClick={() => onNavigate(item.step)}
+              badge={
+                item.step === 'history' && (savedDietsCount ?? 0) > 0
+                  ? savedDietsCount
+                  : undefined
+              }
+              badgeColor="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
             />
           ))}
         </div>
@@ -157,10 +203,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <button
+          type="button"
           onClick={onToggleTheme}
-          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-background-light dark:bg-background-dark text-text-sub text-xs font-bold border border-border-light dark:border-border-dark hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+          aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          className="flex items-center justify-center gap-2 p-3 rounded-xl bg-background-light dark:bg-background-dark text-text-sub text-xs font-bold border border-border-light dark:border-border-dark hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors focus:ring-2 focus:ring-primary focus-visible:outline-none cursor-pointer"
         >
-          <span className="material-symbols-outlined text-sm">{isDark ? 'light_mode' : 'dark_mode'}</span>
+          <span className="material-symbols-outlined text-sm">{isDark ? 'light_mode' : 'nights_stay'}</span>
           {isDark ? 'Modo luz' : 'Modo oscuro'}
         </button>
 

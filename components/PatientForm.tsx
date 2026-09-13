@@ -19,6 +19,7 @@ import {
 } from '../types';
 import { getClinicalSafetyFlags } from '../utils/clinicalSafety';
 import { FoodAutocompleteInput } from './FoodAutocomplete';
+import { useToast } from './Toast';
 
 // ─── Recomendación de nº de comidas ──────────────────────────────────────────
 
@@ -56,6 +57,7 @@ interface Props {
   onSubmit: (data: PatientData) => void;
   isLoading: boolean;
   initialData?: PatientData;
+  onCancel?: () => void;
 }
 
 const DEFAULT_FORM: PatientData = {
@@ -78,7 +80,8 @@ const DEFAULT_FORM: PatientData = {
   budgetLevel: BudgetLevel.Standard,
 };
 
-const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
+const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData, onCancel }) => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<PatientData>(initialData ?? DEFAULT_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -129,7 +132,12 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
     e.preventDefault();
     const errs = validate(formData);
     setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+    if (Object.keys(errs).length > 0) {
+      toast('Por favor, revisa los errores señalados en el formulario.', 'error');
+      const firstError = document.querySelector('[role="alert"]');
+      firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     onSubmit(sanitizeData(formData));
   };
 
@@ -159,7 +167,11 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                     <p className="text-text-sub dark:text-gray-400 text-lg">Introduce los datos antropométricos y personales para comenzar.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button type="button" className="px-5 py-2.5 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-transparent font-bold text-text-main dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="px-5 py-2.5 rounded-lg border border-border-light dark:border-border-dark bg-white dark:bg-transparent font-bold text-text-main dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors focus:ring-2 focus:ring-primary focus-visible:outline-none cursor-pointer"
+                    >
                         Cancelar
                     </button>
                     <button
@@ -222,7 +234,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                                     value={formData.age}
                                     onChange={(e) => { setFormData({...formData, age: Number(e.target.value)}); setErrors(p => ({...p, age: ''})); }}
                                 />
-                                {errors.age && <span className="text-xs text-red-500 font-medium">{errors.age}</span>}
+                                {errors.age && <span role="alert" className="text-xs text-red-500 font-medium">{errors.age}</span>}
                             </label>
                         </div>
                         {/* Cribado de seguridad: embarazo / lactancia — solo relevante en mujeres */}
@@ -370,7 +382,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                           return (
                             <div className="flex flex-col gap-2 mt-1">
                               <span className="text-sm font-semibold text-text-main dark:text-slate-200">Objetivo calórico</span>
-                              <div className="grid grid-cols-5 gap-1.5">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1.5">
                                 {GOAL_ORDER.map(goal => {
                                   const meta  = CALORIE_GOAL_LABELS[goal];
                                   const isActive = currentGoal === goal;
@@ -683,7 +695,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                                     value={formData.weight}
                                     onChange={(e) => { setFormData({...formData, weight: Number(e.target.value)}); setErrors(p => ({...p, weight: ''})); }}
                                 />
-                                {errors.weight && <span className="text-xs text-red-500 font-medium">{errors.weight}</span>}
+                                {errors.weight && <span role="alert" className="text-xs text-red-500 font-medium">{errors.weight}</span>}
                             </label>
                             <label className="flex flex-col gap-2">
                                 <span className="text-sm font-semibold text-text-main dark:text-slate-200">Altura (cm)</span>
@@ -695,7 +707,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                                     value={formData.height}
                                     onChange={(e) => { setFormData({...formData, height: Number(e.target.value)}); setErrors(p => ({...p, height: ''})); }}
                                 />
-                                {errors.height && <span className="text-xs text-red-500 font-medium">{errors.height}</span>}
+                                {errors.height && <span role="alert" className="text-xs text-red-500 font-medium">{errors.height}</span>}
                             </label>
                             <label className="col-span-2 flex flex-col gap-2">
                                 <span className="text-sm font-semibold text-text-main dark:text-slate-200">Objetivo de peso (kg)</span>
@@ -707,7 +719,7 @@ const PatientForm: React.FC<Props> = ({ onSubmit, isLoading, initialData }) => {
                                     value={formData.targetWeight ?? ''}
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setFormData({...formData, targetWeight: e.target.value ? Number(e.target.value) : undefined}); setErrors(p => ({...p, targetWeight: ''})); }}
                                 />
-                                {errors.targetWeight && <span className="text-xs text-red-500 font-medium">{errors.targetWeight}</span>}
+                                {errors.targetWeight && <span role="alert" className="text-xs text-red-500 font-medium">{errors.targetWeight}</span>}
                                 {!errors.targetWeight && formData.targetWeight != null && formData.targetWeight > 0 && (
                                     <span className={`text-xs font-semibold ${formData.targetWeight < formData.weight ? 'text-blue-600 dark:text-blue-400' : formData.targetWeight > formData.weight ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}`}>
                                         {formData.targetWeight < formData.weight
