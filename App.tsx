@@ -36,7 +36,7 @@ import { mergeInstructionChanges, findDaysOffTarget, applyForcedSubstitutions } 
 import { readPDFAsBase64 } from './services/pdfService';
 
 // Utils & types
-import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion } from './types';
+import { PatientData, CalculatedMetrics, DietResponse, SavedDiet, DietType, Meal, PlanVersion, Recipe } from './types';
 import { calculateIMC, calculateBMR, calculateTEE, calculateMacros, calculateIdealWeight, calculateAdjustedWeight, calculateAdjustedWeightFromBodyFat, computeMetrics } from './utils/calculations';
 import { enforceClinicalSafety } from './utils/clinicalSafety';
 import { getClinicalTargets } from './utils/clinicalTargets';
@@ -432,6 +432,11 @@ const AppContent: React.FC = () => {
   };
 
   // ── Meal swap ────────────────────────────────────────────────────────────────
+  const handleSaveAsRecipe = (recipe: Recipe) => {
+    addRecipe(recipe);
+    toast('Receta guardada en RECETAS AI.', 'success');
+  };
+
   const handleSwapMeal = async (_dayNumber: number, mealKey: string, currentMeal: Meal): Promise<Meal> => {
     if (!patientData || !metrics) throw new Error('No hay datos del paciente');
     const swapped = await getMealSwap(currentMeal, mealKey, patientData, metrics);
@@ -656,6 +661,8 @@ const AppContent: React.FC = () => {
             onMealManuallyEdited={handleMealManuallyEdited}
             onUnlockMeal={handleUnlockMeal}
             otherPersonDiet={otherPersonDiet}
+            recipes={dbRecipes}
+            onSaveAsRecipe={handleSaveAsRecipe}
           />
           </>
         )}

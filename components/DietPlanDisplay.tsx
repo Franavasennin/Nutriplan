@@ -13,6 +13,7 @@ import { normalizeIngredient, sumDayMacros } from '../utils/macroValidation';
 import { generateSingleMeal, reportionMeal } from '../services/geminiService';
 import { MEAL_PRINT_ORDER, alignCoupleDays, pairIngredients, extractQuantityLabel, AlignedMealSlot } from '../utils/couplePrint';
 import { scalePlanToTarget } from '../utils/planScaling';
+import { adaptRecipeToMealTarget } from '../utils/recipeToMeal';
 import { getMealEquivalents, MealEquivalenceLine } from '../utils/equivalences';
 import { computeMetrics } from '../utils/calculations';
 import { MealKey, MealSectionConfig, getMealSections, ALL_MEAL_CONFIGS } from '../utils/mealSchedule';
@@ -62,6 +63,12 @@ interface Props {
    *  plan ya actualizados — persiste igual que "Rehacer plan" (inmediato,
    *  no requiere "Guardar cambios"). */
   onRecalculateTargets?: (patientData: PatientData, metrics: CalculatedMetrics, plan: DietResponse) => void;
+  /** RECETAS AI (tabla real de Supabase) — fuente para "Cambiar por receta
+   *  guardada" y la pestaña "Importar receta" del editor manual. */
+  recipes?: Recipe[];
+  /** Sube una comida (editada a mano o ya en el plan) como receta reutilizable
+   *  a RECETAS AI para otros pacientes. Acción explícita, nunca automática. */
+  onSaveAsRecipe?: (recipe: Recipe) => void;
 }
 
 // ─── Editor de comida ─────────────────────────────────────────────────────────
@@ -71,23 +78,34 @@ interface MealEditorProps {
   mealKey: string;
   onSave: (updated: Meal) => void;
   onCancel: () => void;
+  /** RECETAS AI (Supabase) — si no se pasa, cae a la lista estática de
+   *  ejemplo (data/recipes.ts) como antes. */
+  recipes?: Recipe[];
+  onSaveAsRecipe?: (recipe: Recipe) => void;
 }
 
-const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel }) => {
+const MEAL_TAG_MAP: Record<string, string> = {
+  breakfast: 'desayuno', morningSnack: 'merienda',
+  lunch: 'almuerzo', afternoonSnack: 'merienda', dinner: 'cena',
+};
+
+const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel, recipes, onSaveAsRecipe }) => {
   const [tab,         setTab]         = useState<'manual' | 'recipes'>('manual');
   const [name,        setName]        = useState(meal.name);
   const [description, setDescription] = useState(meal.description);
   const [ingredients, setIngredients] = useState(meal.ingredients.map(normalizeIngredient).join('\n'));
   const [instructions, setInstructions] = useState((meal.instructions ?? []).join('\n'));
   const [recipeQuery, setRecipeQuery] = useState('');
+  const [saveAsRecipe, setSaveAsRecipe] = useState(false);
+  // Macros de la comida importada desde RECETAS AI (ya ajustados al objetivo
+  // de esta toma) — se mantienen fuera del textarea porque el formulario
+  // manual no tiene campos numéricos de macros; se aplican tal cual al guardar.
+  const [importedMacros, setImportedMacros] = useState<Pick<Meal, 'calories' | 'protein' | 'carbs' | 'fats'> | null>(null);
+  const [importWarning, setImportWarning] = useState<string | undefined>(undefined);
 
-  const mealTagMap: Record<string, string> = {
-    breakfast: 'desayuno', morningSnack: 'merienda',
-    lunch: 'almuerzo', afternoonSnack: 'merienda', dinner: 'cena',
-  };
-
-  const filteredRecipes = RECIPES.filter(r => {
-    const mealTag = mealTagMap[mealKey] ?? '';
+  const recipeSource = recipes ?? RECIPES;
+  const filteredRecipes = recipeSource.filter(r => {
+    const mealTag = MEAL_TAG_MAP[mealKey] ?? '';
     const hasMealTag = mealTag ? r.tags.some(t => t.includes(mealTag)) : true;
     if (!hasMealTag) return false;
     if (!recipeQuery.trim()) return true;
@@ -97,17 +115,43 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
   }).slice(0, 20);
 
   const handleInsertRecipe = (recipe: Recipe) => {
-    setName(recipe.title);
-    setDescription(recipe.description);
-    setIngredients(recipe.ingredients.join('\n'));
-    setInstructions(recipe.instructions.join('\n'));
+    // Ajusta cantidades y macros de la receta a los macros de ESTA toma
+    // (motor determinista, sin IA — mismo criterio que "Pareja Inteligente").
+    const { meal: adapted, warning } = adaptRecipeToMealTarget(recipe, meal);
+    setName(adapted.name);
+    setDescription(adapted.description);
+    setIngredients(adapted.ingredients.map(normalizeIngredient).join('\n'));
+    setInstructions((adapted.instructions ?? []).join('\n'));
+    setImportedMacros({ calories: adapted.calories, protein: adapted.protein, carbs: adapted.carbs, fats: adapted.fats });
+    setImportWarning(warning);
     setTab('manual');
   };
 
   const handleSave = () => {
     const parsed = ingredients.split('\n').map(s => s.trim()).filter(Boolean);
     const parsedInstructions = instructions.split('\n').map(s => s.trim()).filter(Boolean);
-    onSave({ ...meal, name, description, ingredients: parsed, instructions: parsedInstructions.length ? parsedInstructions : undefined });
+    const updated: Meal = {
+      ...meal,
+      ...(importedMacros ?? {}),
+      name, description, ingredients: parsed,
+      instructions: parsedInstructions.length ? parsedInstructions : undefined,
+    };
+    onSave(updated);
+    if (saveAsRecipe && onSaveAsRecipe) {
+      onSaveAsRecipe({
+        id: `plan-${Date.now()}`,
+        title: updated.name,
+        description: updated.description,
+        prepTime: 0,
+        calories: updated.calories ?? 0,
+        protein: updated.protein ?? 0,
+        carbs: updated.carbs ?? 0,
+        fats: updated.fats ?? 0,
+        ingredients: updated.ingredients,
+        instructions: updated.instructions ?? [],
+        tags: [MEAL_TAG_MAP[mealKey] ?? 'otros'],
+      });
+    }
   };
 
   return (
@@ -148,7 +192,7 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-xs font-bold text-primary-accessible dark:text-primary">{recipe.calories} kcal</p>
-                    <p className="text-[10px] text-text-sub">{recipe.prepTime} min</p>
+                    <p className="text-[10px] text-text-sub">P{recipe.protein} · HC{recipe.carbs} · G{recipe.fats}</p>
                   </div>
                 </div>
               </button>
@@ -157,6 +201,14 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
         </div>
       ) : (
         <>
+          {importedMacros && (
+            <div className="rounded-lg bg-primary/10 border border-primary/30 px-3 py-2 text-[11px] text-text-main dark:text-white">
+              <p className="font-bold">
+                Receta importada y ajustada: {importedMacros.calories} kcal · P {importedMacros.protein}g · HC {importedMacros.carbs}g · G {importedMacros.fats}g
+              </p>
+              {importWarning && <p className="text-text-sub dark:text-gray-400 mt-0.5">{importWarning}</p>}
+            </div>
+          )}
           <div>
             <label className="text-[10px] font-bold text-text-sub dark:text-gray-400 uppercase">Nombre</label>
             <FoodAutocompleteInput title="Nombre de la comida" value={name} onChange={setName}
@@ -183,6 +235,14 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
         </>
       )}
 
+      {tab === 'manual' && onSaveAsRecipe && (
+        <label className="flex items-center gap-2 text-[11px] font-semibold text-text-sub dark:text-gray-400 cursor-pointer">
+          <input type="checkbox" checked={saveAsRecipe} onChange={e => setSaveAsRecipe(e.target.checked)}
+            className="rounded border-border-light dark:border-border-dark text-primary focus:ring-primary" />
+          Guardar también en RECETAS AI (reutilizable con otros pacientes)
+        </label>
+      )}
+
       <div className="flex gap-2 justify-end pt-1">
         <button onClick={onCancel}
           className="px-4 py-2 rounded-lg text-xs font-bold border border-border-light dark:border-border-dark hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-sub">
@@ -202,12 +262,37 @@ const MealEditor: React.FC<MealEditorProps> = ({ meal, mealKey, onSave, onCancel
 // ─── Fila de comida ───────────────────────────────────────────────────────────
 
 const MealRow: React.FC<{
-  meal: Meal; onEditRequest: () => void; onSwapRequest?: () => void; isSwapping?: boolean;
+  meal: Meal; mealKey: string; onEditRequest: () => void; onSwapRequest?: () => void; isSwapping?: boolean;
   equivalents?: MealEquivalenceLine[];
   onSaveEquivalents?: (updated: Meal) => void;
-}> = ({ meal, onEditRequest, onSwapRequest, isSwapping, equivalents, onSaveEquivalents }) => {
+  /** RECETAS AI — habilita el botón "Cambiar por receta guardada". */
+  recipes?: Recipe[];
+  onReplaceWithRecipe?: (updated: Meal) => void;
+}> = ({ meal, mealKey, onEditRequest, onSwapRequest, isSwapping, equivalents, onSaveEquivalents, recipes, onReplaceWithRecipe }) => {
   const [editingEquiv, setEditingEquiv] = useState(false);
   const [drafts, setDrafts] = useState<string[]>([]);
+  const [showRecipePicker, setShowRecipePicker] = useState(false);
+  const [recipePickerQuery, setRecipePickerQuery] = useState('');
+
+  const pickerRecipes = (recipes ?? []).filter(r => {
+    const mealTag = MEAL_TAG_MAP[mealKey] ?? '';
+    const hasMealTag = mealTag ? r.tags.some(t => t.includes(mealTag)) : true;
+    if (!hasMealTag) return false;
+    if (!recipePickerQuery.trim()) return true;
+    const q = recipePickerQuery.toLowerCase();
+    return r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) ||
+           r.tags.some(t => t.includes(q));
+  }).slice(0, 20);
+
+  const { toast } = useToast();
+
+  const handlePickRecipe = (recipe: Recipe) => {
+    const { meal: adapted, warning } = adaptRecipeToMealTarget(recipe, meal);
+    onReplaceWithRecipe?.(adapted);
+    setShowRecipePicker(false);
+    setRecipePickerQuery('');
+    if (warning) toast(warning, 'error');
+  };
 
   const openEquivEditor = () => {
     const byIng = new Map((equivalents ?? []).map(e => [e.ing, e]));
@@ -247,6 +332,12 @@ const MealRow: React.FC<{
                 }
               </button>
             )}
+            {onReplaceWithRecipe && (
+              <button onClick={() => setShowRecipePicker(v => !v)} title="Cambiar por receta guardada"
+                className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:text-amber-600 transition-all">
+                <span className="material-symbols-outlined text-base">menu_book</span>
+              </button>
+            )}
             {onSaveEquivalents && (
               <button onClick={() => (editingEquiv ? setEditingEquiv(false) : openEquivEditor())} title="Editar equivalencias"
                 className="size-8 flex items-center justify-center rounded-lg text-text-sub hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all">
@@ -268,6 +359,47 @@ const MealRow: React.FC<{
                 {normalizeIngredient(ing)}
               </span>
             ))}
+          </div>
+        )}
+
+        {showRecipePicker && (
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+            <p className="text-[10px] font-black uppercase text-text-sub dark:text-gray-400">
+              Cambiar por receta guardada (se ajustan cantidades a {meal.protein ?? '?'}g P · {meal.carbs ?? '?'}g HC · {meal.fats ?? '?'}g G)
+            </p>
+            <input
+              type="text"
+              placeholder="Buscar en RECETAS AI..."
+              value={recipePickerQuery}
+              onChange={e => setRecipePickerQuery(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark text-sm dark:text-white outline-none focus:border-primary"
+            />
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {pickerRecipes.length === 0 && (
+                <p className="text-xs text-center text-text-sub py-4">Sin resultados en RECETAS AI para esta toma. Prueba otro término.</p>
+              )}
+              {pickerRecipes.map(recipe => (
+                <button key={recipe.id} type="button" onClick={() => handlePickRecipe(recipe)}
+                  className="w-full text-left p-3 rounded-lg border border-border-light dark:border-border-dark hover:border-primary hover:bg-primary/5 transition-all group">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-bold text-text-main dark:text-white group-hover:text-primary transition-colors">{recipe.title}</p>
+                      <p className="text-[11px] text-text-sub dark:text-gray-400 mt-0.5">{recipe.description}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-bold text-primary-accessible dark:text-primary">{recipe.calories} kcal</p>
+                      <p className="text-[10px] text-text-sub">P{recipe.protein} · HC{recipe.carbs} · G{recipe.fats}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-end">
+              <button onClick={() => setShowRecipePicker(false)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-border-light dark:border-border-dark hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-text-sub">
+                Cerrar
+              </button>
+            </div>
           </div>
         )}
 
@@ -340,11 +472,14 @@ interface MealSectionProps {
    *  de las que edite la nutricionista. */
   equivalents?: MealEquivalenceLine[];
   onSaveEquivalents?: (updated: Meal) => void;
+  /** RECETAS AI (Supabase) para "Cambiar por receta guardada" e "Importar receta". */
+  recipes?: Recipe[];
+  onSaveAsRecipe?: (recipe: Recipe) => void;
 }
 
 const MealSection: React.FC<MealSectionProps> = ({
   title, time, meal, icon, mealKey, editingKey, activeEditKey, onEditRequest, onSave, onCancel, onSwapRequest, isSwapping, onRemove,
-  isLocked, onUnlock, mealSubstitutions, moveOptions, onMove, equivalents, onSaveEquivalents,
+  isLocked, onUnlock, mealSubstitutions, moveOptions, onMove, equivalents, onSaveEquivalents, recipes, onSaveAsRecipe,
 }) => {
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   if (!meal) return null;
@@ -418,9 +553,10 @@ const MealSection: React.FC<MealSectionProps> = ({
       </div>
       <div className="p-4">
         {isEditing
-          ? <MealEditor meal={meal} mealKey={mealKey} onSave={onSave} onCancel={onCancel} />
-          : <MealRow meal={meal} onEditRequest={() => onEditRequest(editingKey)} onSwapRequest={onSwapRequest} isSwapping={isSwapping}
-              equivalents={equivalents} onSaveEquivalents={onSaveEquivalents} />
+          ? <MealEditor meal={meal} mealKey={mealKey} onSave={onSave} onCancel={onCancel} recipes={recipes} onSaveAsRecipe={onSaveAsRecipe} />
+          : <MealRow meal={meal} mealKey={mealKey} onEditRequest={() => onEditRequest(editingKey)} onSwapRequest={onSwapRequest} isSwapping={isSwapping}
+              equivalents={equivalents} onSaveEquivalents={onSaveEquivalents}
+              recipes={recipes} onReplaceWithRecipe={onSave} />
         }
       </div>
     </div>
@@ -754,7 +890,7 @@ const DietPlanDisplay: React.FC<Props> = ({
   metrics, plan, patientName, mealCount, fastingProtocol, patientData,
   isLoading, planVersions, dietId, onUpdatePlan, onRegenerate, onRegenerateDay, onSwapMeal, onRestoreVersion,
   lockedMeals, substitutions, onMealManuallyEdited, onUnlockMeal, otherPersonDiet, onApplyInstructions,
-  onRecalculateTargets,
+  onRecalculateTargets, recipes, onSaveAsRecipe,
 }) => {
   const { confirm } = useConfirm();
   const { toast }   = useToast();
@@ -1887,6 +2023,8 @@ const DietPlanDisplay: React.FC<Props> = ({
                     mealSubstitutions={substitutions?.filter(s => s.day === activeDay && s.mealKey === key)}
                     equivalents={getMealEquivalents(activeDayPlan.meals[key]!, { allergens: patientData?.allergens, excludedFoods: patientData?.excludedFoods })}
                     onSaveEquivalents={(updated) => handleSaveMeal(key, updated)}
+                    recipes={recipes}
+                    onSaveAsRecipe={onSaveAsRecipe}
                   />
                 ))}
 
