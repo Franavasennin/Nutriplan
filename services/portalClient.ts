@@ -32,7 +32,8 @@ export interface PortalCompletion {
 
 export interface PortalDietPayload {
   patientData: PortalPatientData;
-  metrics: CalculatedMetrics;
+  /** Solo los macros objetivo — la Edge Function no envía métricas clínicas. */
+  metrics: Pick<CalculatedMetrics, 'macros'>;
   plan: DietResponse;
   showEquivalences: boolean;
   completions: PortalCompletion[];

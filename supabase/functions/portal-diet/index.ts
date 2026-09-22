@@ -89,7 +89,9 @@ Deno.serve(async (req: Request) => {
 
   return jsonResponse({
     patientData: sanitizedPatientData,
-    metrics: dietRow.metrics,
+    // Solo los macros objetivo: imc/bmr/tee son métricas clínicas (el IMC
+    // deriva de peso y altura) y el portal no las usa. Detectado por los E2E.
+    metrics: { macros: dietRow.metrics?.macros },
     plan: dietRow.plan,
     showEquivalences: tokenRow.show_equivalences,
     completions: (completions ?? []).map(c => ({

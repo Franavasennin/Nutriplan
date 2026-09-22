@@ -49,3 +49,9 @@ coverage/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 graft/
+
+# Playwright (E2E) — informes y artefactos regenerables
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

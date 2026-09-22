@@ -418,6 +418,9 @@ const AppContent: React.FC = () => {
         updateDietPlanWithSnapshot(currentDietId, substitutedPlan);
         updatePatientData(currentDietId, { planInstructions: instructions });
       }
+      // Sin esto, "Rehacer día"/"Rehacer plan" usaban el patientData previo
+      // y la pauta recién aplicada no llegaba al prompt hasta reabrir el plan.
+      setPatientData(prev => prev ? { ...prev, planInstructions: instructions } : prev);
       const subsMsg = forcedSubs.length > 0
         ? ` Sustituido en todo el plan: ${forcedSubs.map(s => `"${s.banned}"→"${s.replacement}" (${s.occurrences})`).join(', ')}.`
         : '';
