@@ -55,3 +55,6 @@ graft/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Supabase CLI — ficheros temporales locales (se crean al desplegar)
+supabase/.temp/
