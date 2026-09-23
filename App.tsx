@@ -224,9 +224,13 @@ const AppContent: React.FC = () => {
     // la primera vez (rawData.clientId ausente); si ya existe (edición de
     // un cliente vía handleEditClient, que precarga patientData completo),
     // se conserva sin regenerar.
-    const withClientId: PatientData = rawData.clientId
-      ? rawData
-      : { ...rawData, clientId: crypto.randomUUID() };
+    // Un plan nuevo reactiva al paciente: se descarta el estado manual
+    // heredado de la dieta anterior (Dashboard) y vuelve la regla de 30 días.
+    const withClientId: PatientData = {
+      ...rawData,
+      clientId: rawData.clientId ?? crypto.randomUUID(),
+      status: undefined,
+    };
     // Seguridad clínica (auditoría): fuerza mantenimiento/sin ayuno en perfiles
     // vulnerables aunque el formulario no lo haya aplicado (defensa en profundidad).
     const data = enforceClinicalSafety(withClientId);

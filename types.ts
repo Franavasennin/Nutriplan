@@ -198,6 +198,10 @@ export interface PatientData {
   // registro, no una certificación legal de cumplimiento RGPD completo
   // (eso exige revisión legal fuera del alcance de este cambio de código).
   gdprConsent?: { granted: boolean; consentedAt: number };
+  // Estado marcado a mano desde el Dashboard. Si falta, rige la regla
+  // automática (activo = plan generado en los últimos 30 días). Vive en el
+  // JSONB patient_data, sin migración.
+  status?: 'active' | 'inactive';
   excludedFoods?: string;   // comma-separated list of foods to avoid
   weeks?: number;           // number of weeks to generate (1-4)
   mealCount?: number;       // number of meals per day (2-5)

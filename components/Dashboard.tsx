@@ -22,6 +22,12 @@ interface Props {
 
 type Filter = 'all' | 'active' | 'inactive';
 
+// El estado marcado a mano manda; sin él, "activo" = plan en los últimos 30 días.
+const isPatientActive = (d: SavedDiet): boolean =>
+    d.patientData.status
+        ? d.patientData.status === 'active'
+        : Date.now() - d.timestamp < 30 * 24 * 60 * 60 * 1000;
+
 const Dashboard: React.FC<Props> = ({
     stats, allDiets, onNewClient, onLoadDiet,
     onDeleteDiet, onEditClient, onUpdatePatientData,
@@ -49,12 +55,11 @@ const Dashboard: React.FC<Props> = ({
         const name = (d.patientData.name ?? '').toLowerCase();
         const diet = (DIET_TYPE_LABELS[d.patientData.dietType] ?? d.patientData.dietType).toLowerCase();
         const matchSearch = name.includes(search.toLowerCase()) || diet.includes(search.toLowerCase());
-        // "Activo" = plan generado en los últimos 30 días
-        const isRecent = Date.now() - d.timestamp < 30 * 24 * 60 * 60 * 1000;
+        const isActive = isPatientActive(d);
         const matchFilter =
             filter === 'all'      ? true :
-            filter === 'active'   ? isRecent :
-            /* inactive */          !isRecent;
+            filter === 'active'   ? isActive :
+            /* inactive */          !isActive;
         return matchSearch && matchFilter;
     });
 
@@ -250,7 +255,9 @@ const Dashboard: React.FC<Props> = ({
                     )}
 
                     {filtered.map((diet) => {
-                        const isRecent = Date.now() - diet.timestamp < 30 * 24 * 60 * 60 * 1000;
+                        const isActive = isPatientActive(diet);
+                        const patientLabel = diet.patientData.name || 'paciente';
+                        const toggleStatus = () => onUpdatePatientData(diet.id, { status: isActive ? 'inactive' : 'active' });
                         const principal = diet.linkedToId ? allDiets.find(d => d.id === diet.linkedToId) : undefined;
                         const hasPartner = allDiets.some(d => d.linkedToId === diet.id);
                         const canAddPartner = !diet.linkedToId && !hasPartner && (diet.plan?.weeklyPlan?.length ?? 0) > 0;
@@ -294,6 +301,13 @@ const Dashboard: React.FC<Props> = ({
                                                 Historial de dietas
                                             </button>
                                             <button
+                                                onClick={() => { toggleStatus(); closeMenu(); }}
+                                                className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold text-text-main dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                            >
+                                                <span className={`material-symbols-outlined text-base ${isActive ? 'text-gray-500' : 'text-green-600'}`}>{isActive ? 'block' : 'check_circle'}</span>
+                                                {isActive ? 'Marcar como inactivo' : 'Marcar como activo'}
+                                            </button>
+                                            <button
                                                 onClick={() => { onOpenPortalLink(diet); closeMenu(); }}
                                                 className="flex w-full items-center gap-2 px-4 py-3 text-sm font-bold text-text-main dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                             >
@@ -323,13 +337,29 @@ const Dashboard: React.FC<Props> = ({
 
                                 <div>
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className="flex gap-3 items-center">
-                                            <div className="size-12 rounded-full ring-2 ring-transparent group-hover:ring-primary/30 transition-all flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-500 font-bold text-lg">
+                                        <div className="flex gap-3 items-center min-w-0">
+                                            <div className="size-12 shrink-0 rounded-full ring-2 ring-transparent group-hover:ring-primary/30 transition-all flex items-center justify-center bg-gray-200 dark:bg-gray-700 text-gray-500 font-bold text-lg">
                                                 {diet.patientData.name ? diet.patientData.name.charAt(0).toUpperCase() : 'P'}
                                             </div>
                                             <div className="overflow-hidden">
                                                 <h3 className="text-base font-bold text-text-main dark:text-white truncate pr-8">{diet.patientData.name || 'Paciente'}</h3>
                                                 <p className="text-xs text-text-sub dark:text-gray-400">{diet.patientData.age} años • {diet.patientData.weight}kg</p>
+                                                {/* Estado del paciente: pulsar alterna Activo/Inactivo. Va bajo el
+                                                    nombre (no a la derecha) para no chocar con el menú ⋮ absoluto. */}
+                                                <button
+                                                    type="button"
+                                                    onClick={toggleStatus}
+                                                    aria-label={`Marcar a ${patientLabel} como ${isActive ? 'inactivo' : 'activo'}`}
+                                                    title={`Pulsa para marcar como ${isActive ? 'inactivo' : 'activo'}`}
+                                                    className={`mt-1.5 inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none ${
+                                                        isActive
+                                                            ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 ring-green-600/20 hover:bg-green-100 dark:hover:bg-green-900/50'
+                                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 ring-gray-400/20 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    }`}
+                                                >
+                                                    <span aria-hidden="true" className="material-symbols-outlined text-[14px]">{isActive ? 'check_circle' : 'block'}</span>
+                                                    {isActive ? 'Activo' : 'Inactivo'}
+                                                </button>
                                                 {principal && (
                                                     <p className="flex items-center gap-1 text-[10px] text-primary-accessible dark:text-primary font-semibold mt-0.5">
                                                         <span className="material-symbols-outlined text-[12px]">group</span>
@@ -344,13 +374,6 @@ const Dashboard: React.FC<Props> = ({
                                                 )}
                                             </div>
                                         </div>
-                                        <span className={`shrink-0 inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                                            isRecent
-                                                ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 ring-green-600/20'
-                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 ring-gray-400/20'
-                                        }`}>
-                                            {isRecent ? 'Activo' : 'Inactivo'}
-                                        </span>
                                     </div>
 
                                     <div className="space-y-3">
