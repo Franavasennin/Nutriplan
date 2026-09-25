@@ -1,20 +1,41 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# NutriPlan Pro
 
-# Run and deploy your AI Studio app
+Aplicación web para nutricionistas y dietistas: generación de planes de dieta personalizados con IA, gestión de pacientes y seguimiento de progreso.
 
-This contains everything you need to run your app locally.
+## Qué hace
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Ir1MXk7ZGRwvruMCDUtgdrMzJ_nSGWdY
+- Genera planes de dieta con IA (Google Gemini como proveedor principal, Mistral como fallback) ajustados a criterios clínicos, alergias y preferencias del paciente.
+- Gestión de pacientes: fichas, criterios clínicos, dietas guardadas, progreso.
+- Planes para parejas (dietas vinculadas con listas de la compra combinadas).
+- Portal del paciente: enlace para que el paciente consulte su plan sin necesitar cuenta.
+- Exportación de planes a PDF y lista de la compra.
+- Verificación de seguridad nutricional y de alérgenos antes de mostrar cualquier plan generado por IA.
+- PWA instalable, con sincronización vía Supabase.
+- Suite de tests: unitarios (Vitest) y E2E (Playwright), incluyendo tests de aislamiento entre usuarios y seguridad clínica.
 
-## Run Locally
+## Stack
 
-**Prerequisites:**  Node.js
+- React + TypeScript + Vite
+- Supabase (base de datos + autenticación)
+- Google Gemini API / Mistral API (generación de planes)
+- Tailwind CSS
+- Vitest + Playwright
 
+## Cómo ejecutarlo en local
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+cp .env.local.example .env.local   # rellenar con tus propias claves
+npm run dev
+```
+
+## Tests
+
+```bash
+npm test           # unitarios (Vitest)
+npm run test:e2e   # end-to-end (Playwright)
+```
+
+## Estado
+
+Proyecto personal en desarrollo activo.
